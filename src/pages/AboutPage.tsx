@@ -1,6 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import Navbar from "../components/Navbar"; // adjust the path if it's in a different folder
-import Footer from "../components/Footer";
 import { 
   Droplets, 
   Target, 
@@ -24,8 +22,17 @@ import {
   Globe,
   Heart,
   Archive,
-  CheckCircle2
+  CheckCircle2,
+  FileText,
+  Camera,
+  Settings,
+  MapPin,
+  Clock,
+  AlertTriangle,
+  Database
 } from 'lucide-react';
+import Navbar from '../components/Navbar';
+import Footer from '../components/Footer';
 
 const About = () => {
   const [activeFeature, setActiveFeature] = useState(0);
@@ -34,102 +41,116 @@ const About = () => {
   useEffect(() => {
     setIsVisible(true);
     const interval = setInterval(() => {
-      setActiveFeature(prev => (prev + 1) % 4);
+      setActiveFeature(prev => (prev + 1) % 6);
     }, 4000);
     return () => clearInterval(interval);
   }, []);
 
   const objectives = [
     {
-      icon: <Map size={24} />,
-      title: "Systematic Water Supply Monitoring",
-      description: "Making water supply in rural areas smooth and technically efficient through comprehensive monitoring systems.",
+      icon: <Clock size={24} />,
+      title: "Ensure Timely Repairs & Maintenance",
+      description: "Guarantee swift response to handpump failures through digital requisition systems and structured workflows.",
       color: "from-blue-500 to-cyan-500"
     },
     {
-      icon: <PhoneCall size={24} />,
-      title: "Transparent Complaint Resolution",
-      description: "Comprehensive complaint management system ensuring 6-stage transparent tracking from registration to closure.",
+      icon: <Building2 size={24} />,
+      title: "Empower Gram Panchayats",
+      description: "Digital tools for requisition raising, tracking, and monitoring handpump lifecycle management at village level.",
       color: "from-purple-500 to-pink-500"
     },
     {
-      icon: <Monitor size={24} />,
-      title: "Infrastructure Management",
-      description: "Monitoring of pump houses, OHT systems, and water distribution networks with proper maintenance scheduling.",
+      icon: <UserCheck size={24} />,
+      title: "Support Consulting Engineers",
+      description: "Structured workflows for technical estimation, site visits, material booking, and quality verification.",
       color: "from-orange-500 to-red-500"
     },
     {
       icon: <BarChart3 size={24} />,
-      title: "MIS Reporting & Analytics",
-      description: "Comprehensive dashboards and reporting systems for better decision-making and resource optimization.",
+      title: "Real-time District Monitoring",
+      description: "Comprehensive dashboards and GIS mapping for district and state-level oversight with live status updates.",
       color: "from-indigo-500 to-purple-500"
     },
     {
-      icon: <Users size={24} />,
-      title: "VWSC Digital Support",
-      description: "Complete digitization of Village Water and Sanitation Committee operations with user-friendly interfaces.",
+      icon: <Shield size={24} />,
+      title: "Complete Transparency",
+      description: "Digital documentation of costs, materials, timelines, and quality assessments for full accountability.",
       color: "from-teal-500 to-blue-500"
     }
   ];
 
   const keyFeatures = [
     {
-      icon: <Droplets size={32} />,
-      title: "Multi-Role Dashboard System",
-      description: "Dedicated interfaces for Admin, Gram Panchayat, and Call Center with role-based access control and personalized workflows.",
+      icon: <Send size={32} />,
+      title: "Digital Requisition Management",
+      description: "Seamless handpump repair requests by Gram Panchayats with instant recording, image uploads, and automatic forwarding to Consulting Engineers.",
       gradient: "from-blue-600 via-purple-600 to-indigo-700",
-      stats: "3 Role Types"
+      stats: "Instant Processing"
     },
     {
-      icon: <Building2 size={32} />,
-      title: "Complete Beneficiary Management",
-      description: "End-to-end beneficiary lifecycle management from registration to service delivery with digital documentation.",
+      icon: <FileText size={32} />,
+      title: "Automated Estimation System",
+      description: "Engineers create detailed technical estimations with materials, labor costs, GST calculations, and consulting fees with transparent breakdowns.",
       gradient: "from-emerald-500 via-teal-500 to-cyan-600",
-      stats: "100% Digital"
+      stats: "100% Transparent"
     },
     {
-      icon: <Target size={32} />,
-      title: "Infrastructure Monitoring",
-      description: "Comprehensive monitoring of pump houses, overhead tanks, and distribution networks with maintenance tracking.",
+      icon: <Camera size={32} />,
+      title: "Completion Documentation",
+      description: "Digital upload of material bills, labor records, daily wages tracking, and photographic evidence for complete work verification.",
       gradient: "from-orange-500 via-red-500 to-pink-600",
-      stats: "24/7 Support"
+      stats: "Full Documentation"
     },
     {
-      icon: <Shield size={32} />,
-      title: "Water Quality Management",
-      description: "Comprehensive water quality testing, reporting, and compliance management with systematic alerts.",
+      icon: <Database size={32} />,
+      title: "Material Book & Visit Reports",
+      description: "Engineers maintain detailed material logs and conduct site inspections with platform condition, pump alignment, and maintenance assessments.",
       gradient: "from-violet-500 via-purple-500 to-fuchsia-600",
-      stats: "Quality First"
+      stats: "Quality Assured"
+    },
+    {
+      icon: <MapPin size={32} />,
+      title: "GIS Integration & Mapping",
+      description: "Every handpump geo-tagged with live status indicators: Active (green), Faulty (red), Under Repair (yellow) with satellite views.",
+      gradient: "from-green-500 via-emerald-500 to-teal-600",
+      stats: "Live Tracking"
+    },
+    {
+      icon: <CheckCircle2 size={32} />,
+      title: "Closure & Verification System",
+      description: "District-level verification of materials and bills with satisfaction ratings, escalation handling, and final approval mechanisms.",
+      gradient: "from-pink-500 via-rose-500 to-red-600",
+      stats: "Quality Control"
     }
   ];
 
   const stats = [
     { 
-      label: "Districts", 
+      label: "Districts Covered", 
       value: "75", 
-      description: "Complete coverage across Uttar Pradesh",
+      description: "Complete HMS deployment across Uttar Pradesh",
       icon: <Globe size={20} />,
       color: "from-blue-500 to-cyan-500"
     },
     { 
       label: "Block Panchayats", 
       value: "826", 
-      description: "Every block connected digitally",
+      description: "Digital handpump monitoring in every block",
       icon: <Building2 size={20} />,
       color: "from-purple-500 to-pink-500"
     },
     { 
       label: "Gram Panchayats", 
       value: "57,695", 
-      description: "Rural communities empowered",
+      description: "Empowered with digital requisition tools",
       icon: <Users size={20} />,
       color: "from-green-500 to-emerald-500"
     },
     { 
-      label: "Revenue Villages", 
-      value: "1,08,935", 
-      description: "Universal water service vision",
-      icon: <Heart size={20} />,
+      label: "Handpumps Managed", 
+      value: "2,50,000+", 
+      description: "Digital lifecycle management coverage",
+      icon: <Droplets size={20} />,
       color: "from-orange-500 to-red-500"
     }
   ];
@@ -138,56 +159,87 @@ const About = () => {
     {
       stage: "Stage 1",
       icon: <PhoneCall size={28} />,
-      title: "Complaint Registration",
-      description: "Beneficiary registers complaint by calling the call center or visiting the nearest gram panchayat secretariat.",
+      title: "Raise Requisition",
+      description: "Gram Panchayat reports non-functional handpump, selects repair/rebore mode, uploads field evidence images for instant recording.",
       color: "from-indigo-500 to-purple-600",
-      features: ["Call Center", "GP Secretariat", "Direct Visit"]
+      features: ["GP Reporting", "Mode Selection", "Image Upload", "Instant Record"]
     },
     {
-      stage: "Stage 2",
-      icon: <Send size={28} />,
-      title: "Forwarding to Corporation",
-      description: "Complaint is forwarded to the water corporation.",
+      stage: "Stage 2", 
+      icon: <FileText size={28} />,
+      title: "Estimation & Sanction",
+      description: "Engineer prepares technical estimation with materials, labor costs, GST & fees. Panchayat reviews and sanctions request.",
       color: "from-blue-500 to-cyan-500",
-      features: ["Auto-Forward", "Priority Assignment", "Tracking ID"]
+      features: ["Technical Estimation", "Cost Breakdown", "GP Review", "Sanction Approval"]
     },
     {
       stage: "Stage 3",
       icon: <Wrench size={28} />,
-      title: "Resolution & Update",
-      description: "Water corporation updates the portal after resolving the complaint.",
+      title: "Attach Completion",
+      description: "After work completion: upload material bills, record labor costs, enter daily wages & mandays with automatic transparency calculations.",
       color: "from-green-500 to-emerald-500",
-      features: ["Field Work", "Status Update", "Documentation"]
+      features: ["Material Bills", "Labor Records", "Wage Tracking", "Auto Calculation"]
     },
     {
       stage: "Stage 4",
-      icon: <CheckCircle2 size={28} />,
-      title: "GP Confirmation",
-      description: "Gram panchayat confirms the completion of the work done.",
+      icon: <Database size={28} />,
+      title: "Material Book & Visit Report",
+      description: "Engineer logs detailed MB entries and conducts site visit for platform condition, pump alignment, and preventive maintenance checks.",
       color: "from-yellow-500 to-orange-500",
-      features: ["Work Verification", "GP Approval", "Quality Check"]
+      features: ["MB Entries", "Site Visit", "Quality Check", "Technical Validation"]
     },
     {
       stage: "Stage 5",
       icon: <UserCheck size={28} />,
-      title: "Beneficiary Confirmation",
-      description: "Call center confirms work completion with the beneficiary.",
+      title: "Verification Process",
+      description: "District/CE level verification of MB items and bills. Results marked as Satisfactory/Not Satisfactory with escalation triggers.",
       color: "from-pink-500 to-rose-500",
-      features: ["Call Verification", "Satisfaction Check", "Final Approval"]
+      features: ["Bill Verification", "Quality Rating", "Escalation Handling", "Cost Validation"]
     },
     {
       stage: "Stage 6",
       icon: <Archive size={28} />,
-      title: "Complaint Closure",
-      description: "Finally, call center marks the complaint status as 'closed'.",
+      title: "Closure & GIS Update",
+      description: "Final closure status updated with geo-tagged mapping. Live status indicators updated across district dashboards.",
       color: "from-slate-500 to-gray-600",
-      features: ["Final Status", "Case Closure", "Record Archive"]
+      features: ["Final Closure", "GIS Update", "Status Indicators", "Dashboard Sync"]
+    }
+  ];
+
+  const benefits = [
+    {
+      category: "Gram Panchayats",
+      description: "Easy digital interface, faster repairs, reduced paperwork",
+      icon: <Building2 size={24} />,
+      color: "from-blue-500 to-cyan-500",
+      items: ["User-friendly digital interface", "Accelerated repair cycles", "Paperwork elimination"]
+    },
+    {
+      category: "Engineers", 
+      description: "Standardized tools, reduced errors, structured workflows",
+      icon: <Settings size={24} />,
+      color: "from-green-500 to-emerald-500",
+      items: ["Standardized estimation tools", "Error reduction systems", "Structured reporting workflows"]
+    },
+    {
+      category: "District Authorities",
+      description: "Real-time dashboards, stage-wise monitoring, analytics",
+      icon: <BarChart3 size={24} />,
+      color: "from-purple-500 to-pink-500", 
+      items: ["Real-time monitoring dashboards", "Complete stage-wise tracking", "Performance analytics"]
+    },
+    {
+      category: "Citizens",
+      description: "Reliable water supply, faster resolution, accountability",
+      icon: <Users size={24} />,
+      color: "from-orange-500 to-red-500",
+      items: ["Reliable water access", "Rapid issue resolution", "Complete transparency"]
     }
   ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 overflow-hidden">
-        <Navbar/>
+      <Navbar/>
       {/* Animated Background Elements */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-blue-400/20 to-purple-600/20 rounded-full blur-3xl animate-pulse"></div>
@@ -199,12 +251,17 @@ const About = () => {
       <div className="relative bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white py-24 px-6">
         <div className="absolute inset-0 bg-black/20"></div>
         <div className="relative max-w-6xl mx-auto text-center">
+          <div className="inline-flex items-center gap-3 bg-blue-600/20 backdrop-blur-sm rounded-full px-6 py-3 mb-6">
+            <Droplets className="h-6 w-6 text-blue-400" />
+            <span className="text-blue-300 font-medium">About HMS</span>
+          </div>
           <h1 className="text-5xl md:text-6xl font-extrabold mb-6 tracking-tight">
-            About Water Management System
+            Handpump Management System
+            <span className="block text-2xl md:text-3xl text-cyan-300 font-normal mt-2">(HMS)</span>
           </h1>
           <p className="text-xl md:text-2xl text-blue-100 max-w-4xl mx-auto leading-relaxed">
-            A comprehensive digital solution for monitoring and managing rural water supply operations 
-            across Uttar Pradesh, ensuring transparent and efficient water services for all.
+            Ensuring safe drinking water through digitized handpump lifecycle management - 
+            transforming rural water infrastructure with complete transparency and accountability.
           </p>
         </div>
       </div>
@@ -221,7 +278,7 @@ const About = () => {
               Digital Transformation of
               <br />
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
-                Water Ecosystem
+                Rural Water Infrastructure
               </span>
             </h2>
           </div>
@@ -239,11 +296,11 @@ const About = () => {
                   </div>
                   <div>
                     <h3 className="text-3xl font-bold text-gray-900 mb-4">
-                      Transforming Water Management
+                      Revolutionizing Handpump Management
                     </h3>
                     <p className="text-lg text-gray-700 leading-relaxed">
-                      Water is life — and to preserve and organize this life, the Panchayati Raj Department of 
-                      Uttar Pradesh has launched a comprehensive Water Management System (WMS) for rural India.
+                      Access to safe and reliable drinking water is the backbone of rural life. The Handpump Management System (HMS) 
+                      transforms handpump maintenance from reactive breakdowns to proactive digital management.
                     </p>
                   </div>
                 </div>
@@ -251,21 +308,21 @@ const About = () => {
                 <div className="space-y-6">
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <CheckCircle size={20} className="text-white" />
+                      <Send size={20} className="text-white" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 mb-2">Comprehensive Monitoring & Control</h4>
-                      <p className="text-gray-600">Advanced monitoring systems provide complete infrastructure oversight</p>
+                      <h4 className="font-bold text-gray-900 mb-2">Digital Requisition System</h4>
+                      <p className="text-gray-600">Instant handpump repair requests with photographic evidence and automated workflows</p>
                     </div>
                   </div>
                   
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <Users size={20} className="text-white" />
+                      <MapPin size={20} className="text-white" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 mb-2">Multi-Role Digital Platform</h4>
-                      <p className="text-gray-600">Specialized dashboards for Admin, Gram Panchayat, and Call Center operations</p>
+                      <h4 className="font-bold text-gray-900 mb-2">GIS Integration & Live Tracking</h4>
+                      <p className="text-gray-600">Every handpump geo-tagged with real-time status updates and satellite monitoring</p>
                     </div>
                   </div>
                   
@@ -274,8 +331,8 @@ const About = () => {
                       <Shield size={20} className="text-white" />
                     </div>
                     <div>
-                      <h4 className="font-bold text-gray-900 mb-2">Complete Transparency</h4>
-                      <p className="text-gray-600">Systematic audit trails ensure accountability at every level</p>
+                      <h4 className="font-bold text-gray-900 mb-2">End-to-End Transparency</h4>
+                      <p className="text-gray-600">Complete digital audit trail from requisition to closure with cost transparency</p>
                     </div>
                   </div>
                 </div>
@@ -284,13 +341,13 @@ const About = () => {
               <div className="relative">
                 <div className="aspect-square bg-gradient-to-br from-blue-100 to-purple-100 rounded-3xl overflow-hidden">
                   <img
-                    src="/pipeline.png"
-                    alt="Water Management Innovation"
+                    src="/handpump_rural.png"
+                    alt="Handpump Management Innovation"
                     className="w-full h-full object-cover rounded-3xl hover:scale-105 transition-transform duration-500"
                   />
                 </div>
                 <div className="absolute -bottom-6 -right-6 bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-2xl shadow-xl">
-                  <span className="font-bold">1,08,935+ Villages Connected</span>
+                  <span className="font-bold">2,50,000+ Handpumps</span>
                 </div>
               </div>
             </div>
@@ -303,18 +360,18 @@ const About = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-5xl font-black text-gray-900 mb-6">
-              Comprehensive Platform
+              HMS Core
               <br />
               <span className="bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
                 Features
               </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Modern technology meets rural infrastructure management
+              Complete digital solution from problem reporting to final closure and verification
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {keyFeatures.map((feature, index) => (
               <div 
                 key={index} 
@@ -351,19 +408,19 @@ const About = () => {
 
       {/* Enhanced Statistics with Animation */}
       <section className="relative py-32 px-6 bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white overflow-hidden">
-        <div className="absolute inset-0 bg-[url('/wallpaper.png')] bg-cover opacity-10"></div>
+        <div className="absolute inset-0 bg-[url('/handpump_rural.png')] bg-cover opacity-10"></div>
         
         <div className="relative max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-5xl font-black mb-6">
-              Impact Across
+              HMS Impact Across
               <br />
               <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
                 Uttar Pradesh
               </span>
             </h2>
             <p className="text-xl text-blue-100 max-w-3xl mx-auto">
-              Transforming millions of lives through systematic water management
+              Comprehensive digital handpump management ensuring reliable water access
             </p>
           </div>
 
@@ -392,19 +449,19 @@ const About = () => {
         </div>
       </section>
 
-      {/* Enhanced Workflow Process - 6 Stages */}
+      {/* Enhanced HMS Workflow Process - 6 Stages */}
       <section className="relative py-32 px-6 bg-gradient-to-br from-slate-50 to-blue-50">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-5xl font-black text-gray-900 mb-6">
-              6-Stage Complaint
+              Complete HMS
               <br />
               <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
-                Resolution Process
+                Process Flow
               </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Systematic workflow ensuring transparent and complete complaint resolution
+              From requisition to closure - systematic handpump management workflow
             </p>
           </div>
 
@@ -435,7 +492,7 @@ const About = () => {
                   {stage.description}
                 </p>
 
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                   {stage.features.map((feature, idx) => (
                     <div key={idx} className="flex items-center gap-2 text-xs">
                       <div className="w-1.5 h-1.5 bg-white/60 rounded-full"></div>
@@ -454,14 +511,14 @@ const About = () => {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-20">
             <h2 className="text-5xl font-black text-gray-900 mb-6">
-              Strategic
+              HMS Strategic
               <br />
               <span className="bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
                 Objectives
               </span>
             </h2>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Five key pillars of transformation for rural water management
+              Five key pillars driving handpump management transformation
             </p>
           </div>
 
@@ -488,12 +545,53 @@ const About = () => {
         </div>
       </section>
 
-      {/* Enhanced Vision Statement */}
+      {/* HMS Benefits Section */}
+      <section className="relative py-32 px-6 bg-gradient-to-br from-gray-50 to-blue-50">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-20">
+            <h2 className="text-5xl font-black text-gray-900 mb-6">
+              HMS Key
+              <br />
+              <span className="bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+                Benefits
+              </span>
+            </h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
+              Transforming handpump management for all stakeholders
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {benefits.map((benefit, index) => (
+              <div 
+                key={index} 
+                className="group bg-white rounded-3xl p-8 shadow-xl hover:shadow-2xl transition-all duration-500 border border-gray-100 hover:border-purple-200"
+              >
+                <div className={`w-16 h-16 bg-gradient-to-br ${benefit.color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-6 group-hover:scale-110 transition-transform duration-300`}>
+                  {benefit.icon}
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-3">{benefit.category}</h3>
+                <p className="text-gray-600 mb-4 text-sm">{benefit.description}</p>
+                <div className="space-y-2">
+                  {benefit.items.map((item, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-gray-700 text-sm">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Enhanced Vision & Impact Statement */}
       <section className="relative py-32 px-6 bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white overflow-hidden">
         <div className="absolute inset-0 bg-[url('/2.png')] bg-cover opacity-10"></div>
         
-        <div className="relative max-w-5xl mx-auto text-center">
-          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-16 border border-white/20 shadow-2xl">
+        <div className="relative max-w-6xl mx-auto">
+          <div className="text-center mb-16">
             <div className="flex justify-center mb-8">
               <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-xl">
                 <Target size={40} className="text-white" />
@@ -501,30 +599,78 @@ const About = () => {
             </div>
             
             <h2 className="text-4xl font-black mb-8">
-              Our Vision for
+              HMS Vision for
               <br />
               <span className="bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
-                Tomorrow's Uttar Pradesh
+                Rural Water Security
               </span>
             </h2>
-            
-            <p className="text-xl leading-relaxed text-blue-100 mb-8">
-              To create a digitally empowered rural Uttar Pradesh where every citizen has access to clean, 
-              reliable water supply through transparent, efficient, and accountable water management systems. 
-              We envision a future where technology bridges the gap between government services and rural 
-              communities, ensuring no one is left behind in our journey towards sustainable water security.
+          </div>
+          
+          <div className="bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-3xl p-12 border border-white/20 shadow-2xl">
+            <p className="text-xl leading-relaxed text-blue-100 mb-8 text-center">
+              To create a digitally empowered rural Uttar Pradesh where every handpump operates efficiently, 
+              every repair is transparent, and every citizen has uninterrupted access to clean water. HMS envisions 
+              a future where technology eliminates handpump downtime, ensures complete accountability, and transforms 
+              reactive maintenance into proactive digital management.
             </p>
             
-            <div className="flex flex-wrap justify-center gap-4 mt-12">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-green-400 to-blue-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Clock className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="font-bold text-white mb-2">Reduced Downtime</h3>
+                <p className="text-blue-100 text-sm">Faster requisition-to-repair cycle</p>
+              </div>
+              
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-blue-400 to-purple-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Droplets className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="font-bold text-white mb-2">Improved Access</h3>
+                <p className="text-blue-100 text-sm">Ensuring functionality of rural handpumps</p>
+              </div>
+              
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <Shield className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="font-bold text-white mb-2">Full Transparency</h3>
+                <p className="text-blue-100 text-sm">Every cost and material digitally recorded</p>
+              </div>
+              
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-br from-orange-400 to-red-500 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                  <BarChart3 className="h-8 w-8 text-white" />
+                </div>
+                <h3 className="font-bold text-white mb-2">Smart Governance</h3>
+                <p className="text-blue-100 text-sm">Data-driven decisions through analytics</p>
+              </div>
+            </div>
+            
+            <div className="flex flex-wrap justify-center gap-4 mt-8">
               <div className="bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/30">
-                <span className="font-bold">100% Digital Coverage</span>
+                <span className="font-bold">Zero Handpump Failures</span>
               </div>
               <div className="bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/30">
-                <span className="font-bold">Zero Water Scarcity</span>
+                <span className="font-bold">100% Digital Tracking</span>
               </div>
               <div className="bg-white/20 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/30">
-                <span className="font-bold">Complete Transparency</span>
+                <span className="font-bold">Complete Accountability</span>
               </div>
+            </div>
+          </div>
+          
+          <div className="text-center mt-16">
+            <div className="bg-gradient-to-r from-cyan-500/20 to-blue-500/20 backdrop-blur-md rounded-2xl p-8 border border-white/20">
+              <h3 className="text-2xl font-bold mb-4 text-white">HMS Mission Statement</h3>
+              <p className="text-lg text-blue-100 leading-relaxed">
+                The Handpump Management System (HMS) is more than software — it is a mission to ensure every rural household 
+                has uninterrupted access to clean water through transparent, accountable, and efficient digital management. 
+                <br /><br />
+                <span className="font-semibold text-cyan-300">Empower your Gram Panchayat • Enable smart monitoring • Deliver safe water, on time, every time</span>
+              </p>
             </div>
           </div>
         </div>

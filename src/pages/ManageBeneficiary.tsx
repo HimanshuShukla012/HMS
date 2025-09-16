@@ -1,1084 +1,494 @@
-import { useEffect, useRef, useState } from "react";
-import * as XLSX from 'xlsx';
-import { toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
-import { ToastContainer } from "react-toastify";
-import { useUserInfo } from "../utils/userInfo";
+import React, { useState } from 'react';
+import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, ArrowLeft, TrendingUp } from 'lucide-react';
 
-/* --- API response shapes --- */
-interface BeneficiaryApi {
-  BeneficiaryId: number;
-  BeneficiaryName: string;
-  VillageId: number;
-  VillageName: string;
-  BaseFee?: number;
-  PreviousBalance?: number;
-  BalanceAmount?: number;
-  OutstandingAmount?: number;
-  PaidAmount?: number;
-  Date?: string;
-  FatherOrHusbandName?: string;
-  FatherHusbandName?: string;
-  ContactNo?: string;
-  Contact?: string;
-  FamilyCount?: number;
-  familyCount?: number;
-  FamilyMembers?: string;
-  Status?: string | number;
-  status?: string | number;
-  AadharNo?: string;
-  // New fields from updated API
-  DistrictId?: number;
-  DistrictName?: string;
-  BlockId?: number;
-  BlockName?: string;
-  GrampanchayatId?: number;
-  GrampanchayatName?: string;
-}
-
-interface BeneficiaryState {
-  BeneficiaryId: number;
-  BeneficiaryName: string;
-  VillageId: number;
-  VillageName: string;
-  BaseFee: number;
-  PreviousBalance: number;
-  BalanceAmount: number;
-  OutstandingAmount: number;
-  PaidAmount: number;
-  Date: string;
-  name: string;
-  village: string;
-  fatherOrHusbandName: string;
-  contact: string;
-  familyCount: number;
-  status: string;
-  // Add location fields directly to state
-  districtId: number;
-  districtName: string;
-  blockId: number;
-  blockName: string;
-  gramPanchayatId: number;
-  gramPanchayatName: string;
-}
-
-const ManageBeneficiary = () => {
-  const { userId, role, isLoading: userLoading } = useUserInfo();
-
-  const [editMode, setEditMode] = useState(false);
-  const [search, setSearch] = useState("");
-  const [showModal, setShowModal] = useState(false);
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [downloading, setDownloading] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  // Pagination state
-  const [currentPage, setCurrentPage] = useState(1);
-  const [rowsPerPage, setRowsPerPage] = useState(25);
-
-  // Client-side filters - no longer tied to API calls
-  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
-  const [selectedBlock, setSelectedBlock] = useState<string>("");
-  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
-  const [selectedVillage, setSelectedVillage] = useState<string>("");
-  const [filterStatus, setFilterStatus] = useState("");
-
-  const [beneficiaries, setBeneficiaries] = useState<BeneficiaryState[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [editedBeneficiaries, setEditedBeneficiaries] = useState<Set<number>>(new Set());
-
-  const modalRef = useRef<HTMLDivElement>(null);
-
-  // Initialize data fetching - only when userId is available
-  useEffect(() => {
-    if (!userLoading && userId) {
-      fetchBeneficiaries();
+const ViewEstimationScreen = () => {
+  const [filterMode, setFilterMode] = useState('All');
+  const [selectedEstimation, setSelectedEstimation] = useState(null);
+  
+  // Sample data for requisitions
+  const requisitions = [
+    {
+      id: 'REQ001',
+      handpumpId: 'HP001',
+      mode: 'Repair',
+      date: '2024-03-15',
+      sanctionedTotal: '₹5,140',
+      status: 'Approved'
+    },
+    {
+      id: 'REQ002',
+      handpumpId: 'HP002',
+      mode: 'Rebore',
+      date: '2024-03-16',
+      sanctionedTotal: '₹21,947.73',
+      status: 'Pending'
+    },
+    {
+      id: 'REQ003',
+      handpumpId: 'HP003',
+      mode: 'Repair',
+      date: '2024-03-17',
+      sanctionedTotal: '₹4,890',
+      status: 'Approved'
+    },
+    {
+      id: 'REQ004',
+      handpumpId: 'HP004',
+      mode: 'Rebore',
+      date: '2024-03-18',
+      sanctionedTotal: '₹19,875.50',
+      status: 'In Progress'
     }
-  }, [userId, userLoading]);
+  ];
 
-  useEffect(() => {
-    const handleOutsideClick = (e: MouseEvent) => {
-      if (showModal && modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        setShowModal(false);
-        setCsvFile(null);
-      }
-    };
-    document.addEventListener("mousedown", handleOutsideClick);
-    return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showModal]);
+  const repairItems = [
+    { sno: 1, item: 'Chain(25.4mm pitch roller chain with 7links)', unit: 'Nos', rate: 120, qty: 1, amount: 120 },
+    { sno: 2, item: 'Axle', unit: 'Nos', rate: 80, qty: 1, amount: 80 },
+    { sno: 3, item: 'Plunger', unit: 'Nos', rate: 250, qty: 1, amount: 250 },
+    { sno: 4, item: 'Check Valve', unit: 'Nos', rate: 125, qty: 1, amount: 125 },
+    { sno: 5, item: 'Cylinder Casing', unit: 'Nos', rate: 220, qty: 1, amount: 220 },
+    { sno: 6, item: 'Nutbolt', unit: 'Nos', rate: 15, qty: 1, amount: 15 },
+    { sno: 7, item: 'Handle Complete Set', unit: 'Nos', rate: 2200, qty: 1, amount: 2200 },
+    { sno: 8, item: 'Pipe', unit: 'Nos', rate: 750, qty: 1, amount: 750 },
+    { sno: 9, item: 'Bearing', unit: 'Nos', rate: 60, qty: 1, amount: 60 },
+    { sno: 10, item: 'Plunger Rod', unit: 'Nos', rate: 220, qty: 1, amount: 220 },
+    { sno: 11, item: 'Socket(same as number of pipes)', unit: 'Nos', rate: 50, qty: 1, amount: 50 },
+    { sno: 12, item: 'Thread', unit: 'Nos', rate: 25, qty: 1, amount: 25 },
+    { sno: 13, item: 'Washer set', unit: 'Nos', rate: 80, qty: 1, amount: 80 },
+    { sno: 14, item: 'Cylinder', unit: 'Nos', rate: 925, qty: 1, amount: 925 }
+  ];
 
-  // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, selectedDistrict, selectedBlock, selectedGramPanchayat, selectedVillage, filterStatus]);
+  const reboreItems = [
+    { sno: 1, item: 'Transportation of handpump material and T&P etc From market to the work site Including loading unloading and proper stacking at site work also including return cartage of unused material and T&P complete.', unit: 'Job', rate: 1706.46, ref: '', l: '', b: '', h: '', qty: 1, amount: 1706.46 },
+    { sno: 2, item: 'Dismantling of old PCC Platform Handpump machine GI pipe, Connecting rod and cylinder Including all labour T & P Complete', unit: 'Job', rate: 1984.15, ref: '', l: '', b: '', h: '', qty: 1, amount: 1984.15 },
+    { sno: 3, item: 'Cost of essential material for INDIA MARK- II handpump installation work', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00 },
+    { sno: '3.1', item: 'A. P.V.C PIPE(6KG/SQCM) 110 mm dia', unit: 'Rm', rate: 328.88, ref: '', l: '', b: '', h: '', qty: 1, amount: 328.88 },
+    { sno: '3.2', item: 'B. P.V.C PIPE(6KG/SQCM) 63 mm dia', unit: 'Rm', rate: 124.11, ref: '', l: '', b: '', h: '', qty: 1, amount: 124.11 },
+    { sno: '3.3', item: 'C. 63 mm nominal dia strainer or blind pipe', unit: 'Rm', rate: 651.56, ref: '', l: '', b: '', h: '', qty: 1, amount: 651.56 },
+    { sno: '3.4', item: 'D.REDUCER (110 TO 63 MM)', unit: 'set', rate: 183.06, ref: '', l: '', b: '', h: '', qty: 1, amount: 183.06 },
+    { sno: '3.5', item: 'E. G.I.PIPE 32 MM dia medium quality(riser)', unit: 'Rm', rate: 341.29, ref: '', l: '', b: '', h: '', qty: 1, amount: 341.29 },
+    { sno: '3.6', item: 'F. Spare parts', unit: 'Job', rate: 2714.82, ref: '', l: '', b: '', h: '', qty: 1, amount: 2714.82 },
+    { sno: 4, item: 'Rent of equipment/plant and work of digging pit, erecting tripod etc. for drilling work by casing method or pump and pressure method', unit: 'Job', rate: 798.93, ref: '', l: '', b: '', h: '', qty: 1, amount: 798.93 },
+    { sno: 5, item: 'Drilling work 150 mm dia in hard and conker mix soil by (pump and pressure method OR casing while drilling method)', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00 },
+    { sno: '5A', item: 'A. 0 -15m', unit: 'Rm', rate: 511.94, ref: '', l: '', b: '', h: '', qty: 1, amount: 511.94 },
+    { sno: '5B', item: 'B. 15-30m', unit: 'Rm', rate: 511.94, ref: '', l: '', b: '', h: '', qty: 1, amount: 511.94 },
+    { sno: '5C', item: 'C. 30-45m', unit: 'Rm', rate: 589.50, ref: '', l: '', b: '', h: '', qty: 1, amount: 589.50 },
+    { sno: '5D', item: 'D. 45-65m', unit: 'Rm', rate: 899.77, ref: '', l: '', b: '', h: '', qty: 1, amount: 899.77 }
+  ];
 
-  // Fetch ALL beneficiaries at once
-  const fetchBeneficiaries = async () => {
-    if (!userId) {
-      console.error("Cannot fetch beneficiaries: userId is null");
-      return;
-    }
+  const filteredRequisitions = filterMode === 'All' ? requisitions : requisitions.filter(req => req.mode === filterMode);
 
-    setLoading(true);
-    setError(null);
-
-    try {
-      // Force userId = 0 for Admin role to get all beneficiaries
-      const effectiveUserId = role === "Admin" ? 0 : userId;
-      console.log("Fetching all beneficiaries with userId:", effectiveUserId, "role:", role);
-
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByUserIdVillageAndStatus",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: effectiveUserId,
-            VillageId: 0, // Get all villages
-            Status: 0, // Get all statuses (both active and inactive)
-          }),
-        }
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch beneficiaries");
-      const data = await res.json();
-      const benApiList = data.Data || [];
-
-      const mapped = benApiList.map<BeneficiaryState>((b: BeneficiaryApi) => {
-        const father = b.FatherOrHusbandName ?? b.FatherHusbandName ?? "";
-        const contact = b.ContactNo ?? b.Contact ?? "";
-        const famCount = b.FamilyCount ?? b.familyCount ?? (b.FamilyMembers ? Number(b.FamilyMembers) : 0);
-        const stat =
-          b.Status === 1 || b.status === 1 || b.Status === "Active" || b.status === "Active"
-            ? "Active"
-            : "Inactive";
-
-        return {
-          BeneficiaryId: b.BeneficiaryId,
-          BeneficiaryName: b.BeneficiaryName,
-          VillageId: b.VillageId,
-          VillageName: b.VillageName,
-          BaseFee: b.BaseFee ?? 0,
-          PreviousBalance: b.PreviousBalance ?? 0,
-          BalanceAmount: b.BalanceAmount ?? 0,
-          OutstandingAmount: b.OutstandingAmount ?? 0,
-          PaidAmount: b.PaidAmount ?? 0,
-          Date: b.Date ?? "",
-          name: b.BeneficiaryName,
-          village: b.VillageName ?? "",
-          fatherOrHusbandName: father,
-          contact: contact,
-          familyCount: famCount,
-          status: stat,
-          // Add location data directly from API response
-          districtId: b.DistrictId ?? 0,
-          districtName: b.DistrictName ?? "",
-          blockId: b.BlockId ?? 0,
-          blockName: b.BlockName ?? "",
-          gramPanchayatId: b.GrampanchayatId ?? 0,
-          gramPanchayatName: b.GrampanchayatName ?? "",
-        };
-      });
-
-      setBeneficiaries(mapped);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Unknown error";
-      setError(message);
-      console.error("ManageBeneficiary fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
+  const handleViewEstimation = (requisition) => {
+    setSelectedEstimation(requisition);
   };
 
-  // Get unique values for filter dropdowns from the fetched data
-  const getUniqueDistricts = () => {
-    const districts = beneficiaries
-      .filter(b => b.districtName)
-      .map(b => b.districtName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return districts;
+  const handleDownloadPDF = () => {
+    // PDF download logic would go here
+    alert('PDF download functionality would be implemented here');
   };
 
-  const getUniqueBlocks = () => {
-    const blocks = beneficiaries
-      .filter(b => b.blockName && (!selectedDistrict || b.districtName === selectedDistrict))
-      .map(b => b.blockName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return blocks;
+  const calculateRepairTotal = () => {
+    const total = repairItems.reduce((sum, item) => sum + item.amount, 0);
+    const gst = total * 0.18;
+    const totalWithGST = total + gst;
+    const consultingFee = totalWithGST * 0.01;
+    const grandTotal = totalWithGST + consultingFee;
+    return { total, gst, totalWithGST, consultingFee, grandTotal };
   };
 
-  const getUniqueGramPanchayats = () => {
-    const gramPanchayats = beneficiaries
-      .filter(b => b.gramPanchayatName && 
-        (!selectedDistrict || b.districtName === selectedDistrict) &&
-        (!selectedBlock || b.blockName === selectedBlock))
-      .map(b => b.gramPanchayatName)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return gramPanchayats;
+  const calculateReboreTotal = () => {
+    const total = reboreItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const gst = total * 0.18;
+    const totalWithGST = total + gst;
+    const consultingFee = totalWithGST * 0.01;
+    const grandTotal = totalWithGST + consultingFee;
+    return { total, gst, totalWithGST, consultingFee, grandTotal };
   };
 
-  const getUniqueVillages = () => {
-    const villages = beneficiaries
-      .filter(b => b.village && 
-        (!selectedDistrict || b.districtName === selectedDistrict) &&
-        (!selectedBlock || b.blockName === selectedBlock) &&
-        (!selectedGramPanchayat || b.gramPanchayatName === selectedGramPanchayat))
-      .map(b => b.village)
-      .filter((value, index, self) => self.indexOf(value) === index)
-      .sort();
-    return villages;
-  };
+  if (selectedEstimation) {
+    const isRepair = selectedEstimation.mode === 'Repair';
+    const calculations = isRepair ? calculateRepairTotal() : calculateReboreTotal();
+    const items = isRepair ? repairItems : reboreItems;
 
-  const handleEditToggle = () => {
-    if (editMode) {
-      setEditedBeneficiaries(new Set());
-    }
-    setEditMode((s) => !s);
-  };
-
-  const handleChange = (id: number, field: keyof BeneficiaryState, value: string | number) => {
-    setBeneficiaries((prev) => prev.map((b) => (b.BeneficiaryId === id ? { ...b, [field]: value } : b)));
-    setEditedBeneficiaries(prev => new Set([...prev, id]));
-  };
-
-  const handleSaveChanges = async () => {
-    if (editedBeneficiaries.size === 0) {
-      toast.info("No changes to save");
-      return;
-    }
-
-    if (!userId) {
-      toast.error("User information not available");
-      return;
-    }
-
-    setSaving(true);
-    let successCount = 0;
-    let errorCount = 0;
-
-    try {
-      for (const beneficiaryId of editedBeneficiaries) {
-        const beneficiary = beneficiaries.find(b => b.BeneficiaryId === beneficiaryId);
-        if (!beneficiary) continue;
-
-        const payload = {
-          BeneficiaryId: beneficiary.BeneficiaryId,
-          VillageID: beneficiary.VillageId,
-          BeneficiaryName: beneficiary.name,
-          FatherHusbandName: beneficiary.fatherOrHusbandName,
-          Contact: beneficiary.contact,
-          FamilyMemberCount: String(beneficiary.familyCount),
-          Status: beneficiary.status === "Active" ? 1 : 0,
-          UpdatedBy: userId,
-          UpdatedDate: new Date().toISOString()
-        };
-
-        try {
-          const res = await fetch(
-            "https://wmsapi.kdsgroup.co.in/api/User/UpdateBeneficiaryDetailsByBeneficiaryId",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify(payload),
-            }
-          );
-
-          const result = await res.json();
-          if (result.Status) {
-            successCount++;
-          } else {
-            errorCount++;
-            console.error(`Failed to update beneficiary ${beneficiaryId}:`, result.Message);
-          }
-        } catch (err) {
-          errorCount++;
-          console.error(`Error updating beneficiary ${beneficiaryId}:`, err);
-        }
-      }
-
-      if (successCount > 0) {
-        toast.success(`Successfully updated ${successCount} beneficiary records`);
-        setEditedBeneficiaries(new Set());
-        setEditMode(false);
-        fetchBeneficiaries(); // Refresh data
-      }
-      
-      if (errorCount > 0) {
-        toast.error(`Failed to update ${errorCount} beneficiary records`);
-      }
-
-    } catch (err) {
-      console.error("Save changes error:", err);
-      toast.error("Failed to save changes");
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleDownload = () => {
-    setDownloading(true);
-    
-    try {
-      const exportData = filteredData.map((b) => {
-        return {
-          'District': b.districtName,
-          'Block': b.blockName,
-          'Gram Panchayat': b.gramPanchayatName,
-          'Village': b.village,
-          'Beneficiary Name': b.name,
-          'Father/Husband Name': b.fatherOrHusbandName || '-',
-          'Contact': b.contact || '-',
-          'Family Members': b.familyCount,
-          'Status': b.status,
-          'Beneficiary ID': b.BeneficiaryId,
-          'Base Fee': b.BaseFee,
-          'Previous Balance': b.PreviousBalance,
-          'Balance Amount': b.BalanceAmount,
-          'Outstanding Amount': b.OutstandingAmount,
-          'Paid Amount': b.PaidAmount,
-          'Date': b.Date
-        };
-      });
-
-      const wb = XLSX.utils.book_new();
-      const ws = XLSX.utils.json_to_sheet(exportData);
-
-      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
-        wch: Math.max(
-          key.length,
-          ...exportData.map(row => String(row[key as keyof typeof row]).length)
-        )
-      }));
-      ws['!cols'] = colWidths;
-
-      XLSX.utils.book_append_sheet(wb, ws, 'Beneficiaries');
-
-      const now = new Date();
-      const dateStr = now.toISOString().split('T')[0];
-      const filename = `beneficiaries_export_${dateStr}.xlsx`;
-
-      XLSX.writeFile(wb, filename);
-      toast.success("Excel file downloaded successfully");
-      
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Failed to export data. Please try again.');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!csvFile) {
-      toast.error("Please select a CSV file.");
-      return;
-    }
-
-    if (!userId) {
-      toast.error("User information not available");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("file", csvFile);
-
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/ImportBeneficiaryCSV?userId=${userId}`,
-        {
-          method: "POST",
-          body: formData,
-        }
-      );
-      const json = await res.json();
-      if (json.Status) {
-        toast.success("Import successful");
-        setShowModal(false);
-        setCsvFile(null);
-        fetchBeneficiaries(); // Refresh all data
-      } else {
-        toast.error("Import error: " + (json.Message ?? "Unknown"));
-      }
-    } catch (err) {
-      console.error("Upload error", err);
-      toast.error("Upload failed. Please check console.");
-    }
-  };
-
-  const clearFilters = () => {
-    setSelectedDistrict("");
-    setSelectedBlock("");
-    setSelectedGramPanchayat("");
-    setSelectedVillage("");
-    setFilterStatus("");
-    setSearch("");
-  };
-
-  const getSelectedLocationName = () => {
-    if (selectedVillage) return selectedVillage;
-    if (selectedGramPanchayat) return selectedGramPanchayat;
-    if (selectedBlock) return selectedBlock;
-    if (selectedDistrict) return selectedDistrict;
-    return "All Areas";
-  };
-
-  // Client-side filtering of all beneficiaries
-  const filteredData = beneficiaries.filter((b) => {
-    const matchesSearch = b.name.toLowerCase().includes(search.toLowerCase());
-    const matchesDistrict = !selectedDistrict || b.districtName === selectedDistrict;
-    const matchesBlock = !selectedBlock || b.blockName === selectedBlock;
-    const matchesGramPanchayat = !selectedGramPanchayat || b.gramPanchayatName === selectedGramPanchayat;
-    const matchesVillage = !selectedVillage || b.village === selectedVillage;
-    const matchesStatus = !filterStatus || b.status === filterStatus;
-
-    return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage && matchesStatus;
-  });
-
-  // Pagination calculations
-  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const endIndex = startIndex + rowsPerPage;
-  const paginatedData = filteredData.slice(startIndex, endIndex);
-
-  // Pagination controls
-  const handleRowsPerPageChange = (newRowsPerPage: number) => {
-    setRowsPerPage(newRowsPerPage);
-    setCurrentPage(1); // Reset to first page
-  };
-
-  const handlePageChange = (page: number) => {
-    setCurrentPage(page);
-  };
-
-  const getVisiblePageNumbers = () => {
-    const delta = 2;
-    const range = [];
-    const rangeWithDots = [];
-
-    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
-      range.push(i);
-    }
-
-    if (currentPage - delta > 2) {
-      rangeWithDots.push(1, '...');
-    } else {
-      rangeWithDots.push(1);
-    }
-
-    rangeWithDots.push(...range);
-
-    if (currentPage + delta < totalPages - 1) {
-      rangeWithDots.push('...', totalPages);
-    } else if (totalPages > 1) {
-      rangeWithDots.push(totalPages);
-    }
-
-    return rangeWithDots;
-  };
-
-  // Show loading state while user info is being fetched
-  if (userLoading) {
     return (
-      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading user information...</p>
-        </div>
-      </div>
-    );
-  }
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
+        <div className="max-w-7xl mx-auto">
+          {/* Header with Professional Gradient */}
+          <div className="bg-gradient-to-r from-slate-700 via-blue-800 to-indigo-800 rounded-xl shadow-xl p-6 mb-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-full opacity-10">
+              <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full -translate-y-16 translate-x-16"></div>
+              <div className="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full translate-y-12 -translate-x-12"></div>
+            </div>
+            <div className="relative z-10 flex justify-between items-center">
+              <button 
+                onClick={() => setSelectedEstimation(null)}
+                className="flex items-center gap-2 bg-white/15 backdrop-blur-sm text-white px-5 py-2 rounded-lg hover:bg-white/25 transition-all duration-300 font-medium border border-white/20"
+              >
+                <ArrowLeft size={18} />
+                Back to Dashboard
+              </button>
+              <button
+                onClick={handleDownloadPDF}
+                className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white px-5 py-2 rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg font-medium"
+              >
+                <Download size={18} />
+                Download PDF
+              </button>
+            </div>
+          </div>
 
-  // Show error if user info couldn't be loaded
-  if (!userLoading && !userId) {
-    return (
-      <div className="p-6 min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded-lg shadow-sm p-8 text-center">
-          <div className="text-red-500 text-4xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-gray-800 mb-2">Authentication Required</h2>
-          <p className="text-gray-600">Please log in to access the beneficiary management system.</p>
+          {/* Consulting Engineer Card */}
+          <div className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 rounded-xl shadow-xl p-6 mb-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-28 h-28 bg-white/10 rounded-full -translate-y-14 translate-x-14"></div>
+            <div className="absolute bottom-0 left-0 w-20 h-20 bg-white/10 rounded-full translate-y-10 -translate-x-10"></div>
+            <div className="relative z-10">
+              <h2 className="text-2xl font-bold mb-4 flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <FileText size={20} />
+                </div>
+                Consulting Engineer: Er. Rajesh Kumar
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white/15 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                  <span className="text-white/80 text-sm">Requisition ID</span>
+                  <p className="text-lg font-bold mt-1">{selectedEstimation.id}</p>
+                </div>
+                <div className="bg-white/15 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                  <span className="text-white/80 text-sm">Handpump ID</span>
+                  <p className="text-lg font-bold mt-1">{selectedEstimation.handpumpId}</p>
+                </div>
+                <div className="bg-white/15 backdrop-blur-sm rounded-lg p-4 border border-white/20">
+                  <span className="text-white/80 text-sm">Mode</span>
+                  <div className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-md font-semibold text-sm ${
+                    selectedEstimation.mode === 'Repair' 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-emerald-500 text-white'
+                  }`}>
+                    {selectedEstimation.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                    {selectedEstimation.mode}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Estimation Table */}
+          <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+            <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white">
+              <h3 className="text-xl font-bold flex items-center gap-3">
+                <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                  selectedEstimation.mode === 'Repair' ? 'bg-blue-500' : 'bg-emerald-500'
+                }`}>
+                  {selectedEstimation.mode === 'Repair' ? <Wrench size={16} /> : <Drill size={16} />}
+                </div>
+                {selectedEstimation.mode} Estimation Details
+              </h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">S.No</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Item</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Unit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Rate (Rs.)</th>
+                    {!isRepair && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Reference/Source</th>}
+                    {!isRepair && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">L</th>}
+                    {!isRepair && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">B</th>}
+                    {!isRepair && <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">H</th>}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Qty.</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {items.map((item, index) => (
+                    <tr key={index} className={`${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    } hover:bg-blue-50 transition-colors duration-200`}>
+                      <td className="px-4 py-3 text-sm font-semibold text-blue-600">{item.sno}</td>
+                      <td className="px-4 py-3 text-sm text-gray-800 max-w-md">{item.item}</td>
+                      <td className="px-4 py-3 text-sm text-gray-700">{item.unit}</td>
+                      <td className="px-4 py-3 text-sm text-emerald-600 font-semibold">
+                        {item.rate ? `₹${item.rate.toLocaleString()}` : ''}
+                      </td>
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.ref}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.l}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.b}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.h}</td>}
+                      <td className="px-4 py-3 text-sm text-gray-700">{item.qty}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 font-semibold">
+                        {item.amount ? `₹${item.amount.toLocaleString()}` : ''}
+                      </td>
+                    </tr>
+                  ))}
+                  
+                  {/* Add Items Row */}
+                  <tr className="bg-amber-50">
+                    <td className="px-4 py-3 text-sm font-semibold text-amber-700">{isRepair ? '15' : '16'}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-amber-800">Add Items</td>
+                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3"></td>
+                    {!isRepair && <td className="px-4 py-3"></td>}
+                    {!isRepair && <td className="px-4 py-3">1</td>}
+                    {!isRepair && <td className="px-4 py-3">1</td>}
+                    {!isRepair && <td className="px-4 py-3">1</td>}
+                    <td className="px-4 py-3"></td>
+                    <td className="px-4 py-3"></td>
+                  </tr>
+                  
+                  {/* Total Calculations */}
+                  <tr className="bg-blue-50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-blue-700">{isRepair ? '16' : '17'}</td>
+                    <td className="px-4 py-3 text-sm text-blue-800">Total</td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-base text-blue-700">₹{calculations.total.toLocaleString()}</td>
+                  </tr>
+                  
+                  <tr className="bg-indigo-50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-indigo-700">{isRepair ? '17' : '18'}</td>
+                    <td className="px-4 py-3 text-sm text-indigo-800">GST (18%)</td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-base text-indigo-700">₹{calculations.gst.toLocaleString()}</td>
+                  </tr>
+                  
+                  <tr className="bg-teal-50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-teal-700">{isRepair ? '18' : '19'}</td>
+                    <td className="px-4 py-3 text-sm text-teal-800">Total (including GST)</td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-base text-teal-700">₹{calculations.totalWithGST.toLocaleString()}</td>
+                  </tr>
+                  
+                  <tr className="bg-cyan-50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-cyan-700">{isRepair ? '19' : '20'}</td>
+                    <td className="px-4 py-3 text-sm text-cyan-800">1% Consulting Engineer Fee for Estimation</td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-base text-cyan-700">₹{calculations.consultingFee.toLocaleString()}</td>
+                  </tr>
+                  
+                  <tr className="bg-emerald-50 font-semibold">
+                    <td className="px-4 py-3 text-sm text-emerald-700">{isRepair ? '20' : '21'}</td>
+                    <td className="px-4 py-3 text-sm text-emerald-800">1% Consulting Engineer Fee for MB</td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
+                    <td className="px-4 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
+                  </tr>
+                  
+                  <tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
+                    <td className="px-4 py-4 text-green-700">{isRepair ? '21' : '22'}</td>
+                    <td className="px-4 py-4 text-green-800 flex items-center gap-2">
+                      <TrendingUp size={20} />
+                      Grand Total
+                    </td>
+                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-4"></td>
+                    <td className="px-4 py-4 text-xl text-green-700">₹{(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 relative z-10 min-h-screen bg-gray-50">
-      <ToastContainer position="top-right" autoClose={3000} />
-      
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Beneficiaries</h1>
-        <p className="text-gray-600 mb-6">
-          View, edit, and bulk-import beneficiaries. Use filters to narrow down your search.
-        </p>
-
-        {loading && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-blue-700">Loading beneficiaries...</p>
-          </div>
-        )}
-        
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
-            <p className="text-red-700">Error: {error}</p>
-          </div>
-        )}
-
-        {/* Location Filters - Now client-side only */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-1">District</label>
-            <select
-              value={selectedDistrict}
-              onChange={(e) => {
-                setSelectedDistrict(e.target.value);
-                // Reset dependent filters when district changes
-                if (e.target.value !== selectedDistrict) {
-                  setSelectedBlock("");
-                  setSelectedGramPanchayat("");
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Districts</option>
-              {getUniqueDistricts().map((district) => (
-                <option key={district} value={district}>
-                  {district}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Select Block</label>
-            <select
-              value={selectedBlock}
-              onChange={(e) => {
-                setSelectedBlock(e.target.value);
-                // Reset dependent filters when block changes
-                if (e.target.value !== selectedBlock) {
-                  setSelectedGramPanchayat("");
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Block</option>
-              {getUniqueBlocks().map((block) => (
-                <option key={block} value={block}>
-                  {block}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
-            <select
-              value={selectedGramPanchayat}
-              onChange={(e) => {
-                setSelectedGramPanchayat(e.target.value);
-                // Reset village filter when gram panchayat changes
-                if (e.target.value !== selectedGramPanchayat) {
-                  setSelectedVillage("");
-                }
-              }}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Gram Panchayats</option>
-              {getUniqueGramPanchayats().map((gp) => (
-                <option key={gp} value={gp}>
-                  {gp}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Village</label>
-            <select
-              value={selectedVillage}
-              onChange={(e) => setSelectedVillage(e.target.value)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Villages</option>
-              {getUniqueVillages().map((village) => (
-                <option key={village} value={village}>
-                  {village}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">FHTC Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Status</option>
-              <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
-            </select>
-          </div>
-        </div>
-
-        {/* Search and Actions */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <input
-              type="text"
-              className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by beneficiary name..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              disabled={loading}
-            />
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
-              disabled={loading}
-            >
-              Clear Filters
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button 
-              className={`px-4 py-2 rounded-md text-white transition-colors ${
-                downloading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
-              }`}
-              onClick={handleDownload} 
-              disabled={loading || downloading || filteredData.length === 0}
-            >
-              {downloading ? 'Downloading...' : 'Download Excel'}
-            </button>
-
-            <button 
-              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
-              onClick={() => setShowModal(true)} 
-              disabled={loading || !userId}
-            >
-              Bulk Import
-            </button>
-
-            {!editMode ? (
-              <button 
-                className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition-colors" 
-                onClick={handleEditToggle} 
-                disabled={loading || beneficiaries.length === 0}
-              >
-                Edit Records
-              </button>
-            ) : (
-              <div className="flex gap-2">
-                <button 
-                  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
-                  onClick={handleEditToggle}
-                  disabled={saving}
-                >
-                  Cancel
-                </button>
-                <button
-                  className={`px-4 py-2 rounded-md text-white transition-colors ${
-                    saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-                  }`}
-                  onClick={handleSaveChanges}
-                  disabled={saving || editedBeneficiaries.size === 0}
-                >
-                  {saving ? 'Saving...' : `Save Changes (${editedBeneficiaries.size})`}
-                </button>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header with Professional Design */}
+        <div className="bg-gradient-to-r from-slate-800 via-gray-800 to-blue-900 rounded-xl shadow-xl p-6 mb-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+          <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center">
+                <FileText size={24} />
               </div>
-            )}
+              View Estimation - Gram Panchayat
+            </h1>
+            
+            {/* Professional Filters */}
+            <div className="flex flex-wrap gap-4 items-center">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterMode}
+                  onChange={(e) => setFilterMode(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+                >
+                  <option value="All" className="text-gray-800">All Modes</option>
+                  <option value="Repair" className="text-gray-800">Repair</option>
+                  <option value="Rebore" className="text-gray-800">Rebore</option>
+                </select>
+              </div>
+              
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Search size={18} className="text-white" />
+                <input
+                  type="text"
+                  placeholder="Search by Requisition ID or Handpump ID"
+                  className="bg-transparent text-white placeholder-white/70 focus:outline-none w-64"
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Results Summary */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-          <span>Location: <strong>{getSelectedLocationName()}</strong></span>
-          <span>Showing <strong>{startIndex + 1}-{Math.min(endIndex, filteredData.length)}</strong> of <strong>{filteredData.length}</strong> beneficiaries</span>
-          <span>Total records: <strong>{beneficiaries.length}</strong></span>
-          {editedBeneficiaries.size > 0 && (
-            <span className="text-orange-600">
-              <strong>{editedBeneficiaries.size}</strong> records modified
-            </span>
+        {/* Professional Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+          <div className="group bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium">Total Requisitions</p>
+                <p className="text-2xl font-bold mt-1">24</p>
+                <p className="text-blue-200 text-xs mt-1">↑ 12% this month</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <FileText size={24} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="group bg-gradient-to-br from-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-teal-100 text-sm font-medium">Repair Estimations</p>
+                <p className="text-2xl font-bold mt-1">15</p>
+                <p className="text-teal-200 text-xs mt-1">↑ 8% this month</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <Wrench size={24} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="group bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-100 text-sm font-medium">Rebore Estimations</p>
+                <p className="text-2xl font-bold mt-1">9</p>
+                <p className="text-emerald-200 text-xs mt-1">↑ 15% this month</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <Drill size={24} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-amber-100 text-sm font-medium">Total Amount</p>
+                <p className="text-2xl font-bold mt-1">₹3.2L</p>
+                <p className="text-amber-200 text-xs mt-1">↑ 22% this month</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <TrendingUp size={24} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Professional Requisitions Table */}
+        <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+          <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white">
+            <h2 className="text-2xl font-bold flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                <FileText size={20} />
+              </div>
+              Requisitions Dashboard
+            </h2>
+            <p className="text-gray-200 mt-2">Manage and view all handpump estimations</p>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Requisition ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Handpump ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Requisition Mode
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Requisition Date
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Sanctioned Total
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Action
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {filteredRequisitions.map((requisition, index) => (
+                  <tr key={requisition.id} className={`${
+                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                  } hover:bg-blue-50 transition-colors duration-300`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                        <span className="text-lg font-semibold text-gray-900">{requisition.id}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
+                        requisition.mode === 'Repair' 
+                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                      }`}>
+                        {requisition.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                        {requisition.mode}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={16} className="text-gray-500" />
+                        <span className="text-sm font-medium text-gray-700">
+                          {new Date(requisition.date).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-lg font-bold text-emerald-600">
+                        {requisition.sanctionedTotal}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <button
+                        onClick={() => handleViewEstimation(requisition)}
+                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                      >
+                        <Eye size={16} />
+                        View Estimation
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          
+          {filteredRequisitions.length === 0 && (
+            <div className="p-12 text-center">
+              <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Search size={24} className="text-gray-400" />
+              </div>
+              <p className="text-lg text-gray-500 font-medium">No requisitions found for the selected filter.</p>
+              <p className="text-gray-400 mt-1">Try adjusting your search criteria</p>
+            </div>
           )}
         </div>
       </div>
-
-      {/* Data Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        
-        {/* Quick Stats Cards */}
-        {beneficiaries.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 px-6">
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-blue-100 p-2 rounded-lg">
-                  <span className="text-2xl">👥</span>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Beneficiaries</p>
-                  <p className="text-xl font-bold text-gray-800">{filteredData.length}</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-green-100 p-2 rounded-lg">
-                  <span className="text-2xl">✅</span>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Active</p>
-                  <p className="text-xl font-bold text-green-600">
-                    {filteredData.filter(b => b.status === 'Active').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-red-100 p-2 rounded-lg">
-                  <span className="text-2xl">❌</span>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Inactive</p>
-                  <p className="text-xl font-bold text-red-600">
-                    {filteredData.filter(b => b.status === 'Inactive').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-lg shadow-sm p-4">
-              <div className="flex items-center gap-3">
-                <div className="bg-purple-100 p-2 rounded-lg">
-                  <span className="text-2xl">👨‍👩‍👧‍👦</span>
-                </div>
-                <div>
-                  <p className="text-sm text-gray-600">Total Family Members</p>
-                  <p className="text-xl font-bold text-purple-600">
-                    {filteredData.reduce((sum, b) => sum + b.familyCount, 0)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Pagination Controls - Top */}
-        {filteredData.length > 0 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b border-gray-200 gap-4">
-            <div className="flex items-center gap-4">
-              <label className="text-sm font-medium text-gray-700">
-                Rows per page:
-              </label>
-              <select
-                value={rowsPerPage}
-                onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
-                className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-                <option value={100}>100</option>
-                <option value={250}>250</option>
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-
-              <div className="flex items-center gap-1">
-                {getVisiblePageNumbers().map((page, index) => (
-                  <span key={index}>
-                    {page === '...' ? (
-                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
-                    ) : (
-                      <button
-                        onClick={() => handlePageChange(page as number)}
-                        className={`px-3 py-1 border rounded-md text-sm ${
-                          currentPage === page
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        )}
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-blue-600 text-white">
-                <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Beneficiary Name</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Father/Husband Name</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Family Members</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">FHTC Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedData.map((b, index) => {
-                const isEdited = editedBeneficiaries.has(b.BeneficiaryId);
-                
-                return (
-                  <tr 
-                    key={b.BeneficiaryId} 
-                    className={`${
-                      index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                    } hover:bg-blue-50 transition-colors ${
-                      isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
-                    }`}
-                  >
-                    <td className="border border-gray-300 p-3">{b.districtName}</td>
-                    <td className="border border-gray-300 p-3">{b.blockName}</td>
-                    <td className="border border-gray-300 p-3">{b.gramPanchayatName}</td>
-                    <td className="border border-gray-300 p-3">{b.village}</td>
-
-                    <td className="border border-gray-300 p-3">
-                      {editMode ? (
-                        <input 
-                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                          value={b.name || ""} 
-                          onChange={(e) => handleChange(b.BeneficiaryId, "name", e.target.value)}
-                        />
-                      ) : (
-                        b.name
-                      )}
-                    </td>
-
-                    <td className="border border-gray-300 p-3">
-                      {editMode ? (
-                        <input 
-                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                          value={b.fatherOrHusbandName} 
-                          onChange={(e) => handleChange(b.BeneficiaryId, "fatherOrHusbandName", e.target.value)}
-                        />
-                      ) : (
-                        b.fatherOrHusbandName || "-"
-                      )}
-                    </td>
-
-                    <td className="border border-gray-300 p-3">
-                      {editMode ? (
-                        <input 
-                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                          value={b.contact} 
-                          onChange={(e) => handleChange(b.BeneficiaryId, "contact", e.target.value)}
-                        />
-                      ) : (
-                        b.contact || "-"
-                      )}
-                    </td>
-
-                    <td className="border border-gray-300 p-3">
-                      {editMode ? (
-                        <input 
-                          type="number" 
-                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                          value={b.familyCount} 
-                          onChange={(e) => handleChange(b.BeneficiaryId, "familyCount", Number(e.target.value))}
-                        />
-                      ) : (
-                        b.familyCount
-                      )}
-                    </td>
-
-                    <td className="border border-gray-300 p-3">
-                      {editMode ? (
-                        <select 
-                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
-                          value={b.status} 
-                          onChange={(e) => handleChange(b.BeneficiaryId, "status", e.target.value)}
-                        >
-                          <option value="Active">Active</option>
-                          <option value="Inactive">Inactive</option>
-                        </select>
-                      ) : (
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                          b.status === 'Active' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {b.status}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Controls - Bottom */}
-        {filteredData.length > 0 && totalPages > 1 && (
-          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-gray-200 gap-4">
-            <div className="text-sm text-gray-600">
-              Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} entries
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                First
-              </button>
-
-              <button
-                onClick={() => handlePageChange(currentPage - 1)}
-                disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Previous
-              </button>
-
-              <div className="flex items-center gap-1">
-                {getVisiblePageNumbers().map((page, index) => (
-                  <span key={index}>
-                    {page === '...' ? (
-                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
-                    ) : (
-                      <button
-                        onClick={() => handlePageChange(page as number)}
-                        className={`px-3 py-1 border rounded-md text-sm ${
-                          currentPage === page
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 hover:bg-gray-50'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    )}
-                  </span>
-                ))}
-              </div>
-
-              <button
-                onClick={() => handlePageChange(currentPage + 1)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-
-              <button
-                onClick={() => handlePageChange(totalPages)}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Last
-              </button>
-            </div>
-          </div>
-        )}
-
-        {filteredData.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-500">
-            <div className="text-4xl mb-4">📋</div>
-            <h3 className="text-lg font-medium mb-2">No beneficiaries found</h3>
-            <p className="text-sm">Try adjusting your filters or search criteria.</p>
-          </div>
-        )}
-      </div>
-
-      {/* Bulk Import Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-          <div ref={modalRef} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md relative">
-            <button 
-              onClick={() => { setShowModal(false); setCsvFile(null); }} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl"
-            >
-              &times;
-            </button>
-
-            <h2 className="text-xl font-bold mb-4 text-gray-800">Bulk Import Beneficiaries</h2>
-            <p className="text-sm text-gray-600 mb-4">
-              Upload beneficiary records in CSV format. Make sure your file follows the required format.
-            </p>
-
-            <div className="mb-4">
-              <a 
-                href="/beneficiaries (1).csv" 
-                download 
-                className="inline-block text-blue-600 hover:text-blue-800 underline text-sm font-medium"
-              >
-                📄 Download Sample Format
-              </a>
-            </div>
-
-            <div className="mb-6">
-              <label className="block text-sm font-medium mb-2">Select CSV File</label>
-              <input 
-                type="file" 
-                accept=".csv" 
-                onChange={(e) => setCsvFile(e.target.files?.[0] || null)} 
-                className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {csvFile && (
-                <p className="text-sm text-green-600 mt-2">
-                  ✓ File selected: {csvFile.name}
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              
-              <button 
-                onClick={handleUpload} 
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
-                disabled={!csvFile}
-              >
-                Upload & Import
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
 
-export default ManageBeneficiary;
+export default ViewEstimationScreen;

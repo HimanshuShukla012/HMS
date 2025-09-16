@@ -1,6 +1,28 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from 'react-router-dom';
 import { useUserInfo } from '../utils/userInfo';
 import * as XLSX from 'xlsx';
+import { 
+  Filter, 
+  Search, 
+  Download, 
+  Eye, 
+  Calendar, 
+  FileText, 
+  X, 
+  AlertCircle, 
+  CheckCircle, 
+  Clock, 
+  TrendingUp, 
+  MapPin, 
+  Phone, 
+  User, 
+  Droplets, 
+  Wrench,
+  AlertTriangle,
+  Settings,
+  ToolCase,
+} from 'lucide-react';
 
 // Toast notification system (in-memory implementation)
 const useToast = () => {
@@ -20,9 +42,9 @@ const useToast = () => {
 const ToastContainer = ({ toasts }: { toasts: Array<{id: number, message: string, type: string}> }) => (
   <div className="fixed top-4 right-4 z-50 space-y-2">
     {toasts.map(toast => (
-      <div key={toast.id} className={`p-3 rounded-lg shadow-lg text-white max-w-sm ${
-        toast.type === 'success' ? 'bg-green-500' : 
-        toast.type === 'error' ? 'bg-red-500' : 'bg-blue-500'
+      <div key={toast.id} className={`p-4 rounded-xl shadow-xl text-white max-w-sm backdrop-blur-sm ${
+        toast.type === 'success' ? 'bg-gradient-to-r from-green-500 to-emerald-500' : 
+        toast.type === 'error' ? 'bg-gradient-to-r from-red-500 to-rose-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'
       }`}>
         {toast.message}
       </div>
@@ -30,9 +52,11 @@ const ToastContainer = ({ toasts }: { toasts: Array<{id: number, message: string
   </div>
 );
 
-type Complaint = {
+type HandpumpComplaint = {
   id: number;
-  beneficiaryId: number;
+  complaintId: string;
+  handpumpId: number;
+  handpumpCode: string;
   district: string;
   districtId: number;
   block: string;
@@ -41,18 +65,21 @@ type Complaint = {
   gramPanchayatId: number;
   village: string;
   villageId: number;
-  beneficiaryName: string;
-  fatherHusbandName: string;
-  beneficiaryContact: string;
-  familyMemberCount: string;
+  handpumpLocation: string;
+  complainantName: string;
+  complainantContact: string;
   landmark: string;
   category: string;
   categoryId: number;
   otherCategory: string;
-  complaintStatus: string; // "Pending", "Resolved", "Closed"
-  beneficiaryStatus: number; // 0 = Active, 1 = Inactive
+  description: string;
+  urgency: string; // Low, Medium, High, Critical
+  complaintStatus: string; // "Pending", "In Progress", "Resolved", "Closed"
+  resolutionDays: number;
   createdDate: string;
   updatedDate: string;
+  createdBy: string;
+  handpumpStatus: string; // Working, Not Working, Under Maintenance
 };
 
 // API response interfaces
@@ -83,23 +110,202 @@ interface VillageApi {
   VillageName: string;
 }
 
-const ManageComplaint = () => {
+// Static handpump complaint data
+const STATIC_HANDPUMP_COMPLAINTS: HandpumpComplaint[] = [
+  {
+    id: 1,
+    complaintId: "HP2025001",
+    handpumpId: 101,
+    handpumpCode: "HP001001",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Sarojini Nagar",
+    blockId: 101,
+    gramPanchayat: "Sarojini Nagar",
+    gramPanchayatId: 1001,
+    village: "Rampur",
+    villageId: 10001,
+    handpumpLocation: "Near School",
+    complainantName: "Rajesh Kumar",
+    complainantContact: "9876543210",
+    landmark: "Government Primary School",
+    category: "Handpump Not Working",
+    categoryId: 101,
+    otherCategory: "",
+    description: "Handpump is completely non-functional since last 3 days. No water is coming out despite multiple attempts.",
+    urgency: "Critical",
+    complaintStatus: "Pending",
+    resolutionDays: 1,
+    createdDate: "2025-01-15T09:30:00Z",
+    updatedDate: "2025-01-15T09:30:00Z",
+    createdBy: "Rajesh Kumar",
+    handpumpStatus: "Not Working"
+  },
+  {
+    id: 2,
+    complaintId: "HP2025002",
+    handpumpId: 102,
+    handpumpCode: "HP001002",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Sarojini Nagar",
+    blockId: 101,
+    gramPanchayat: "Sarojini Nagar",
+    gramPanchayatId: 1001,
+    village: "Rampur",
+    villageId: 10001,
+    handpumpLocation: "Village Center",
+    complainantName: "Sunita Devi",
+    complainantContact: "8765432109",
+    landmark: "Community Center",
+    category: "Water Quality Issues",
+    categoryId: 102,
+    otherCategory: "",
+    description: "Water coming from handpump has bad smell and taste. Children are getting sick after drinking this water.",
+    urgency: "High",
+    complaintStatus: "In Progress",
+    resolutionDays: 2,
+    createdDate: "2025-01-14T14:15:00Z",
+    updatedDate: "2025-01-15T10:00:00Z",
+    createdBy: "Sunita Devi",
+    handpumpStatus: "Working"
+  },
+  {
+    id: 3,
+    complaintId: "HP2025003",
+    handpumpId: 103,
+    handpumpCode: "HP001003",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Chinhat",
+    blockId: 102,
+    gramPanchayat: "Chinhat",
+    gramPanchayatId: 1002,
+    village: "Sultanpur",
+    villageId: 10002,
+    handpumpLocation: "Near Temple",
+    complainantName: "Mohan Lal",
+    complainantContact: "7654321098",
+    landmark: "Shiv Temple",
+    category: "Handle/Lever Problems",
+    categoryId: 103,
+    otherCategory: "",
+    description: "Handle of the handpump is broken. It's very difficult to operate and requires excessive force.",
+    urgency: "Medium",
+    complaintStatus: "Pending",
+    resolutionDays: 1,
+    createdDate: "2025-01-13T16:45:00Z",
+    updatedDate: "2025-01-13T16:45:00Z",
+    createdBy: "Mohan Lal",
+    handpumpStatus: "Working"
+  },
+  {
+    id: 4,
+    complaintId: "HP2025004",
+    handpumpId: 104,
+    handpumpCode: "HP002001",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Chinhat",
+    blockId: 102,
+    gramPanchayat: "Chinhat",
+    gramPanchayatId: 1002,
+    village: "Kadipur",
+    villageId: 10003,
+    handpumpLocation: "Main Road",
+    complainantName: "Priya Sharma",
+    complainantContact: "6543210987",
+    landmark: "Bus Stop",
+    category: "Water Flow Issues - Low Pressure",
+    categoryId: 104,
+    otherCategory: "",
+    description: "Water pressure is very low. Takes a long time to fill even a small bucket. This has been happening for the past week.",
+    urgency: "Medium",
+    complaintStatus: "Resolved",
+    resolutionDays: 2,
+    createdDate: "2025-01-12T11:20:00Z",
+    updatedDate: "2025-01-14T15:30:00Z",
+    createdBy: "Priya Sharma",
+    handpumpStatus: "Working"
+  },
+  {
+    id: 5,
+    complaintId: "HP2025005",
+    handpumpId: 105,
+    handpumpCode: "HP002002",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Mohanlalganj",
+    blockId: 103,
+    gramPanchayat: "Mohanlalganj",
+    gramPanchayatId: 1003,
+    village: "Bharosa",
+    villageId: 10004,
+    handpumpLocation: "Near Anganwadi",
+    complainantName: "Ramesh Singh",
+    complainantContact: "5432109876",
+    landmark: "Anganwadi Center",
+    category: "Platform Damage/Missing",
+    categoryId: 106,
+    otherCategory: "",
+    description: "Platform around the handpump is damaged and broken. Water is not draining properly and creating muddy area.",
+    urgency: "Low",
+    complaintStatus: "Pending",
+    resolutionDays: 5,
+    createdDate: "2025-01-11T08:00:00Z",
+    updatedDate: "2025-01-11T08:00:00Z",
+    createdBy: "Ramesh Singh",
+    handpumpStatus: "Working"
+  },
+  {
+    id: 6,
+    complaintId: "HP2025006",
+    handpumpId: 106,
+    handpumpCode: "HP003001",
+    district: "Lucknow",
+    districtId: 1,
+    block: "Mohanlalganj",
+    blockId: 103,
+    gramPanchayat: "Mohanlalganj",
+    gramPanchayatId: 1003,
+    village: "Bharosa",
+    villageId: 10004,
+    handpumpLocation: "Market Area",
+    complainantName: "Kavita Singh",
+    complainantContact: "4321098765",
+    landmark: "Weekly Market",
+    category: "Other",
+    categoryId: 0,
+    otherCategory: "Strange noise while pumping",
+    description: "Handpump makes very loud screeching noise when operated. The noise can be heard from far distance.",
+    urgency: "Low",
+    complaintStatus: "Closed",
+    resolutionDays: 7,
+    createdDate: "2025-01-10T12:30:00Z",
+    updatedDate: "2025-01-12T14:00:00Z",
+    createdBy: "Kavita Singh",
+    handpumpStatus: "Working"
+  }
+];
+
+const ManageHandpumpComplaints = () => {
   // Use the same user info hook as AddBeneficiary
   const { userId, role } = useUserInfo();
+  const navigate = useNavigate(); // Add this line
   
   const toast = useToast();
   const modalRef = useRef<HTMLDivElement>(null);
   
   // State management
-  const [editMode, setEditMode] = useState(false);
   const [search, setSearch] = useState("");
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [complaints, setComplaints] = useState<HandpumpComplaint[]>([]);
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [downloading, setDownloading] = useState(false);
-  const [editedComplaints, setEditedComplaints] = useState<Set<number>>(new Set());
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+  const [showViewModal, setShowViewModal] = useState(false);
+  const [selectedComplaint, setSelectedComplaint] = useState<HandpumpComplaint | null>(null);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   
   // Location hierarchy
   const [districts, setDistricts] = useState<DistrictApi[]>([]);
@@ -113,8 +319,10 @@ const ManageComplaint = () => {
   
   // Filter states
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterUrgency, setFilterUrgency] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
 
-  // Auth state for user info (replacing localStorage)
+  // Auth state for user info
   const [authToken, setAuthToken] = useState<string | null>(null);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [userBlockId, setUserBlockId] = useState<number | null>(null);
@@ -122,8 +330,8 @@ const ManageComplaint = () => {
 
   // Initialize auth data from localStorage (one-time on mount)
   useEffect(() => {
-    const token = localStorage.getItem("authToken");
-    const role = localStorage.getItem("role");
+    const token = localStorage.getItem("authToken") || null;
+    const role = localStorage.getItem("role") || null;
     const blockId = localStorage.getItem("blockId");
     const gramPanchayatId = localStorage.getItem("gramPanchayatId");
     
@@ -133,12 +341,38 @@ const ManageComplaint = () => {
     setUserGramPanchayatId(gramPanchayatId ? Number(gramPanchayatId) : null);
   }, []);
 
-  // Initialize data fetching when userId is available
+  // Load static data when component mounts
   useEffect(() => {
     if (userId) {
       fetchDistricts();
+      loadStaticComplaints();
     }
   }, [userId]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, filterStatus, filterUrgency, filterCategory]);
+
+  const loadStaticComplaints = () => {
+    setLoading(true);
+    
+    // Simulate API loading delay
+    setTimeout(() => {
+      let filteredComplaints = [...STATIC_HANDPUMP_COMPLAINTS];
+      
+      // Apply role-based filtering
+      if (userRole?.toLowerCase() === "block officer" && userBlockId !== null) {
+        filteredComplaints = filteredComplaints.filter((c) => c.blockId === userBlockId);
+      } else if (userRole?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
+        filteredComplaints = filteredComplaints.filter((c) => c.gramPanchayatId === userGramPanchayatId);
+      }
+      
+      setComplaints(filteredComplaints);
+      setLoading(false);
+      toast.success(`Loaded ${filteredComplaints.length} handpump complaint records`);
+    }, 1000);
+  };
 
   useEffect(() => {
     if (selectedDistrictId && userId) {
@@ -167,390 +401,104 @@ const ManageComplaint = () => {
     }
   }, [selectedBlockId, selectedGramPanchayatId]);
 
-  useEffect(() => {
-    if (authToken) {
-      fetchComplaints();
-    }
-  }, [selectedVillageId, filterStatus, authToken]);
-
   // Handle modal clicks
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
-      if (showEditModal && modalRef.current && !modalRef.current.contains(e.target as Node)) {
-        setShowEditModal(false);
+      if (showViewModal && modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        setShowViewModal(false);
         setSelectedComplaint(null);
       }
     };
     document.addEventListener("mousedown", handleOutsideClick);
     return () => document.removeEventListener("mousedown", handleOutsideClick);
-  }, [showEditModal]);
+  }, [showViewModal]);
 
-  // Fetch districts (same pattern as AddBeneficiary)
+  // Fetch districts (mock function)
   const fetchDistricts = async () => {
     if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        `https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`,
-        { 
-          method: "POST",
-          headers: { accept: "*/*" }
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch districts");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setDistricts(data.Data);
-      }
-    } catch (err) {
-      console.error("Error fetching districts:", err);
-      toast.error("Failed to fetch districts");
-    }
+    // Mock data - replace with actual API call
+    setDistricts([{ DistrictId: 1, DistrictName: "Lucknow" }]);
   };
 
-  // Fetch blocks (same pattern as AddBeneficiary)
+  // Fetch blocks (mock function)
   const fetchBlocks = async (districtId: number) => {
     if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, DistrictId: districtId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch blocks");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setBlocks(data.Data);
-      } else {
-        setBlocks([]);
-      }
-    } catch (err) {
-      console.error("Error fetching blocks:", err);
-      toast.error("Failed to fetch blocks");
-      setBlocks([]);
-    }
+    // Mock data - replace with actual API call
+    setBlocks([
+      { BlockId: 101, DistrictId: 1, BlockName: "Sarojini Nagar" },
+      { BlockId: 102, DistrictId: 1, BlockName: "Chinhat" },
+      { BlockId: 103, DistrictId: 1, BlockName: "Mohanlalganj" }
+    ]);
   };
 
-  // Fetch gram panchayats (same pattern as AddBeneficiary)
+  // Fetch gram panchayats (mock function)
   const fetchGramPanchayats = async (blockId: number) => {
     if (!userId) return;
-    
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ UserId: userId, BlockId: blockId }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch gram panchayats");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setGramPanchayats(data.Data);
-      } else {
-        setGramPanchayats([]);
-      }
-    } catch (err) {
-      console.error("Error fetching gram panchayats:", err);
-      toast.error("Failed to fetch gram panchayats");
-      setGramPanchayats([]);
-    }
+    // Mock data - replace with actual API call
+    const mockData = [
+      { Id: 1001, BlockId: 101, GramPanchayatName: "Sarojini Nagar" },
+      { Id: 1002, BlockId: 102, GramPanchayatName: "Chinhat" },
+      { Id: 1003, BlockId: 103, GramPanchayatName: "Mohanlalganj" }
+    ];
+    setGramPanchayats(mockData.filter(gp => gp.BlockId === blockId));
   };
 
-  // Fetch villages (same pattern as AddBeneficiary)
+  // Fetch villages (mock function)
   const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    try {
-      const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            BlockId: blockId,
-            GramPanchayatId: gramPanchayatId,
-          }),
-        }
-      );
-      if (!res.ok) throw new Error("Failed to fetch villages");
-      const data = await res.json();
-      if (data.Status && data.Data) {
-        setVillages(data.Data);
-      } else {
-        setVillages([]);
-      }
-    } catch (err) {
-      console.error("Error fetching villages:", err);
-      toast.error("Failed to fetch villages");
-      setVillages([]);
-    }
+    // Mock data - replace with actual API call
+    const mockData = [
+      { Id: 10001, VillageName: "Rampur" },
+      { Id: 10002, VillageName: "Sultanpur" },
+      { Id: 10003, VillageName: "Kadipur" },
+      { Id: 10004, VillageName: "Bharosa" }
+    ];
+    setVillages(mockData);
   };
 
-  // COMPLETE CORRECTED fetchComplaints FUNCTION
-// This replaces the existing fetchComplaints function in your component
+  const handleViewComplaint = (complaint: HandpumpComplaint) => {
+    setSelectedComplaint(complaint);
+    setShowViewModal(true);
+  };
 
-const fetchComplaints = async () => {
-  // Add more detailed logging
-  console.log("fetchComplaints called with:", {
-    authToken: !!authToken,
-    userId,
-    selectedVillageId,
-    filterStatus,
-    role,
-    userBlockId,
-    userGramPanchayatId
-  });
-
-  if (!authToken) {
-    console.error("Missing authentication token");
-    toast.error("Missing authentication token");
-    return;
-  }
-
-  if (!userId) {
-    console.error("User ID not found");
-    toast.error("User ID not found");
-    return;
-  }
-
-  setLoading(true);
-
-  try {
-    const requestBody = {
-      UserId: userId,
-      VillageId: selectedVillageId || 0,
-      Status: filterStatus === "Pending" ? 0 : 
-             filterStatus === "Resolved" ? 1 : 
-             filterStatus === "Closed" ? 2 : 0
-    };
-
-    console.log("API Request:", requestBody);
-
-    const response = await fetch(
-      "https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "*/*",
-          Authorization: `Bearer ${authToken}`,
-        },
-        body: JSON.stringify(requestBody),
-      }
-    );
-
-    console.log("API Response Status:", response.status);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error:", errorText);
-      throw new Error(`Error: ${response.status} - ${errorText}`);
-    }
-
-    const apiData = await response.json();
-    console.log("API Response Data:", apiData);
-
-    if (!apiData.Status) {
-      console.error("API returned error:", apiData.Message || apiData.Errror);
-      toast.error(apiData.Message || apiData.Errror || "Failed to fetch complaints");
-      return;
-    }
-
-    // FIXED: Map only the fields that actually exist in the API response
-    let mappedData = (apiData?.Data || []).map((item) => ({
-      id: item.ComplaintID || 0,
-      beneficiaryId: 0, // Not provided in API response
-      district: item.District || "",
-      districtId: item.DistrictId || 0,
-      block: item.Block || "",
-      blockId: item.BlockId || 0,
-      gramPanchayat: item.GramPanchayat || "",
-      gramPanchayatId: item.GramPanchayatId || 0,
-      village: item.Village || "",
-      villageId: item.VillageId || 0,
-      beneficiaryName: item.BeneficiaryName || "",
-      fatherHusbandName: "", // Not provided in API response
-      beneficiaryContact: item.Contact || "",
-      familyMemberCount: "", // Not provided in API response
-      landmark: item.Landmark || "",
-      category: item.Category || "",
-      categoryId: item.CategoryId || 0,
-      otherCategory: item.OtherCategory || "",
-      complaintStatus: item.Status === 0 ? "Pending" : 
-                      item.Status === 1 ? "Resolved" : "Closed",
-      beneficiaryStatus: 0, // Not provided in API response, defaulting to Active
-      createdDate: "", // Not provided in API response
-      updatedDate: "", // Not provided in API response
-      complaintDetails: item.ComplaintDetails || "" // Adding this field from API
-    }));
-
-    console.log("Mapped Data:", mappedData);
-
-    // FIXED: Role-based filtering with strict comparison
-    if (role?.toLowerCase() === "block officer" && userBlockId !== null) {
-      const beforeFilter = mappedData.length;
-      mappedData = mappedData.filter((c) => c.blockId === userBlockId);
-      console.log(`Block Officer filter: ${beforeFilter} -> ${mappedData.length} complaints`);
-    } else if (role?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
-      const beforeFilter = mappedData.length;
-      mappedData = mappedData.filter((c) => c.gramPanchayatId === userGramPanchayatId);
-      console.log(`Gram Panchayat filter: ${beforeFilter} -> ${mappedData.length} complaints`);
-    }
-
-    console.log("Final filtered data:", mappedData);
-    
-    setComplaints(mappedData);
-    
-    if (mappedData.length > 0) {
-      toast.success(`Loaded ${mappedData.length} complaint records`);
-    } else {
-      toast.info("No complaint records found for the selected criteria");
-    }
-    
-  } catch (error) {
-    console.error("Failed to fetch complaints:", error);
-    toast.error(`Failed to fetch complaints: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
-
-// ADDITIONAL FIXES FOR OTHER useEffect HOOKS:
-
-// 1. Fix the useEffect for auth token initialization
-useEffect(() => {
-  // Direct access instead of storing in separate state
-  const token = localStorage.getItem("authToken");
-  const role = localStorage.getItem("role");
-  const blockId = localStorage.getItem("blockId");
-  const gramPanchayatId = localStorage.getItem("gramPanchayatId");
-  
-  console.log("Auth data from localStorage:", {
-    token: !!token,
-    role,
-    blockId,
-    gramPanchayatId
-  });
-  
-  if (token) {
-    setAuthToken(token);
-    setUserRole(role);
-    setUserBlockId(blockId ? Number(blockId) : null);
-    setUserGramPanchayatId(gramPanchayatId ? Number(gramPanchayatId) : null);
-  } else {
-    console.warn("No auth token found in localStorage");
-    toast.error("Authentication required. Please login again.");
-  }
-}, []);
-
-// 2. Fix the complaints fetch trigger
-useEffect(() => {
-  if (authToken && userId) {
-    console.log("Triggering fetchComplaints due to:", {
-      selectedVillageId, 
-      filterStatus, 
-      authToken: !!authToken, 
-      userId
+  const handleTakeAction = (complaint: HandpumpComplaint) => {
+    // Use React Router navigation instead of window.location.href
+    const params = new URLSearchParams({
+      complaintId: complaint.complaintId,
+      handpumpCode: complaint.handpumpCode,
+      handpumpId: complaint.handpumpId.toString(),
+      villageId: complaint.villageId.toString(),
+      category: complaint.category,
+      urgency: complaint.urgency
     });
-    fetchComplaints();
-  }
-}, [selectedVillageId, filterStatus, authToken, userId]); // Added userId dependency
-
-// 3. Add debugging for the useUserInfo hook
-useEffect(() => {
-  console.log("User info from hook:", { userId, role });
-}, [userId, role]);
-
-// DEBUGGING CHECKLIST:
-// 1. Open browser DevTools > Console
-// 2. Look for the console.log outputs
-// 3. Check Network tab for the API call
-// 4. Verify localStorage has authToken, role, blockId, gramPanchayatId
-// 5. Check if API returns 200 status and data
-
-  const handleEditComplaint = (complaint: Complaint) => {
-    setSelectedComplaint({ ...complaint });
-    setShowEditModal(true);
-  };
-
-  const handleSaveComplaintChanges = async () => {
-    if (!selectedComplaint || !userId) return;
     
-    if (!authToken) {
-      toast.error("Authentication required");
-      return;
-    }
-
-    setSaving(true);
+    navigate(`/gp/raise-requisition?${params.toString()}`);
     
-    try {
-      // Updated payload structure for the correct API
-      const payload = {
-        ComplaintId: selectedComplaint.id,
-        VillageId: selectedComplaint.villageId,
-        BeneficiaryName: selectedComplaint.beneficiaryName,
-        Contact: selectedComplaint.beneficiaryContact,
-        Landmark: selectedComplaint.landmark,
-        CategoryId: selectedComplaint.categoryId,
-        Status: selectedComplaint.complaintStatus === "Resolved", // Convert status to boolean
-        OtherCategory: selectedComplaint.otherCategory
-      };
-
-      const response = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/User/UpdateComplaintDetailsByComplaintId",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            accept: "*/*",
-            Authorization: `Bearer ${authToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      const result = await response.json();
-      
-      if (result.Status) {
-        toast.success("Complaint status updated successfully");
-        setShowEditModal(false);
-        setSelectedComplaint(null);
-        fetchComplaints(); // Refresh the data
-      } else {
-        toast.error(result.Message || result.Errror || "Failed to update complaint details");
-      }
-    } catch (error) {
-      console.error("Error updating complaint:", error);
-      toast.error("Failed to update complaint details");
-    } finally {
-      setSaving(false);
-    }
+    toast.info(`Redirecting to Raise Requisition for Complaint #${complaint.complaintId}`);
   };
 
   const handleDownload = () => {
-    setDownloading(true);
-    
     try {
       const exportData = filteredData.map((c) => ({
-        'Complaint ID': c.id,
+        'Complaint ID': c.complaintId,
+        'Handpump Code': c.handpumpCode,
         'District': c.district,
         'Block': c.block,
         'Gram Panchayat': c.gramPanchayat,
         'Village': c.village,
-        'Beneficiary Name': c.beneficiaryName,
-        'Father/Husband Name': c.fatherHusbandName,
-        'Contact': c.beneficiaryContact,
-        'Family Members': c.familyMemberCount,
+        'Handpump Location': c.handpumpLocation,
+        'Complainant Name': c.complainantName,
+        'Contact': c.complainantContact,
         'Landmark': c.landmark,
         'Category': c.category,
-        'Complaint Status': c.complaintStatus,
-        'Beneficiary Status': c.beneficiaryStatus === 0 ? 'Active' : 'Inactive',
-        'Created Date': c.createdDate,
-        'Updated Date': c.updatedDate,
+        'Other Category': c.otherCategory,
+        'Description': c.description,
+        'Urgency': c.urgency,
+        'Status': c.complaintStatus,
+        'Resolution Days': c.resolutionDays,
+        'Handpump Status': c.handpumpStatus,
+        'Created Date': new Date(c.createdDate).toLocaleDateString(),
+        'Updated Date': new Date(c.updatedDate).toLocaleDateString(),
+        'Created By': c.createdBy,
       }));
 
       const wb = XLSX.utils.book_new();
@@ -564,11 +512,11 @@ useEffect(() => {
       }));
       ws['!cols'] = colWidths;
 
-      XLSX.utils.book_append_sheet(wb, ws, 'Complaint_Records');
+      XLSX.utils.book_append_sheet(wb, ws, 'Handpump_Complaints');
 
       const now = new Date();
       const dateStr = now.toISOString().split('T')[0];
-      const filename = `complaint_records_export_${dateStr}.xlsx`;
+      const filename = `handpump_complaints_export_${dateStr}.xlsx`;
 
       XLSX.writeFile(wb, filename);
       toast.success("Excel file downloaded successfully");
@@ -576,8 +524,6 @@ useEffect(() => {
     } catch (error) {
       console.error('Export error:', error);
       toast.error('Failed to export data. Please try again.');
-    } finally {
-      setDownloading(false);
     }
   };
 
@@ -587,21 +533,10 @@ useEffect(() => {
     setSelectedGramPanchayatId(null);
     setSelectedVillageId(null);
     setFilterStatus("");
+    setFilterUrgency("");
+    setFilterCategory("");
     setSearch("");
   };
-
-  const filteredData = complaints.filter((c) => {
-    const matchesSearch = 
-      c.beneficiaryName.toLowerCase().includes(search.toLowerCase()) ||
-      c.beneficiaryContact.toLowerCase().includes(search.toLowerCase()) ||
-      c.district.toLowerCase().includes(search.toLowerCase()) ||
-      c.block.toLowerCase().includes(search.toLowerCase()) ||
-      c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
-      c.village.toLowerCase().includes(search.toLowerCase()) ||
-      c.category.toLowerCase().includes(search.toLowerCase());
-    
-    return matchesSearch;
-  });
 
   const getSelectedLocationName = () => {
     if (selectedVillageId) {
@@ -623,432 +558,849 @@ useEffect(() => {
     return "All Areas";
   };
 
+  const filteredData = complaints.filter((c) => {
+    const matchesSearch = 
+      c.complainantName.toLowerCase().includes(search.toLowerCase()) ||
+      c.complainantContact.toLowerCase().includes(search.toLowerCase()) ||
+      c.handpumpCode.toLowerCase().includes(search.toLowerCase()) ||
+      c.complaintId.toLowerCase().includes(search.toLowerCase()) ||
+      c.district.toLowerCase().includes(search.toLowerCase()) ||
+      c.block.toLowerCase().includes(search.toLowerCase()) ||
+      c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
+      c.village.toLowerCase().includes(search.toLowerCase()) ||
+      c.category.toLowerCase().includes(search.toLowerCase()) ||
+      c.handpumpLocation.toLowerCase().includes(search.toLowerCase());
+    
+    const matchesStatus = !filterStatus || c.complaintStatus === filterStatus;
+    const matchesUrgency = !filterUrgency || c.urgency === filterUrgency;
+    const matchesCategory = !filterCategory || c.category === filterCategory;
+    const matchesLocation = !selectedVillageId || c.villageId === selectedVillageId;
+    
+    return matchesSearch && matchesStatus && matchesUrgency && matchesCategory && matchesLocation;
+  });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (newRowsPerPage: number) => {
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1);
+  };
+
+  const getVisiblePageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else if (totalPages > 1) {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots;
+  };
+
   const getStatusBadge = (status: string) => {
-    const baseClasses = "px-2 py-1 rounded-full text-xs font-medium";
+    const baseClasses = "inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md border";
     switch (status) {
       case "Pending":
-        return `${baseClasses} bg-yellow-100 text-yellow-800`;
+        return `${baseClasses} text-yellow-700 bg-yellow-100 border-yellow-200`;
+      case "In Progress":
+        return `${baseClasses} text-blue-700 bg-blue-100 border-blue-200`;
       case "Resolved":
-        return `${baseClasses} bg-green-100 text-green-800`;
+        return `${baseClasses} text-green-700 bg-green-100 border-green-200`;
       case "Closed":
-        return `${baseClasses} bg-gray-100 text-gray-800`;
+        return `${baseClasses} text-gray-700 bg-gray-100 border-gray-200`;
       default:
-        return `${baseClasses} bg-blue-100 text-blue-800`;
+        return `${baseClasses} text-blue-700 bg-blue-100 border-blue-200`;
     }
   };
 
+  const getUrgencyBadge = (urgency: string) => {
+    const baseClasses = "inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md border";
+    switch (urgency) {
+      case "Critical":
+        return `${baseClasses} text-red-700 bg-red-100 border-red-200`;
+      case "High":
+        return `${baseClasses} text-orange-700 bg-orange-100 border-orange-200`;
+      case "Medium":
+        return `${baseClasses} text-yellow-700 bg-yellow-100 border-yellow-200`;
+      case "Low":
+        return `${baseClasses} text-green-700 bg-green-100 border-green-200`;
+      default:
+        return `${baseClasses} text-gray-700 bg-gray-100 border-gray-200`;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "Pending": return <Clock size={14} />;
+      case "In Progress": return <Settings size={14} />;
+      case "Resolved": return <CheckCircle size={14} />;
+      case "Closed": return <X size={14} />;
+      default: return <AlertCircle size={14} />;
+    }
+  };
+
+  const getUrgencyIcon = (urgency: string) => {
+    switch (urgency) {
+      case "Critical": return <AlertTriangle size={14} />;
+      case "High": return <AlertCircle size={14} />;
+      case "Medium": return <Clock size={14} />;
+      case "Low": return <CheckCircle size={14} />;
+      default: return <AlertCircle size={14} />;
+    }
+  };
+
+  const uniqueCategories = [...new Set(STATIC_HANDPUMP_COMPLAINTS.map(c => c.category))];
+
   return (
-    <div className="p-6 relative z-10 min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
       <ToastContainer toasts={toast.toasts} />
       
-      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
-        <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Complaints</h1>
-        <p className="text-gray-600 mb-6">
-          View and update complaint status. Use location filters to narrow down your search.
-        </p>
-
-        {loading && (
-          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
-            <p className="text-blue-700">Loading complaint records...</p>
-          </div>
-        )}
-
-        {/* Location Filters */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div>
-            <label className="block text-sm font-medium mb-1">District</label>
-            <select
-              value={selectedDistrictId || ""}
-              onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading}
-            >
-              <option value="">All Districts</option>
-              {districts.map((d) => (
-                <option key={d.DistrictId} value={d.DistrictId}>
-                  {d.DistrictName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Select Block</label>
-            <select
-              value={selectedBlockId || ""}
-              onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedDistrictId}
-            >
-              <option value="">All Blocks</option>
-              {blocks.map((b) => (
-                <option key={b.BlockId} value={b.BlockId}>
-                  {b.BlockName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
-            <select
-              value={selectedGramPanchayatId || ""}
-              onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedBlockId}
-            >
-              <option value="">All Gram Panchayats</option>
-              {gramPanchayats.map((gp) => (
-                <option key={gp.Id} value={gp.Id}>
-                  {gp.GramPanchayatName}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-1">Village</label>
-            <select
-              value={selectedVillageId || ""}
-              onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
-              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={loading || !selectedGramPanchayatId}
-            >
-              <option value="">All Villages</option>
-              {villages.map((v) => (
-                <option key={v.Id} value={v.Id}>
-                  {v.VillageName}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {/* Search and Actions */}
-        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-4 flex-1">
-            <input
-              type="text"
-              className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Search by name, contact, location, or category..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              disabled={loading}
-            />
-            
-            <select
-              className="p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              disabled={loading}
-            >
-              <option value="">All Status</option>
-              <option value="Pending">Pending</option>
-              <option value="Resolved">Resolved</option>
-              <option value="Closed">Closed</option>
-            </select>
-
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
-              disabled={loading}
-            >
-              Clear Filters
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <button 
-              className={`px-4 py-2 rounded-md text-white transition-colors ${
-                downloading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
-              }`}
-              onClick={handleDownload} 
-              disabled={loading || downloading || filteredData.length === 0}
-            >
-              {downloading ? 'Downloading...' : 'Download Excel'}
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Results Summary */}
-      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
-        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-          <span>Location: <strong>{getSelectedLocationName()}</strong></span>
-          <span>Showing <strong>{filteredData.length}</strong> of <strong>{complaints.length}</strong> complaint records</span>
-          {filterStatus && <span>Status: <strong>{filterStatus}</strong></span>}
-        </div>
-      </div>
-
-      {/* Quick Stats Cards */}
-      {complaints.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-blue-100 p-2 rounded-lg">
-                <span className="text-2xl">📋</span>
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-800 via-gray-800 to-blue-900 rounded-xl shadow-xl p-6 mb-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+          <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center">
+                <ToolCase size={24} />
               </div>
-              <div>
-                <p className="text-sm text-gray-600">Total Complaints</p>
-                <p className="text-xl font-bold text-gray-800">{complaints.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-yellow-100 p-2 rounded-lg">
-                <span className="text-2xl">⏳</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Pending</p>
-                <p className="text-xl font-bold text-yellow-600">
-                  {complaints.filter(c => c.complaintStatus === "Pending").length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-green-100 p-2 rounded-lg">
-                <span className="text-2xl">✅</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Resolved</p>
-                <p className="text-xl font-bold text-green-600">
-                  {complaints.filter(c => c.complaintStatus === "Resolved").length}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow-sm p-4">
-            <div className="flex items-center gap-3">
-              <div className="bg-gray-100 p-2 rounded-lg">
-                <span className="text-2xl">🔒</span>
-              </div>
-              <div>
-                <p className="text-sm text-gray-600">Closed</p>
-                <p className="text-xl font-bold text-gray-600">
-                  {complaints.filter(c => c.complaintStatus === "Closed").length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Data Table */}
-      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-blue-600 text-white">
-                <th className="border border-gray-300 p-3 text-left font-medium">Complaint ID</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">District</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Block Name</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Gram Panchayat</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Village</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Beneficiary Name</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Category</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Status</th>
-                <th className="border border-gray-300 p-3 text-left font-medium">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredData.map((c, index) => (
-                <tr 
-                  key={c.id} 
-                  className={`${
-                    index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
-                  } hover:bg-blue-50 transition-colors`}
-                >
-                  <td className="border border-gray-300 p-3 font-medium text-blue-600">
-                    #{c.id}
-                  </td>
-                  <td className="border border-gray-300 p-3">{c.district}</td>
-                  <td className="border border-gray-300 p-3">{c.block}</td>
-                  <td className="border border-gray-300 p-3">{c.gramPanchayat}</td>
-                  <td className="border border-gray-300 p-3">{c.village}</td>
-                  <td className="border border-gray-300 p-3">
-                    <div>
-                      <div className="font-medium">{c.beneficiaryName}</div>
-                      {c.fatherHusbandName && (
-                        <div className="text-xs text-gray-500">S/O: {c.fatherHusbandName}</div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="border border-gray-300 p-3">
-                    <div>
-                      <div className="font-medium">{c.beneficiaryContact}</div>
-                      {c.familyMemberCount && (
-                        <div className="text-xs text-gray-500">Family: {c.familyMemberCount}</div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="border border-gray-300 p-3">
-                    <div>
-                      <div className="font-medium">{c.category}</div>
-                      {c.landmark && (
-                        <div className="text-xs text-gray-500">📍 {c.landmark}</div>
-                      )}
-                    </div>
-                  </td>
-                  <td className="border border-gray-300 p-3">
-                    <div className="space-y-1">
-                      <span className={getStatusBadge(c.complaintStatus)}>
-                        {c.complaintStatus}
-                      </span>
-                      <div className="text-xs text-gray-500">
-                        Beneficiary: {c.beneficiaryStatus === 0 ? 'Active' : 'Inactive'}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="border border-gray-300 p-3">
-                    <button
-                      onClick={() => handleEditComplaint(c)}
-                      className="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-xs"
-                      disabled={loading}
-                    >
-                      Edit Status
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {filteredData.length === 0 && !loading && (
-          <div className="text-center py-12 text-gray-500">
-            <div className="text-4xl mb-4">📋</div>
-            <h3 className="text-lg font-medium mb-2">No complaint records found</h3>
-            <p className="text-sm">
-              {complaints.length === 0 
-                ? "No complaints found for the selected criteria." 
-                : "No complaints match your search criteria. Try adjusting your filters."}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* Edit Complaint Status Modal */}
-      {showEditModal && selectedComplaint && (
-        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
-          <div ref={modalRef} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-2xl relative max-h-[90vh] overflow-y-auto">
-            <button 
-              onClick={() => {
-                setShowEditModal(false);
-                setSelectedComplaint(null);
-              }} 
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl"
-              disabled={saving}
-            >
-              &times;
-            </button>
-
-            <h2 className="text-xl font-bold mb-4 text-gray-800">Update Complaint Status</h2>
-            <p className="text-sm text-gray-600 mb-6">
-              Update the status for Complaint #{selectedComplaint.id}
+              Handpump Complaints Management
+            </h1>
+            <p className="text-slate-200 mb-6">
+              Monitor and manage handpump maintenance complaints across districts. Track status, urgency, and take corrective actions.
             </p>
 
-            <div className="space-y-4 mb-6">
-              {/* Complaint Information (Read-only) */}
-              <div className="bg-gray-50 p-4 rounded-md">
-                <h3 className="font-medium mb-3 text-gray-700">Complaint Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                  <div><strong>Complaint ID:</strong> #{selectedComplaint.id}</div>
-                  <div><strong>Category:</strong> {selectedComplaint.category}</div>
-                  <div><strong>Beneficiary:</strong> {selectedComplaint.beneficiaryName}</div>
-                  <div><strong>Contact:</strong> {selectedComplaint.beneficiaryContact}</div>
-                  <div><strong>Location:</strong> {selectedComplaint.village}, {selectedComplaint.gramPanchayat}</div>
-                  <div><strong>Landmark:</strong> {selectedComplaint.landmark || 'Not specified'}</div>
-                </div>
+            {loading && (
+              <div className="mb-4 p-3 bg-blue-100/20 border border-blue-200/30 rounded-lg backdrop-blur-sm">
+                <p className="text-blue-100">Loading handpump complaint records...</p>
               </div>
+            )}
 
-              {/* Status Update - The only editable field */}
-              <div>
-                <label className="block text-sm font-medium mb-2 text-gray-700">
-                  Complaint Status <span className="text-red-500">*</span>
-                </label>
+            {/* Location Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
                 <select
-                  className="w-full p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  value={selectedComplaint.complaintStatus}
-                  onChange={(e) => setSelectedComplaint(prev => prev ? {...prev, complaintStatus: e.target.value} : null)}
-                  disabled={saving}
+                  value={selectedDistrictId || ""}
+                  onChange={(e) => {
+                    setSelectedDistrictId(Number(e.target.value) || null);
+                    setSelectedBlockId(null);
+                    setSelectedGramPanchayatId(null);
+                    setSelectedVillageId(null);
+                  }}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
                 >
-                  <option value="Pending">Pending</option>
-                  <option value="Resolved">Resolved</option>
-                  <option value="Closed">Closed</option>
+                  <option value="" className="text-gray-800">All Districts</option>
+                  {districts.map((d) => (
+                    <option key={d.DistrictId} value={d.DistrictId} className="text-gray-800">
+                      {d.DistrictName}
+                    </option>
+                  ))}
                 </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  Note: Only complaint status can be updated through this interface
-                </p>
               </div>
 
-              {/* Current Status Display */}
-              <div className="bg-blue-50 p-4 rounded-md">
-                <h4 className="font-medium text-blue-800 mb-2">Current Status</h4>
-                <div className="flex items-center gap-2">
-                  <span className={getStatusBadge(selectedComplaint.complaintStatus)}>
-                    {selectedComplaint.complaintStatus}
-                  </span>
-                  <span className="text-sm text-blue-600">
-                    → Will be updated when you save changes
-                  </span>
-                </div>
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedBlockId || ""}
+                  onChange={(e) => {
+                    setSelectedBlockId(Number(e.target.value) || null);
+                    setSelectedGramPanchayatId(null);
+                    setSelectedVillageId(null);
+                  }}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Blocks</option>
+                  {blocks.map((b) => (
+                    <option key={b.BlockId} value={b.BlockId} className="text-gray-800">
+                      {b.BlockName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedGramPanchayatId || ""}
+                  onChange={(e) => {
+                    setSelectedGramPanchayatId(Number(e.target.value) || null);
+                    setSelectedVillageId(null);
+                  }}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Gram Panchayats</option>
+                  {gramPanchayats.map((gp) => (
+                    <option key={gp.Id} value={gp.Id} className="text-gray-800">
+                      {gp.GramPanchayatName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedVillageId || ""}
+                  onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Villages</option>
+                  {villages.map((v) => (
+                    <option key={v.Id} value={v.Id} className="text-gray-800">
+                      {v.VillageName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Status</option>
+                  <option value="Pending" className="text-gray-800">Pending</option>
+                  <option value="In Progress" className="text-gray-800">In Progress</option>
+                  <option value="Resolved" className="text-gray-800">Resolved</option>
+                  <option value="Closed" className="text-gray-800">Closed</option>
+                </select>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6">
+            {/* Additional Filters Row */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterUrgency}
+                  onChange={(e) => setFilterUrgency(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Urgency Levels</option>
+                  <option value="Critical" className="text-gray-800">Critical</option>
+                  <option value="High" className="text-gray-800">High</option>
+                  <option value="Medium" className="text-gray-800">Medium</option>
+                  <option value="Low" className="text-gray-800">Low</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterCategory}
+                  onChange={(e) => setFilterCategory(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                  disabled={loading}
+                >
+                  <option value="" className="text-gray-800">All Categories</option>
+                  {uniqueCategories.map((category, index) => (
+                    <option key={index} value={category} className="text-gray-800">
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Search and Actions */}
+            <div className="flex flex-col lg:flex-row justify-between gap-4 mt-6">
+              <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20 flex-1">
+                  <Search size={18} className="text-white" />
+                  <input
+                    type="text"
+                    className="bg-transparent text-white placeholder-white/70 focus:outline-none flex-1"
+                    placeholder="Search by complaint ID, handpump code, complainant name, contact, or location..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    disabled={loading}
+                  />
+                </div>
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium"
+                  disabled={loading}
+                >
+                  <X size={16} />
+                  Clear Filters
+                </button>
+              </div>
+
               <button 
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedComplaint(null);
-                }} 
-                className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 rounded-md transition-colors"
-                disabled={saving}
+                className="flex items-center gap-2 px-5 py-2 rounded-lg text-white transition-all duration-300 shadow-lg font-medium bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleDownload} 
+                disabled={loading || filteredData.length === 0}
               >
-                Cancel
-              </button>
-              <button 
-                onClick={handleSaveComplaintChanges}
-                className={`px-4 py-2 rounded-md text-white transition-colors ${
-                  saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
-                }`}
-                disabled={saving}
-              >
-                {saving ? 'Updating...' : 'Update Status'}
+                <Download size={18} />
+                Download Excel
               </button>
             </div>
           </div>
         </div>
-      )}
 
-      {/* No Data State */}
-      {complaints.length === 0 && !loading && (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center">
-          <div className="text-4xl mb-4">📋</div>
-          <h3 className="text-lg font-medium mb-2 text-gray-800">No Complaints Found</h3>
-          <p className="text-gray-600 mb-4">
-            {selectedVillageId || selectedGramPanchayatId || selectedBlockId || selectedDistrictId
-              ? "No complaints found for the selected location and filters."
-              : "Use the location filters above to load complaint data for a specific area."}
-          </p>
-          {(selectedVillageId || selectedGramPanchayatId || selectedBlockId || selectedDistrictId) && (
-            <button
-              onClick={clearFilters}
-              className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors"
-            >
-              Clear Filters & Try Again
-            </button>
+        {/* Results Summary */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200">
+          <div className="flex flex-wrap gap-6 text-sm">
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-blue-600" />
+              <span className="text-gray-600">Location: <strong className="text-gray-800">{getSelectedLocationName()}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Eye size={16} className="text-purple-600" />
+              <span className="text-gray-600">Showing <strong className="text-gray-800">{startIndex + 1}-{Math.min(endIndex, filteredData.length)}</strong> of <strong className="text-gray-800">{filteredData.length}</strong> complaints</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-green-600" />
+              <span className="text-gray-600">Total complaints: <strong className="text-gray-800">{complaints.length}</strong></span>
+            </div>
+            {filterStatus && <span className="text-gray-600">Status: <strong className="text-gray-800">{filterStatus}</strong></span>}
+            {filterUrgency && <span className="text-gray-600">Urgency: <strong className="text-gray-800">{filterUrgency}</strong></span>}
+            {filterCategory && <span className="text-gray-600">Category: <strong className="text-gray-800">{filterCategory}</strong></span>}
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        {complaints.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
+            <div className="group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Total Complaints</p>
+                  <p className="text-2xl font-bold mt-1">{filteredData.length}</p>
+                  <p className="text-blue-200 text-xs mt-1">All records</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <FileText size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="group bg-gradient-to-br from-yellow-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-yellow-100 text-sm font-medium">Pending</p>
+                  <p className="text-2xl font-bold mt-1">
+                    {filteredData.filter(c => c.complaintStatus === "Pending").length}
+                  </p>
+                  <p className="text-yellow-200 text-xs mt-1">Need attention</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Clock size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="group bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">In Progress</p>
+                  <p className="text-2xl font-bold mt-1">
+                    {filteredData.filter(c => c.complaintStatus === "In Progress").length}
+                  </p>
+                  <p className="text-blue-200 text-xs mt-1">Being resolved</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Settings size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm font-medium">Resolved</p>
+                  <p className="text-2xl font-bold mt-1">
+                    {filteredData.filter(c => c.complaintStatus === "Resolved").length}
+                  </p>
+                  <p className="text-green-200 text-xs mt-1">Completed</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <CheckCircle size={24} />
+                </div>
+              </div>
+            </div>
+
+            <div className="group bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-red-100 text-sm font-medium">Critical</p>
+                  <p className="text-2xl font-bold mt-1">
+                    {filteredData.filter(c => c.urgency === "Critical").length}
+                  </p>
+                  <p className="text-red-200 text-xs mt-1">Urgent action</p>
+                </div>
+                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                  <AlertTriangle size={24} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Table */}
+        <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+          <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <ToolCase size={20} />
+                </div>
+                Complaint Management
+              </h2>
+              <p className="text-gray-200 mt-2">Comprehensive handpump complaint tracking and resolution</p>
+            </div>
+          </div>
+
+          {/* Pagination Controls - Top */}
+          {filteredData.length > 0 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b border-gray-200 gap-4 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-gray-700">Rows per page:</label>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {getVisiblePageNumbers().map((page, index) => (
+                    <span key={index}>
+                      {page === '...' ? (
+                        <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                      ) : (
+                        <button
+                          onClick={() => handlePageChange(page as number)}
+                          className={`px-3 py-1 border rounded-md text-sm ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Complaint ID</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Handpump Code</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Location</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Complainant</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Issue Category</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Urgency</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Status</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Timeline</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedData.map((c, index) => (
+                  <tr 
+                    key={c.id} 
+                    className={`${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    } hover:bg-blue-50 transition-colors duration-300`}
+                  >
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                        <span className="text-lg font-semibold text-blue-600">#{c.complaintId}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium text-gray-900">{c.handpumpCode}</div>
+                        <div className="text-xs text-gray-500">{c.handpumpLocation}</div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium text-gray-900">{c.village}</div>
+                        <div className="text-xs text-gray-500">{c.gramPanchayat}, {c.block}</div>
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <MapPin size={12} />
+                          {c.landmark}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <User size={14} className="text-indigo-500" />
+                        <div>
+                          <div className="font-medium text-gray-900">{c.complainantName}</div>
+                          <div className="text-xs text-gray-500 flex items-center gap-1">
+                            <Phone size={12} />
+                            {c.complainantContact}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="font-medium text-gray-900">{c.category}</div>
+                        {c.otherCategory && (
+                          <div className="text-xs text-gray-500">{c.otherCategory}</div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={getUrgencyBadge(c.urgency)}>
+                        {getUrgencyIcon(c.urgency)}
+                        {c.urgency}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="space-y-1">
+                        <span className={getStatusBadge(c.complaintStatus)}>
+                          {getStatusIcon(c.complaintStatus)}
+                          {c.complaintStatus}
+                        </span>
+                        <div className="text-xs text-gray-500 flex items-center gap-1">
+                          <Droplets size={12} />
+                          HP: {c.handpumpStatus}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-purple-500" />
+                        <div>
+                          <div className="text-sm font-medium">{c.resolutionDays} days</div>
+                          <div className="text-xs text-gray-500">
+                            {new Date(c.createdDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex flex-col gap-1">
+                        <button
+                          onClick={() => handleViewComplaint(c)}
+                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded-md hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-sm font-medium"
+                          disabled={loading}
+                        >
+                          <Eye size={12} />
+                          View Details
+                        </button>
+                        {(c.complaintStatus === "Pending" || c.complaintStatus === "In Progress") && (
+                          <button
+                            onClick={() => handleTakeAction(c)}
+                            className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium"
+                            disabled={loading}
+                          >
+                            <Wrench size={12} />
+                            Take Action
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredData.length === 0 && !loading && (
+            <div className="p-12 text-center">
+              <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Search size={24} className="text-gray-400" />
+              </div>
+              <p className="text-lg text-gray-500 font-medium">No handpump complaints found</p>
+              <p className="text-gray-400 mt-1">
+                {complaints.length === 0 
+                  ? "No complaints found for the selected criteria." 
+                  : "No complaints match your search criteria. Try adjusting your filters."}
+              </p>
+            </div>
           )}
         </div>
-      )}
+
+        {/* View Complaint Details Modal */}
+        {showViewModal && selectedComplaint && (
+          <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
+            <div ref={modalRef} className="bg-white p-6 rounded-xl shadow-2xl w-full max-w-4xl relative max-h-[90vh] overflow-y-auto">
+              <button 
+                onClick={() => {
+                  setShowViewModal(false);
+                  setSelectedComplaint(null);
+                }} 
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl font-bold w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+              >
+                <X size={20} />
+              </button>
+
+              <h2 className="text-2xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FileText size={20} className="text-blue-600" />
+                </div>
+                Handpump Complaint Details
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Complaint Information */}
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                  <h3 className="font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                    <FileText size={16} className="text-blue-600" />
+                    Complaint Information
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Complaint ID:</strong> 
+                      <span className="text-blue-600 font-medium">#{selectedComplaint.complaintId}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Status:</strong>
+                      <span className={getStatusBadge(selectedComplaint.complaintStatus)}>
+                        {getStatusIcon(selectedComplaint.complaintStatus)}
+                        {selectedComplaint.complaintStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Urgency:</strong>
+                      <span className={getUrgencyBadge(selectedComplaint.urgency)}>
+                        {getUrgencyIcon(selectedComplaint.urgency)}
+                        {selectedComplaint.urgency}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Resolution Timeline:</strong> 
+                      <span className="font-medium">{selectedComplaint.resolutionDays} days</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Created:</strong> 
+                      <span>{new Date(selectedComplaint.createdDate).toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Updated:</strong> 
+                      <span>{new Date(selectedComplaint.updatedDate).toLocaleString()}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Handpump Information */}
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border border-purple-200">
+                  <h3 className="font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                    <Droplets size={16} className="text-purple-600" />
+                    Handpump Information
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Handpump Code:</strong> 
+                      <span className="font-medium">{selectedComplaint.handpumpCode}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Location:</strong> 
+                      <span>{selectedComplaint.handpumpLocation}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Status:</strong> 
+                      <span className={`px-2 py-1 rounded-md text-xs font-medium ${
+                        selectedComplaint.handpumpStatus === 'Working' ? 'bg-green-100 text-green-700' : 
+                        selectedComplaint.handpumpStatus === 'Not Working' ? 'bg-red-100 text-red-700' : 
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {selectedComplaint.handpumpStatus}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Village:</strong> 
+                      <span>{selectedComplaint.village}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Gram Panchayat:</strong> 
+                      <span>{selectedComplaint.gramPanchayat}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Block:</strong> 
+                      <span>{selectedComplaint.block}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>District:</strong> 
+                      <span>{selectedComplaint.district}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Landmark:</strong> 
+                      <span className="flex items-center gap-1">
+                        <MapPin size={12} />
+                        {selectedComplaint.landmark}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Complainant Information */}
+                <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-6 rounded-xl border border-green-200">
+                  <h3 className="font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                    <User size={16} className="text-green-600" />
+                    Complainant Information
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Name:</strong> 
+                      <span className="font-medium">{selectedComplaint.complainantName}</span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Contact:</strong> 
+                      <span className="flex items-center gap-1">
+                        <Phone size={12} />
+                        {selectedComplaint.complainantContact}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Reported By:</strong> 
+                      <span>{selectedComplaint.createdBy}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Issue Details */}
+                <div className="bg-gradient-to-br from-yellow-50 to-orange-50 p-6 rounded-xl border border-yellow-200">
+                  <h3 className="font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                    <AlertTriangle size={16} className="text-yellow-600" />
+                    Issue Details
+                  </h3>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                      <strong>Category:</strong> 
+                      <span className="font-medium">{selectedComplaint.category}</span>
+                    </div>
+                    {selectedComplaint.otherCategory && (
+                      <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
+                        <strong>Specific Issue:</strong> 
+                        <span>{selectedComplaint.otherCategory}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
+              <div className="mt-6 bg-gradient-to-br from-gray-50 to-slate-50 p-6 rounded-xl border border-gray-200">
+                <h3 className="font-semibold mb-4 text-gray-700 flex items-center gap-2">
+                  <FileText size={16} className="text-gray-600" />
+                  Issue Description
+                </h3>
+                <div className="bg-white p-4 rounded-lg border border-gray-100">
+                  <p className="text-sm text-gray-700 leading-relaxed">{selectedComplaint.description}</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3 mt-8">
+                <button 
+                  onClick={() => {
+                    setShowViewModal(false);
+                    setSelectedComplaint(null);
+                  }} 
+                  className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
+                >
+                  Close
+                </button>
+                {(selectedComplaint.complaintStatus === "Pending" || selectedComplaint.complaintStatus === "In Progress") && (
+                  <button 
+                    onClick={() => {
+                      setShowViewModal(false);
+                      setSelectedComplaint(null);
+                      handleTakeAction(selectedComplaint);
+                    }}
+                    className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-lg transition-all duration-300 font-medium shadow-lg"
+                  >
+                    Take Action
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* No Data State */}
+        {complaints.length === 0 && !loading && (
+          <div className="bg-white rounded-xl shadow-lg p-12 text-center border border-gray-200">
+            <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-full mx-auto mb-6 flex items-center justify-center">
+              <ToolCase size={32} className="text-blue-500" />
+            </div>
+            <h3 className="text-xl font-semibold mb-3 text-gray-800">No Handpump Complaints Found</h3>
+            <p className="text-gray-600 mb-6 max-w-md mx-auto">
+              {selectedVillageId || selectedGramPanchayatId || selectedBlockId || selectedDistrictId
+                ? "No handpump complaints found for the selected location and filters."
+                : "No handpump complaints have been registered yet."}
+            </p>
+            {(selectedVillageId || selectedGramPanchayatId || selectedBlockId || selectedDistrictId) && (
+              <button
+                onClick={clearFilters}
+                className="px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 font-medium shadow-lg"
+              >
+                Clear Filters & Try Again
+              </button>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-export default ManageComplaint;
+export default ManageHandpumpComplaints;

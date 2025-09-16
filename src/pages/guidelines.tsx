@@ -69,7 +69,7 @@ const GuidelinesPage = () => {
       {/* Hero Section */}
       <div className="relative py-20 px-6 md:px-24">
         
-        <div className="absolute inset-0 bg-[url('/wallpaper.png')] bg-cover opacity-20"></div>
+        <div className="absolute inset-0 bg-[url('/Handpump_background.png')] bg-cover opacity-20"></div>
         
         <div className="relative z-10 text-center">
           <div className="flex items-center justify-center mb-6">

@@ -13,7 +13,10 @@ const PrivateRoute: React.FC<PrivateRouteProps> = ({ allowedRoles }) => {
     return <Navigate to="/login" replace />;
   }
 
-  if (!role || !allowedRoles.includes(role.toLowerCase())) {
+  // Convert both the user role and allowed roles to lowercase for comparison
+  if (!role || !allowedRoles.some(allowedRole => 
+    allowedRole.toLowerCase() === role.toLowerCase()
+  )) {
     return <Navigate to="/unauthorized" replace />;
   }
 

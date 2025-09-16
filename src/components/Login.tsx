@@ -22,12 +22,13 @@ const Login = () => {
   const handleLogin = async () => {
     setError("");
     if (!username.trim() || !password.trim()) {
-    setError("Please enter a valid User ID and Password");
-    return;
-  }
+      setError("Please enter a valid User ID and Password");
+      return;
+    }
+    
     try {
       const response = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Login/UserLogin",
+        "https://hmsapi.kdsgroup.co.in/api/Login/UserLogin",
         {
           method: "POST",
           headers: {
@@ -45,7 +46,6 @@ const Login = () => {
       const data = await response.json();
       console.log("Login API response:", data);
 
-
       if (response.ok && data.Token) {
         // Decode JWT token payload to extract role
         const tokenParts = data.Token.split(".");
@@ -56,8 +56,7 @@ const Login = () => {
 
         const payload = JSON.parse(atob(tokenParts[1]));
         const roleFromToken =
-          payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"]?.toLowerCase() ||
-          "";
+          payload["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || "";
 
         if (!roleFromToken) {
           setError("User role not found in token");
@@ -65,38 +64,43 @@ const Login = () => {
         }
 
         // Save token, userID, and role in both context state and localStorage
-        // Save token, userID, and role in both context state and localStorage
-localStorage.setItem("authToken", data.Token);
-localStorage.setItem("userID", data.UserID);
-localStorage.setItem("role", roleFromToken);
+        localStorage.setItem("authToken", data.Token);
+        localStorage.setItem("userID", data.UserID);
+        localStorage.setItem("role", roleFromToken);
 
-// ✅ clear old cached user info so new login reflects correctly
-localStorage.removeItem("cachedUserInfo");
+        // Clear old cached user info so new login reflects correctly
+        localStorage.removeItem("cachedUserInfo");
 
-if (data.uparm) {
-  localStorage.setItem("uparm", data.uparm);
-} else {
-  // Try extracting from JWT payload if not directly in response
-  if (payload.uparm) {
-    localStorage.setItem("uparm", payload.uparm);
-  }
-}
-
+        // Extract and store additional user info if available
+        if (payload.UserName) {
+          localStorage.setItem("userName", payload.UserName);
+        }
 
         setToken(data.Token);
         setUserID(data.UserID);
         setRole(roleFromToken);
 
-        // Redirect based on role
-        if (roleFromToken === "admin") {
-  navigate("/admin/dashboard");
-} else if (roleFromToken === "gram panchayat") {
-  navigate("/gp/dashboard");
-} else if (roleFromToken === "call center") {
-  navigate("/callcenter/dashboard");
-} else {
-          setError("Invalid login role");
-          localStorage.clear();
+        // Redirect based on role (use exact case from JWT)
+        switch (roleFromToken) {
+          case "Admin":
+            navigate("/admin/dashboard");
+            break;
+          case "Gram_Panchayat_Sachiv":
+            navigate("/gp/dashboard");
+            break;
+          case "Assistant_Development_Officer":
+            navigate("/ado/dashboard");
+            break;
+          case "District_Panchayati_Raj_Officer":
+            navigate("/dpro/dashboard");
+            break;
+          case "Consulting_Engineer":
+            navigate("/consultingengineer/dashboard");
+            break;
+          default:
+            setError("Invalid user role or unauthorized access");
+            localStorage.clear();
+            break;
         }
       } else {
         setError(data.ResponseMessage || "Login failed");
@@ -112,10 +116,8 @@ if (data.uparm) {
       <Navbar />
       <div
         className="w-full h-screen bg-cover bg-center relative flex flex-col md:flex-row items-center justify-between px-6 md:px-20 py-10 text-white"
-        style={{ backgroundImage: "url('/background.jpg')" }}
+        style={{ backgroundImage: "url('/Handpump_background.png')" }}
       >
-        <div className="absolute inset-0 bg-black/60 z-0"></div>
-
         <div className="relative z-10 w-full md:w-1/2 max-w-xl flex flex-col gap-6 bg-gray-900/80 p-10 md:p-14 rounded-3xl shadow-2xl">
           <img src="/logo.png" alt="logo" className="w-24 md:w-28 mx-auto" />
           <h1 className="text-3xl md:text-4xl font-extrabold text-center">
@@ -173,9 +175,8 @@ if (data.uparm) {
 
         <div className="relative z-10 hidden md:flex flex-col items-end w-1/2 text-right pr-6">
           <h1 className="text-5xl lg:text-6xl font-extrabold leading-tight text-white drop-shadow-lg">
-             Water Management System
+             Handpump Management System
           </h1>
-          
         </div>
       </div>
     </>

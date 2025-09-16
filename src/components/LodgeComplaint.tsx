@@ -1,4 +1,4 @@
-// src/components/LodgeComplaint.tsx
+// src/components/LodgeHandpumpComplaint.tsx
 import React, { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useUserInfo } from '../utils/userInfo';
@@ -6,28 +6,27 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
 
-type LodgeComplaintProps = {
+type LodgeHandpumpComplaintProps = {
   isModal?: boolean;
   onClose?: () => void;
 };
 
-const COMPLAINT_CATEGORIES: { label: string; days: number }[] = [
-  { label: "Area Drinking Water Scarcity", days: 5 },
-  { label: "Area Water Contamination", days: 3 },
-  { label: "Cleaning Of Overhead Tank", days: 2 },
-  { label: "Contamination Of Water", days: 3 },
-  { label: "Defective Water Meter", days: 7 },
-  { label: "Drinking Water Scarcity", days: 5 },
-  { label: "Inlet Pipe Leakage Coming From Outside The House", days: 4 },
-  { label: "Masonry Work Outside The House", days: 8 },
-  { label: "No Water", days: 2 },
-  { label: "Overflow From OverHead Tank", days: 3 },
-  { label: "Pipe Leakage/Brust Outside The House", days: 4 },
-  { label: "Public Hydrant Platform Rep", days: 10 },
-  { label: "Public Hydrant Repair", days: 7 },
-  { label: "Raw Water Scarcity", days: 6 },
-  { label: "Water Value Chamber Cover Missing", days: 5 },
-  { label: "Water Valve Chamber Repair", days: 6 },
+// Handpump specific complaint categories
+const HANDPUMP_COMPLAINT_CATEGORIES: { label: string; days: number }[] = [
+  { label: "Handpump Not Working", days: 2 },
+  { label: "Water Quality Issues", days: 3 },
+  { label: "Handle/Lever Problems", days: 1 },
+  { label: "Water Flow Issues - Low Pressure", days: 2 },
+  { label: "Water Flow Issues - No Water", days: 1 },
+  { label: "Platform Damage/Missing", days: 5 },
+  { label: "Drainage Problems", days: 4 },
+  { label: "Soak Pit Issues", days: 4 },
+  { label: "Pipe Leakage/Burst", days: 2 },
+  { label: "Handpump Body Damage", days: 3 },
+  { label: "Rod/Cylinder Problems", days: 3 },
+  { label: "Water Contamination", days: 1 },
+  { label: "Maintenance Required", days: 7 },
+  { label: "Handpump Needs Repair", days: 5 },
   { label: "Other", days: 7 },
 ];
 
@@ -53,7 +52,14 @@ interface Village {
   VillageName: string;
 }
 
-const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClose }) => {
+interface Handpump {
+  HandpumpId: number;
+  HandpumpCode: string;
+  Location: string;
+  Status: string;
+}
+
+const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false, onClose }) => {
   const { userId } = useUserInfo();
   
   // State for dropdowns
@@ -69,16 +75,19 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
   const [villages, setVillages] = useState<Village[]>([]);
   const [selectedVillage, setSelectedVillage] = useState<Village | null>(null);
   
-  const [beneficiaries, setBeneficiaries] = useState<{ BeneficiaryId: number; BeneficiaryName: string; Contact: string }[]>([]);
+  const [handpumps, setHandpumps] = useState<Handpump[]>([]);
+  const [selectedHandpump, setSelectedHandpump] = useState<Handpump | null>(null);
 
   // Form fields
   const [form, setForm] = useState({
-    beneficiaryName: "",
-    beneficiaryContact: "",
+    complainantName: "",
+    complainantContact: "",
     landmark: "",
     category: "",
     resolutionDays: "",
     otherCategory: "",
+    description: "",
+    urgency: "Medium", // Low, Medium, High, Critical
   });
 
   const [loading, setLoading] = useState(false);
@@ -92,10 +101,12 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
       selectedBlockId,
       selectedGramPanchayatId,
       selectedVillage,
-      form.beneficiaryName,
-      form.beneficiaryContact,
+      selectedHandpump,
+      form.complainantName,
+      form.complainantContact,
       form.landmark,
       form.category,
+      form.description,
     ];
 
     // If category is "Other", also check otherCategory field
@@ -207,57 +218,85 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
       .catch(() => toast.error("Failed to fetch villages"));
   }, [selectedBlockId, selectedGramPanchayatId]);
 
-  // Fetch beneficiaries when village changes
+  // Fetch handpumps when village changes
   useEffect(() => {
     if (!selectedVillage) {
-      setBeneficiaries([]);
-      setForm(prev => ({ ...prev, beneficiaryName: "", beneficiaryContact: "" }));
+      setHandpumps([]);
+      setSelectedHandpump(null);
       return;
     }
 
-    const fetchBeneficiaries = async () => {
+    const fetchHandpumps = async () => {
       try {
         const villageId = selectedVillage.Id || selectedVillage.VillageId || 0;
-        console.log("Fetching beneficiaries for VillageId:", villageId);
+        console.log("Fetching handpumps for VillageId:", villageId);
         const token = localStorage.getItem("authToken");
-        const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetBeneficiaryListByVillage?VillageId=${villageId}`, {
+        
+        // This is a mock API call - you'll need to replace with actual API endpoint
+        const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetHandpumpsByVillage?VillageId=${villageId}`, {
           headers: {
             "Content-Type": "application/json",
             accept: "*/*",
             Authorization: `Bearer ${token}`,
           },
         });
+        
         const json = await res.json();
-        console.log("Beneficiary API response:", json);
+        console.log("Handpump API response:", json);
+        
         if (json.Status && Array.isArray(json.Data)) {
-          setBeneficiaries(json.Data);
+          setHandpumps(json.Data);
         } else {
-          setBeneficiaries([]);
+          // Mock data for demonstration - remove when real API is available
+          const mockHandpumps = [
+            { HandpumpId: 1, HandpumpCode: `HP${villageId}001`, Location: "Near School", Status: "Working" },
+            { HandpumpId: 2, HandpumpCode: `HP${villageId}002`, Location: "Village Center", Status: "Not Working" },
+            { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
+          ];
+          setHandpumps(mockHandpumps);
         }
       } catch (err) {
-        console.error("Error fetching beneficiaries:", err);
-        setBeneficiaries([]);
+        console.error("Error fetching handpumps:", err);
+        // Mock data fallback
+        const villageId = selectedVillage.Id || selectedVillage.VillageId || 0;
+        const mockHandpumps = [
+          { HandpumpId: 1, HandpumpCode: `HP${villageId}001`, Location: "Near School", Status: "Working" },
+          { HandpumpId: 2, HandpumpCode: `HP${villageId}002`, Location: "Village Center", Status: "Not Working" },
+          { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
+        ];
+        setHandpumps(mockHandpumps);
       }
     };
 
-    fetchBeneficiaries();
+    fetchHandpumps();
   }, [selectedVillage]);
 
   // Update resolution days on category change
   useEffect(() => {
     if (form.category) {
-      const selected = COMPLAINT_CATEGORIES.find(c => c.label === form.category);
+      const selected = HANDPUMP_COMPLAINT_CATEGORIES.find(c => c.label === form.category);
       if (selected) {
+        let days = selected.days;
+        
+        // Adjust days based on urgency
+        if (form.urgency === "Critical") {
+          days = Math.max(1, Math.floor(days / 2));
+        } else if (form.urgency === "High") {
+          days = Math.max(1, Math.floor(days * 0.75));
+        } else if (form.urgency === "Low") {
+          days = Math.min(15, days * 1.5);
+        }
+        
         setForm(prev => ({
           ...prev,
-          resolutionDays: `${Math.min(15, Math.max(1, selected.days))}`,
+          resolutionDays: `${Math.min(15, Math.max(1, Math.floor(days)))}`,
         }));
       }
     }
-  }, [form.category]);
+  }, [form.category, form.urgency]);
 
   // Handle form changes for basic form fields
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setForm(prev => ({ ...prev, [name]: value }));
   };
@@ -284,8 +323,8 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         return;
       }
 
-      if (!form.beneficiaryName) {
-        toast.error("Please select a beneficiary before submitting.");
+      if (!selectedHandpump) {
+        toast.error("Please select a handpump before submitting.");
         setLoading(false);
         return;
       }
@@ -307,35 +346,37 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
       const villageId = selectedVillage.VillageId ?? selectedVillage.Id ?? 0;
 
+      // Modified category mapping for handpump complaints
       const categoryMapping: Record<string, number> = {
-        "Area Drinking Water Scarcity": 1,
-        "Area Water Contamination": 2,
-        "Cleaning Of Overhead Tank": 3,
-        "Contamination Of Water": 4,
-        "Defective Water Meter": 5,
-        "Drinking Water Scarcity": 6,
-        "Inlet Pipe Leakage Coming From Outside The House": 7,
-        "Masonry Work Outside The House": 8,
-        "No Water": 9,
-        "Overflow From OverHead Tank": 10,
-        "Pipe Leakage/Brust Outside The House": 11,
-        "Public Hydrant Platform Rep": 12,
-        "Public Hydrant Repair": 13,
-        "Raw Water Scarcity": 14,
-        "Water Value Chamber Cover Missing": 15,
-        "Water Valve Chamber Repair": 16,
+        "Handpump Not Working": 101,
+        "Water Quality Issues": 102,
+        "Handle/Lever Problems": 103,
+        "Water Flow Issues - Low Pressure": 104,
+        "Water Flow Issues - No Water": 105,
+        "Platform Damage/Missing": 106,
+        "Drainage Problems": 107,
+        "Soak Pit Issues": 108,
+        "Pipe Leakage/Burst": 109,
+        "Handpump Body Damage": 110,
+        "Rod/Cylinder Problems": 111,
+        "Water Contamination": 112,
+        "Maintenance Required": 113,
+        "Handpump Needs Repair": 114,
         "Other": 0,
       };
       const categoryId = categoryMapping[form.category] || 0;
 
       const bodyData = {
         VillageId: villageId,
-        BeneficiaryId: Number(form.beneficiaryName),
-        Contact: form.beneficiaryContact,
+        HandpumpId: selectedHandpump.HandpumpId,
+        HandpumpCode: selectedHandpump.HandpumpCode,
+        ComplainantName: form.complainantName,
+        Contact: form.complainantContact,
         Landmark: form.landmark,
         Categoryid: categoryId,
-        Description: form.category === "Other" ? form.otherCategory : form.category,
+        Description: form.description,
         Status: 1,
+        Urgency: form.urgency,
         ResolutionTimelineDays: Number(form.resolutionDays),
         CreatedBy: createdBy,
         UpdatedBy: createdBy,
@@ -344,11 +385,13 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         DeviceToken: "",
         IPAddress: "",
         OtherCategory: form.category === "Other" ? form.otherCategory : "",
+        ComplaintType: "Handpump",
         uparm: localStorage.getItem("uparm") || "",
       };
 
+      // You'll need to update this API endpoint for handpump complaints
       const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Complain/InsertLodgeComplain",
+        "https://wmsapi.kdsgroup.co.in/api/Complain/InsertHandpumpComplaint",
         {
           method: "POST",
           headers: {
@@ -362,28 +405,31 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
 
       const data = await res.json();
       if (data?.Status) {
-        toast.success(data.Message || "Complaint lodged successfully.");
+        toast.success(data.Message || "Handpump complaint lodged successfully.");
         setForm({
-          beneficiaryName: "",
-          beneficiaryContact: "",
+          complainantName: "",
+          complainantContact: "",
           landmark: "",
           category: "",
           resolutionDays: "",
           otherCategory: "",
+          description: "",
+          urgency: "Medium",
         });
         setSelectedDistrictId(null);
         setSelectedBlockId(null);
         setSelectedGramPanchayatId(null);
         setSelectedVillage(null);
+        setSelectedHandpump(null);
         setBlocks([]);
         setGramPanchayats([]);
         setVillages([]);
-        setBeneficiaries([]);
+        setHandpumps([]);
       } else {
-        toast.error(data?.Message || "Failed to lodge complaint.");
+        toast.error(data?.Message || "Failed to lodge handpump complaint.");
       }
     } catch (err) {
-      console.error("Complaint submission error:", err);
+      console.error("Handpump complaint submission error:", err);
       toast.error("Network error. Please try again.");
     }
 
@@ -391,11 +437,11 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
   };
 
   return (
-    <div className={clsx("p-6 rounded-xl bg-white shadow-lg", isModal ? "w-full max-w-2xl mx-auto" : "")}>
+    <div className={clsx("p-6 rounded-xl bg-white shadow-lg", isModal ? "w-full max-w-3xl mx-auto" : "")}>
       <ToastContainer position="top-right" autoClose={3000} />
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-blue-800">Lodge Complaint</h2>
-        <p className="text-sm text-gray-600 mt-1">Complaint to be raised on behalf of the beneficiary.</p>
+        <h2 className="text-xl font-bold text-blue-800">Lodge Handpump Complaint</h2>
+        <p className="text-sm text-gray-600 mt-1">Report issues with handpump functionality, water quality, or maintenance needs.</p>
         <p className="text-sm text-red-600 mt-1 font-medium">Complaint once registered cannot be revoked.</p>
       </div>
 
@@ -480,38 +526,53 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
           </select>
         </div>
 
-        {/* Beneficiary Name */}
+        {/* Handpump Selection */}
         <div className="flex flex-col">
           <label className="text-sm font-medium mb-1 text-gray-700">
-            Beneficiary Name <span className="text-red-500">*</span>
+            Select Handpump <span className="text-red-500">*</span>
           </label>
           <select
-            id="beneficiaryName"
-            value={form.beneficiaryName}
-            onChange={(e) => setForm({ ...form, beneficiaryName: e.target.value })}
+            value={selectedHandpump?.HandpumpId || ""}
+            onChange={(e) => setSelectedHandpump(handpumps.find(h => h.HandpumpId === Number(e.target.value)) || null)}
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           >
-            <option value="">Select Beneficiary</option>
-            {beneficiaries.map((b) => (
-              <option key={b.BeneficiaryId} value={String(b.BeneficiaryId)}>
-                {b.BeneficiaryName}
+            <option value="">Select Handpump</option>
+            {handpumps.map((h) => (
+              <option key={h.HandpumpId} value={h.HandpumpId}>
+                {h.HandpumpCode} - {h.Location} ({h.Status})
               </option>
             ))}
           </select>
         </div>
 
-        {/* Beneficiary Contact Number */}
+        {/* Complainant Name */}
         <div className="flex flex-col">
           <label className="text-sm font-medium mb-1 text-gray-700">
-            Beneficiary Contact Number <span className="text-red-500">*</span>
+            Complainant Name <span className="text-red-500">*</span>
           </label>
           <input
             type="text"
-            name="beneficiaryContact"
-            value={form.beneficiaryContact}
+            name="complainantName"
+            value={form.complainantName}
             onChange={handleChange}
-            placeholder="Beneficiary Contact Number"
+            placeholder="Name of person reporting the issue"
+            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
+          />
+        </div>
+
+        {/* Complainant Contact Number */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Contact Number <span className="text-red-500">*</span>
+          </label>
+          <input
+            type="text"
+            name="complainantContact"
+            value={form.complainantContact}
+            onChange={handleChange}
+            placeholder="Contact number for follow-up"
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           />
@@ -527,7 +588,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
             name="landmark"
             value={form.landmark}
             onChange={handleChange}
-            placeholder="Landmark"
+            placeholder="Nearby landmark for easy location"
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           />
@@ -536,7 +597,7 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         {/* Complaint Category */}
         <div className="flex flex-col">
           <label className="text-sm font-medium mb-1 text-gray-700">
-            Complaint Category <span className="text-red-500">*</span>
+            Issue Category <span className="text-red-500">*</span>
           </label>
           <select
             name="category"
@@ -545,8 +606,8 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
             className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
             required
           >
-            <option value="">Select Complaint Category</option>
-            {COMPLAINT_CATEGORIES.map((c, i) => (
+            <option value="">Select Issue Category</option>
+            {HANDPUMP_COMPLAINT_CATEGORIES.map((c, i) => (
               <option key={i} value={c.label}>
                 {c.label}
               </option>
@@ -558,19 +619,38 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
         {form.category === "Other" && (
           <div className="flex flex-col">
             <label className="text-sm font-medium mb-1 text-gray-700">
-              Specify Other Category <span className="text-red-500">*</span>
+              Specify Issue Details <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
               name="otherCategory"
               value={form.otherCategory}
               onChange={handleChange}
-              placeholder="Please specify the complaint category"
+              placeholder="Please describe the specific issue"
               className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
               required
             />
           </div>
         )}
+
+        {/* Urgency Level */}
+        <div className="flex flex-col">
+          <label className="text-sm font-medium mb-1 text-gray-700">
+            Urgency Level <span className="text-red-500">*</span>
+          </label>
+          <select
+            name="urgency"
+            value={form.urgency}
+            onChange={handleChange}
+            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            required
+          >
+            <option value="Low">Low - Minor issues</option>
+            <option value="Medium">Medium - Normal priority</option>
+            <option value="High">High - Urgent attention needed</option>
+            <option value="Critical">Critical - Immediate action required</option>
+          </select>
+        </div>
 
         {/* Resolution Timeline */}
         <div className="flex flex-col">
@@ -583,6 +663,22 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
             className="border border-gray-300 px-3 py-2 rounded-md bg-gray-100 cursor-not-allowed focus:outline-none"
           />
         </div>
+      </div>
+
+      {/* Description - Full width */}
+      <div className="flex flex-col mt-4">
+        <label className="text-sm font-medium mb-1 text-gray-700">
+          Issue Description <span className="text-red-500">*</span>
+        </label>
+        <textarea
+          name="description"
+          value={form.description}
+          onChange={handleChange}
+          placeholder="Provide detailed description of the handpump issue, when it started, and any other relevant information..."
+          className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 min-h-[100px]"
+          rows={4}
+          required
+        />
       </div>
 
       {/* Display validation message when fields are missing */}
@@ -614,13 +710,13 @@ const LodgeComplaint: React.FC<LodgeComplaintProps> = ({ isModal = false, onClos
           onClick={handleSubmitComplaint}
           disabled={loading || !areAllMandatoryFieldsFilled()}
           className={clsx(
-            "px-4 py-2 text-white rounded transition-all duration-200",
+            "px-6 py-2 text-white rounded transition-all duration-200",
             areAllMandatoryFieldsFilled() && !loading
               ? "bg-blue-600 hover:bg-blue-700 cursor-pointer"
               : "bg-gray-400 cursor-not-allowed opacity-50"
           )}
         >
-          {loading ? "Submitting..." : "Submit Complaint"}
+          {loading ? "Submitting..." : "Submit Handpump Complaint"}
         </button>
       </div>
     </div>

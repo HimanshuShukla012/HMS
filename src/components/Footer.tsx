@@ -11,13 +11,13 @@ const Footer = () => {
               <img src="/logo.png" alt="IWMS Logo" className="h-14 w-auto" />
               <div className="leading-tight">
                 <div className="font-bold text-base">
-                  Water Management System
+                  Handpump Management System
                 </div>
                 
               </div>
             </div>
             <p className="text-gray-400 mt-3">
-              Developed for effective management of Rural Water Supply under Directorate of Panchayati Raj Uttar Pradesh.
+              Developed for effective management of handpumps under Directorate of Panchayati Raj Uttar Pradesh.
             </p>
           </div>
 

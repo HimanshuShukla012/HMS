@@ -1,1173 +1,1156 @@
-import { useEffect, useState } from "react";
-import { useUserInfo } from '../utils/userInfo';
-import { Calendar, AlertCircle, Zap, User, RefreshCw, Eye, Clock, Droplets, MapPin, CheckCircle } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import * as XLSX from 'xlsx';
 
-// Define interfaces for pump house data
-interface PumpHouseData {
-  OhtId: number;
-  OperatorName: string;
-  Contact: string;
-  PumpId: number;
-  HorsePower: string;
-  PowerSource: string;
-  SolarOutput: number;
-  Status: number;
-}
-
-// Location hierarchy interfaces
-interface District {
-  DistrictId: number;
-  DistrictName: string;
-}
-
-interface Block {
-  BlockId: number;
-  BlockName: string;
-  Id: number;
-  DistrictId: number;
-}
-
-interface GramPanchayat {
-  Id: number;
-  GramPanchayatName: string;
-  BlockId: number;
-}
-
-interface Village {
-  Id: number;
-  GramPanchayatId: number;
-  VillageName: string;
-  VillageNameHindi: string;
-}
-
-// Define interfaces for the monthly roaster data based on your API
-interface MonthlyRoasterData {
-  RoasterId: number;
-  GPId: number;
+/* --- API response shapes --- */
+interface HandpumpApi {
+  HandpumpId: number;
+  HandpumpCode: string;
+  Status: string | number;
+  ImageUrl?: string;
+  VideoUrl?: string;
+  NavigateUrl?: string;
+  DateOfGeotag?: string;
+  NearbyPerson?: string;
+  Contact?: string;
+  SoakPit?: string;
+  Drainage?: string;
+  Platform?: string;
+  LastRepairDate?: string;
+  LastReboreDate?: string;
+  WaterQuality?: string;
+  Remark?: string;
   VillageId: number;
-  RoasterDate: string;
-  ActivityType: string;
-  StartDate: string;
-  EndDate: string;
-  Remark: string;
-  PumpId: number;
-  Shift1DistributionFrom: string | null;
-  Shift1DistributionTo: string | null;
-  Shift2DistributionFrom: string | null;
-  Shift2DistributionTo: string | null;
-  Shift3DistributionFrom: string | null;
-  Shift3DistributionTo: string | null;
-  Shift1FillingFrom: string | null;
-  Shift1FillingTo: string | null;
-  Shift2FillingFrom: string | null;
-  Shift2FillingTo: string | null;
-  Shift3FillingFrom: string | null;
-  Shift3FillingTo: string | null;
-  DeviceToken: string;
-  IPAddress: string;
-  Status: number;
-  UpdatedDate: string;
+  VillageName: string;
+  DistrictId?: number;
+  DistrictName?: string;
+  BlockId?: number;
+  BlockName?: string;
+  GrampanchayatId?: number;
+  GrampanchayatName?: string;
 }
 
-// API Response interface
-interface ApiResponse<T> {
-  Data: T;
-  Error?: string | null;
-  Errror?: string | null;
-  Message: string;
-  Status: boolean;
+interface HandpumpState {
+  HandpumpId: number;
+  HandpumpCode: string;
+  status: string;
+  imageUrl: string;
+  videoUrl: string;
+  navigateUrl: string;
+  dateOfGeotag: string;
+  nearbyPerson: string;
+  contact: string;
+  soakPit: string;
+  drainage: string;
+  platform: string;
+  lastRepairDate: string;
+  lastReboreDate: string;
+  waterQuality: string;
+  remark: string;
+  villageId: number;
+  villageName: string;
+  districtId: number;
+  districtName: string;
+  blockId: number;
+  blockName: string;
+  gramPanchayatId: number;
+  gramPanchayatName: string;
 }
 
-// Request interface for the monthly API
-interface MonthlyRoasterRequest {
-  GPId: number;
-  VillgeId: number;
-  Month: number;
-  Year: number;
-}
+const ManageHandpump = () => {
+  // Mock user info - replace with actual hook
+  const userId = 1;
+  const role = "Admin";
+  const isLoading = false;
 
-// Statistics interface for dashboard cards
-interface RoasterStats {
-  totalSchedules: number;
-  activeSchedules: number;
-  maintenanceSchedules: number;
-  avgDistributionHours: number;
-}
+  const [editMode, setEditMode] = useState(false);
+  const [search, setSearch] = useState("");
+  const [showModal, setShowModal] = useState(false);
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-// Location API functions
-const fetchDistricts = async (userId: number): Promise<ApiResponse<District[]>> => {
-  try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
-      method: 'POST',
-      headers: {
-        'accept': '*/*',
-      },
-    });
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
 
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching districts:', error);
-    throw error;
-  }
-};
+  // Client-side filters
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+  const [selectedBlock, setSelectedBlock] = useState<string>("");
+  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState<string>("");
+  const [selectedVillage, setSelectedVillage] = useState<string>("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterWaterQuality, setFilterWaterQuality] = useState("");
 
-const fetchBlocks = async (userId: number): Promise<ApiResponse<Block[]>> => {
-  try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict', {
-      method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        UserId: userId
-      }),
-    });
+  const [handpumps, setHandpumps] = useState<HandpumpState[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [editedHandpumps, setEditedHandpumps] = useState<Set<number>>(new Set());
 
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching blocks:', error);
-    throw error;
-  }
-};
+  const modalRef = useRef<HTMLDivElement>(null);
 
-const fetchGramPanchayats = async (userId: number): Promise<ApiResponse<GramPanchayat[]>> => {
-  try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock', {
-      method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        UserId: userId
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching gram panchayats:', error);
-    throw error;
-  }
-};
-
-const fetchVillages = async (blockId: number, gramPanchayatId: number): Promise<ApiResponse<Village[]>> => {
-  try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat', {
-      method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        BlockId: blockId,
-        GramPanchayatId: gramPanchayatId
-      }),
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching villages:', error);
-    throw error;
-  }
-};
-
-// Fetch pump houses for the current user
-const fetchPumpHouses = async (userId: number): Promise<ApiResponse<PumpHouseData[]>> => {
-  try {
-    const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${userId}`, {
-      method: 'GET',
-      headers: {
-        'accept': '*/*',
-      },
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching pump houses:', error);
-    throw error;
-  }
-};
-
-// Fetch OHT details by VillageId
-const fetchOhtDetails = async (villageId: number) => {
-  try {
-    const response = await fetch(
-      `https://wmsapi.kdsgroup.co.in/api/Master/GetOHTByVillageId?VillageId=${villageId}`,
-      { method: 'GET', headers: { 'accept': '*/*' } }
-    );
-
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.Status) {
-        return data.Data;
-      } else {
-        return null;
-      }
-    } else {
-      console.error('Failed to fetch OHT details');
-      return null;
-    }
-  } catch (err) {
-    console.error('Error fetching OHT details:', err);
-    return null;
-  }
-};
-
-// Fetch monthly roaster data from the correct API
-const fetchMonthlyRoasterData = async (requestBody: MonthlyRoasterRequest): Promise<ApiResponse<MonthlyRoasterData[]>> => {
-  try {
-    const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetMonthlyRoasterWithSchedule', {
-      method: 'POST',
-      headers: {
-        'accept': '*/*',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      return data;
-    } else {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-  } catch (error) {
-    console.error('Error fetching monthly roaster data:', error);
-    throw error;
-  }
-};
-
-// Calculate statistics from roaster data
-const calculateStats = (data: MonthlyRoasterData[]): RoasterStats => {
-  const totalSchedules = data.length;
-  const activeSchedules = data.filter(item => item.Status === 1).length;
-  const maintenanceSchedules = data.filter(item => 
-    item.ActivityType.toLowerCase().includes('maintenance') || 
-    item.ActivityType.toLowerCase().includes('monthly')
-  ).length;
-  
-  const totalDistributionHours = data.reduce((acc, item) => {
-    if (item.Status === 1) {
-      const shift1Hours = calculateShiftDuration(item.Shift1DistributionFrom, item.Shift1DistributionTo);
-      const shift2Hours = calculateShiftDuration(item.Shift2DistributionFrom, item.Shift2DistributionTo);
-      const shift3Hours = calculateShiftDuration(item.Shift3DistributionFrom, item.Shift3DistributionTo);
-      return acc + shift1Hours + shift2Hours + shift3Hours;
-    }
-    return acc;
-  }, 0);
-  
-  const avgDistributionHours = activeSchedules > 0 ? totalDistributionHours / activeSchedules : 0;
-  
-  return {
-    totalSchedules,
-    activeSchedules,
-    maintenanceSchedules,
-    avgDistributionHours
-  };
-};
-
-// Helper function to calculate shift duration
-const calculateShiftDuration = (fromTime: string | null, toTime: string | null): number => {
-  if (!fromTime || !toTime || fromTime === "00:00:00" || toTime === "00:00:00" || fromTime === "00:00:01") {
-    return 0;
-  }
-  
-  const from = new Date(`2000-01-01T${fromTime}`);
-  const to = new Date(`2000-01-01T${toTime}`);
-  
-  if (to <= from) return 0;
-  
-  return (to.getTime() - from.getTime()) / (1000 * 60 * 60);
-};
-
-const ViewRoaster: React.FC = () => {
-  const currentDate = new Date();
-  const [selectedMonth, setSelectedMonth] = useState<number>(() => currentDate.getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState<number>(() => currentDate.getFullYear());
-  const [selectedPumpId, setSelectedPumpId] = useState<number | null>(null);
-  
-  // Location hierarchy states
-  const [districts, setDistricts] = useState<District[]>([]);
-  const [blocks, setBlocks] = useState<Block[]>([]);
-  const [gramPanchayats, setGramPanchayats] = useState<GramPanchayat[]>([]);
-  const [villages, setVillages] = useState<Village[]>([]);
-
-  const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
-  const [selectedBlockId, setSelectedBlockId] = useState<number | null>(null);
-  const [selectedGramPanchayatId, setSelectedGramPanchayatId] = useState<number | null>(null);
-  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
-  
-  // Data states
-  const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
-  const [uniquePumpHouses, setUniquePumpHouses] = useState<PumpHouseData[]>([]);
-  const [monthlyRoasterData, setMonthlyRoasterData] = useState<MonthlyRoasterData[]>([]);
-  const [roasterStats, setRoasterStats] = useState<RoasterStats>({
-    totalSchedules: 0,
-    activeSchedules: 0,
-    maintenanceSchedules: 0,
-    avgDistributionHours: 0
-  });
-  const [ohtData, setOhtData] = useState<any>(null);
-  
-  // UI states
-  const [loading, setLoading] = useState<boolean>(false);
-  const [pumpHouseLoading, setPumpHouseLoading] = useState<boolean>(false);
-  const [locationLoading, setLocationLoading] = useState<boolean>(false);
-  const [ohtLoading, setOhtLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string>("");
-  const [filterActivity, setFilterActivity] = useState<string>('all');
-
-  // Use the userInfo hook instead of hardcoded userId
-  const { userId } = useUserInfo();
-
-  // Fetch pump houses and location data when userId is available
+  // Mock data for development
   useEffect(() => {
-    if (!userId) return;
-    
-    const loadInitialData = async () => {
-      setPumpHouseLoading(true);
-      setLocationLoading(true);
-      
-      try {
-        // Load pump houses and location hierarchy in parallel
-        const [pumpResponse, districtResponse, blockResponse, gpResponse] = await Promise.all([
-          fetchPumpHouses(userId),
-          fetchDistricts(userId),
-          fetchBlocks(userId),
-          fetchGramPanchayats(userId)
-        ]);
-        
-        // Handle pump houses
-        if (pumpResponse && pumpResponse.Status && Array.isArray(pumpResponse.Data)) {
-          setPumpHouses(pumpResponse.Data);
-          
-          // Create unique pump houses based on PumpId
-          const uniqueMap = new Map<number, PumpHouseData>();
-          pumpResponse.Data.forEach(pump => {
-            if (!uniqueMap.has(pump.PumpId)) {
-              uniqueMap.set(pump.PumpId, pump);
-            }
-          });
-          const uniquePumps = Array.from(uniqueMap.values());
-          setUniquePumpHouses(uniquePumps);
-          
-          // Auto-select first active pump or first pump
-          const activePumps = uniquePumps.filter(pump => pump.Status === 1);
-          if (activePumps.length > 0) {
-            setSelectedPumpId(activePumps[0].PumpId);
-          } else if (uniquePumps.length > 0) {
-            setSelectedPumpId(uniquePumps[0].PumpId);
-          }
-        }
+    if (!isLoading && userId) {
+      // fetchHandpumps();
+      // For now, using mock data
+      setHandpumps(generateMockData());
+    }
+  }, [userId, isLoading]);
 
-        // Handle location hierarchy
-        if (districtResponse && districtResponse.Status) {
-          setDistricts(districtResponse.Data);
-          // Auto-select first district if only one
-          if (districtResponse.Data.length === 1) {
-            setSelectedDistrictId(districtResponse.Data[0].DistrictId);
-          }
-        }
+  // Generate mock data
+  const generateMockData = (): HandpumpState[] => {
+    const mockData: HandpumpState[] = [];
+    const statuses = ['Working', 'Not Working', 'Under Repair', 'Needs Repair'];
+    const waterQualities = ['Good', 'Fair', 'Poor', 'Needs Testing'];
+    const districts = ['District A', 'District B', 'District C'];
+    const blocks = ['Block 1', 'Block 2', 'Block 3'];
+    const gramPanchayats = ['GP Alpha', 'GP Beta', 'GP Gamma'];
+    const villages = ['Village X', 'Village Y', 'Village Z'];
 
-        if (blockResponse && blockResponse.Status) {
-          setBlocks(blockResponse.Data);
-          // Auto-select first block if only one
-          if (blockResponse.Data.length === 1) {
-            setSelectedBlockId(blockResponse.Data[0].BlockId);
-          }
-        }
+    for (let i = 1; i <= 100; i++) {
+      const district = districts[Math.floor(Math.random() * districts.length)];
+      const block = blocks[Math.floor(Math.random() * blocks.length)];
+      const gramPanchayat = gramPanchayats[Math.floor(Math.random() * gramPanchayats.length)];
+      const village = villages[Math.floor(Math.random() * villages.length)];
 
-        if (gpResponse && gpResponse.Status) {
-          setGramPanchayats(gpResponse.Data);
-          // Auto-select first GP if only one
-          if (gpResponse.Data.length === 1) {
-            setSelectedGramPanchayatId(gpResponse.Data[0].Id);
-          }
-        }
+      mockData.push({
+        HandpumpId: i,
+        HandpumpCode: `HP${String(i).padStart(4, '0')}`,
+        status: statuses[Math.floor(Math.random() * statuses.length)],
+        imageUrl: `https://example.com/image${i}.jpg`,
+        videoUrl: Math.random() > 0.5 ? `https://example.com/video${i}.mp4` : '',
+        navigateUrl: `https://maps.google.com/?q=28.${20 + Math.random() * 10},77.${10 + Math.random() * 20}`,
+        dateOfGeotag: new Date(2023, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0],
+        nearbyPerson: `Person ${i}`,
+        contact: `98765${String(Math.floor(Math.random() * 100000)).padStart(5, '0')}`,
+        soakPit: Math.random() > 0.5 ? 'Yes' : 'No',
+        drainage: Math.random() > 0.5 ? 'Good' : 'Needs Improvement',
+        platform: Math.random() > 0.7 ? 'Good' : Math.random() > 0.5 ? 'Fair' : 'Poor',
+        lastRepairDate: Math.random() > 0.3 ? new Date(2023, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0] : '',
+        lastReboreDate: Math.random() > 0.7 ? new Date(2022, Math.floor(Math.random() * 12), Math.floor(Math.random() * 28) + 1).toISOString().split('T')[0] : '',
+        waterQuality: waterQualities[Math.floor(Math.random() * waterQualities.length)],
+        remark: Math.random() > 0.5 ? `Remark for handpump ${i}` : '',
+        villageId: Math.floor(Math.random() * 10) + 1,
+        villageName: village,
+        districtId: Math.floor(Math.random() * 3) + 1,
+        districtName: district,
+        blockId: Math.floor(Math.random() * 3) + 1,
+        blockName: block,
+        gramPanchayatId: Math.floor(Math.random() * 3) + 1,
+        gramPanchayatName: gramPanchayat,
+      });
+    }
+    return mockData;
+  };
 
-      } catch (err) {
-        console.error('Error loading initial data:', err);
-        setError('Failed to load data. Please refresh and try again.');
-      } finally {
-        setPumpHouseLoading(false);
-        setLocationLoading(false);
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (showModal && modalRef.current && !modalRef.current.contains(e.target as Node)) {
+        setShowModal(false);
+        setCsvFile(null);
       }
     };
+    document.addEventListener("mousedown", handleOutsideClick);
+    return () => document.removeEventListener("mousedown", handleOutsideClick);
+  }, [showModal]);
 
-    loadInitialData();
-  }, [userId]);
-
-  // Fetch villages when block and gram panchayat are selected
+  // Reset to first page when filters change
   useEffect(() => {
-    if (selectedBlockId && selectedGramPanchayatId) {
-      const loadVillages = async () => {
-        try {
-          const response = await fetchVillages(selectedBlockId, selectedGramPanchayatId);
-          if (response && response.Status) {
-            setVillages(response.Data);
-            // Auto-select first village if only one
-            if (response.Data.length === 1) {
-              setSelectedVillageId(response.Data[0].Id);
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching villages:', err);
-        }
-      };
-      loadVillages();
+    setCurrentPage(1);
+  }, [search, selectedDistrict, selectedBlock, selectedGramPanchayat, selectedVillage, filterStatus, filterWaterQuality]);
+
+  // Get unique values for filter dropdowns
+  const getUniqueDistricts = () => {
+    const districts = handpumps
+      .filter(h => h.districtName)
+      .map(h => h.districtName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return districts;
+  };
+
+  const getUniqueBlocks = () => {
+    const blocks = handpumps
+      .filter(h => h.blockName && (!selectedDistrict || h.districtName === selectedDistrict))
+      .map(h => h.blockName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return blocks;
+  };
+
+  const getUniqueGramPanchayats = () => {
+    const gramPanchayats = handpumps
+      .filter(h => h.gramPanchayatName && 
+        (!selectedDistrict || h.districtName === selectedDistrict) &&
+        (!selectedBlock || h.blockName === selectedBlock))
+      .map(h => h.gramPanchayatName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return gramPanchayats;
+  };
+
+  const getUniqueVillages = () => {
+    const villages = handpumps
+      .filter(h => h.villageName && 
+        (!selectedDistrict || h.districtName === selectedDistrict) &&
+        (!selectedBlock || h.blockName === selectedBlock) &&
+        (!selectedGramPanchayat || h.gramPanchayatName === selectedGramPanchayat))
+      .map(h => h.villageName)
+      .filter((value, index, self) => self.indexOf(value) === index)
+      .sort();
+    return villages;
+  };
+
+  const handleEditToggle = () => {
+    if (editMode) {
+      setEditedHandpumps(new Set());
     }
-  }, [selectedBlockId, selectedGramPanchayatId]);
+    setEditMode((s) => !s);
+  };
 
-  // Fetch OHT details when village is selected
-  useEffect(() => {
-    if (selectedVillageId) {
-      const loadOhtData = async () => {
-        setOhtLoading(true);
-        try {
-          const data = await fetchOhtDetails(selectedVillageId);
-          setOhtData(data);
-        } catch (err) {
-          console.error('Error fetching OHT data:', err);
-          setOhtData(null);
-        } finally {
-          setOhtLoading(false);
-        }
-      };
-      loadOhtData();
+  const handleChange = (id: number, field: keyof HandpumpState, value: string | number) => {
+    setHandpumps((prev) => prev.map((h) => (h.HandpumpId === id ? { ...h, [field]: value } : h)));
+    setEditedHandpumps(prev => new Set([...prev, id]));
+  };
+
+  const handleSaveChanges = async () => {
+    if (editedHandpumps.size === 0) {
+      alert("No changes to save");
+      return;
     }
-  }, [selectedVillageId]);
 
-  // Fetch monthly roaster data
-  const loadMonthlyRoasterData = async (): Promise<void> => {
-    if (!selectedMonth || !selectedYear || !selectedPumpId || !selectedVillageId) return;
+    setSaving(true);
+    
+    // Simulate API call
+    setTimeout(() => {
+      alert(`Successfully updated ${editedHandpumps.size} handpump records`);
+      setEditedHandpumps(new Set());
+      setEditMode(false);
+      setSaving(false);
+    }, 1000);
+  };
 
-    setLoading(true);
-    setError('');
-
+  const handleDownload = () => {
+    setDownloading(true);
+    
     try {
-      const requestBody: MonthlyRoasterRequest = {
-        GPId: selectedGramPanchayatId,
-        VillgeId: selectedVillageId,
-        Month: selectedMonth,
-        Year: selectedYear
-      };
-
-      console.log('Fetching monthly roaster data with payload:', requestBody);
-
-      const response = await fetchMonthlyRoasterData(requestBody);
-      
-      console.log('Monthly roaster API response:', response);
-      
-      if (response && response.Status && Array.isArray(response.Data)) {
-        setMonthlyRoasterData(response.Data);
-        setRoasterStats(calculateStats(response.Data));
-      } else {
-        setMonthlyRoasterData([]);
-        setRoasterStats({ totalSchedules: 0, activeSchedules: 0, maintenanceSchedules: 0, avgDistributionHours: 0 });
-        if (response && !response.Status) {
-          setError(response.Message || 'Failed to fetch data');
-        }
-      }
-
-    } catch (err: unknown) {
-      console.error("Error fetching monthly roaster data:", err);
-      if (err instanceof Error) {
-        setError(`Error: ${err.message}`);
-      } else {
-        setError('Failed to fetch monthly roaster data. Please try again.');
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Effect for monthly data - only load when all required data is selected
-  useEffect(() => {
-    if (selectedPumpId && selectedVillageId) {
-      loadMonthlyRoasterData();
-    }
-  }, [selectedMonth, selectedYear, selectedPumpId, selectedVillageId]);
-
-  const getMonthName = (month: number): string => {
-    const months: string[] = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December'
-    ];
-    return months[month - 1] || '';
-  };
-
-  const formatTime = (timeString: string | null): string => {
-    if (!timeString || timeString === '00:00:00' || timeString === '00:00:01') return 'Not Set';
-    return timeString.substring(0, 5);
-  };
-
-  const formatDate = (dateString: string): string => {
-    try {
-      // Handle DD-MM-YYYY format from API
-      if (dateString.includes('-') && dateString.split('-')[0].length === 2) {
-        const [day, month, year] = dateString.split('-');
-        const date = new Date(`${year}-${month}-${day}`);
-        return date.toLocaleDateString('en-GB', { 
-          day: '2-digit', 
-          month: 'short', 
-          year: 'numeric' 
-        });
-      }
-      // Handle ISO format
-      const date = new Date(dateString);
-      return date.toLocaleDateString('en-GB', { 
-        day: '2-digit', 
-        month: 'short', 
-        year: 'numeric' 
+      const exportData = filteredData.map((h) => {
+        return {
+          'Sr. No.': filteredData.indexOf(h) + 1,
+          'Handpump ID': h.HandpumpCode,
+          'Status': h.status,
+          'Image': h.imageUrl,
+          'Video': h.videoUrl,
+          'Navigate': h.navigateUrl,
+          'Date of Geotag': h.dateOfGeotag,
+          'Nearby Person': h.nearbyPerson,
+          'Contact': h.contact,
+          'Soak Pit': h.soakPit,
+          'Drainage': h.drainage,
+          'Platform': h.platform,
+          'Last Repair Date': h.lastRepairDate,
+          'Last Rebore Date': h.lastReboreDate,
+          'Water Quality': h.waterQuality,
+          'Remark': h.remark,
+          'District': h.districtName,
+          'Block': h.blockName,
+          'Gram Panchayat': h.gramPanchayatName,
+          'Village': h.villageName
+        };
       });
-    } catch {
-      return dateString;
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+        wch: Math.max(
+          key.length,
+          ...exportData.map(row => String(row[key as keyof typeof row]).length)
+        )
+      }));
+      ws['!cols'] = colWidths;
+
+      XLSX.utils.book_append_sheet(wb, ws, 'Handpumps');
+
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const filename = `handpumps_export_${dateStr}.xlsx`;
+
+      XLSX.writeFile(wb, filename);
+      alert("Excel file downloaded successfully");
+      
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 
-  const getPowerSourceText = (powerSource: string): string => {
-    switch (powerSource) {
-      case '1': return 'Electric';
-      case '2': return 'Solar';
-      default: return 'Unknown';
+  const handleUpload = async () => {
+    if (!csvFile) {
+      alert("Please select a CSV file.");
+      return;
     }
+
+    // Simulate upload
+    setTimeout(() => {
+      alert("Import successful");
+      setShowModal(false);
+      setCsvFile(null);
+    }, 1000);
   };
 
-  const getStatusText = (status: number): string => {
-    return status === 1 ? 'Active' : 'Inactive';
+  const clearFilters = () => {
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedGramPanchayat("");
+    setSelectedVillage("");
+    setFilterStatus("");
+    setFilterWaterQuality("");
+    setSearch("");
   };
 
-  const getStatusBadgeClass = (status: number): string => {
-    return status === 1 
-      ? 'bg-green-100 text-green-800 border-green-200' 
-      : 'bg-red-100 text-red-800 border-red-200';
+  const getSelectedLocationName = () => {
+    if (selectedVillage) return selectedVillage;
+    if (selectedGramPanchayat) return selectedGramPanchayat;
+    if (selectedBlock) return selectedBlock;
+    if (selectedDistrict) return selectedDistrict;
+    return "All Areas";
   };
 
-  const getActivityBadgeClass = (activityType: string): string => {
-    if (activityType.toLowerCase().includes('maintenance')) {
-      return 'bg-orange-100 text-orange-800 border-orange-200';
-    }
-    if (activityType.toLowerCase().includes('monthly')) {
-      return 'bg-purple-100 text-purple-800 border-purple-200';
-    }
-    return 'bg-blue-100 text-blue-800 border-blue-200';
-  };
+  // Client-side filtering
+  const filteredData = handpumps.filter((h) => {
+    const matchesSearch = h.HandpumpCode.toLowerCase().includes(search.toLowerCase()) ||
+                         h.nearbyPerson.toLowerCase().includes(search.toLowerCase());
+    const matchesDistrict = !selectedDistrict || h.districtName === selectedDistrict;
+    const matchesBlock = !selectedBlock || h.blockName === selectedBlock;
+    const matchesGramPanchayat = !selectedGramPanchayat || h.gramPanchayatName === selectedGramPanchayat;
+    const matchesVillage = !selectedVillage || h.villageName === selectedVillage;
+    const matchesStatus = !filterStatus || h.status === filterStatus;
+    const matchesWaterQuality = !filterWaterQuality || h.waterQuality === filterWaterQuality;
 
-  // Filter monthly data based on activity type
-  const filteredMonthlyData = monthlyRoasterData.filter(item => {
-    if (filterActivity === 'all') return true;
-    if (filterActivity === 'monthly') return item.ActivityType.toLowerCase().includes('monthly');
-    if (filterActivity === 'maintenance') return item.ActivityType.toLowerCase().includes('maintenance');
-    return item.ActivityType.toLowerCase().includes(filterActivity.toLowerCase());
+    return matchesSearch && matchesDistrict && matchesBlock && matchesGramPanchayat && 
+           matchesVillage && matchesStatus && matchesWaterQuality;
   });
 
-  const selectedPumpDetails = uniquePumpHouses.find(p => p.PumpId === selectedPumpId);
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
 
-  // Event handlers
-  const refreshData = () => {
-    console.log('Refresh button clicked!');
-    setError('');
-    loadMonthlyRoasterData();
+  // Pagination controls
+  const handleRowsPerPageChange = (newRowsPerPage: number) => {
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1);
   };
 
-  const handlePumpSelect = (pumpId: number) => {
-    console.log('Pump card clicked! Pump ID:', pumpId);
-    setSelectedPumpId(pumpId);
-    setError('');
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
   };
 
-  const handleMonthChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newMonth = Number(e.target.value);
-    console.log('Month changed to:', newMonth);
-    setSelectedMonth(newMonth);
+  const getVisiblePageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else if (totalPages > 1) {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots;
   };
 
-  const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newYear = Number(e.target.value);
-    console.log('Year changed to:', newYear);
-    setSelectedYear(newYear);
-  };
+  return (
+    <div className="p-6 relative z-10 min-h-screen bg-gray-50">
+      <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+        <h1 className="text-3xl font-bold mb-2 text-gray-800">Manage Handpumps</h1>
+        <p className="text-gray-600 mb-6">
+          View, edit, and bulk-import handpump data. Use filters to narrow down your search.
+        </p>
 
-  const handleActivityFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const newFilter = e.target.value;
-    console.log('Activity filter changed to:', newFilter);
-    setFilterActivity(newFilter);
-  };
+        {loading && (
+          <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-blue-700">Loading handpumps...</p>
+          </div>
+        )}
+        
+        {error && (
+          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-700">Error: {error}</p>
+          </div>
+        )}
 
-  // Show loading state while userId is being fetched
-  if (!userId) {
-    return (
-      <div className="w-full bg-gray-50 relative z-10">
-        <div className="p-4 md:p-6 space-y-6">
-          <div className="bg-white p-6 rounded-lg shadow-sm border">
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-3 text-gray-600">Loading user information...</span>
-            </div>
+        {/* Location Filters */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-6">
+          <div>
+            <label className="block text-sm font-medium mb-1">District</label>
+            <select
+              value={selectedDistrict}
+              onChange={(e) => {
+                setSelectedDistrict(e.target.value);
+                if (e.target.value !== selectedDistrict) {
+                  setSelectedBlock("");
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Districts</option>
+              {getUniqueDistricts().map((district) => (
+                <option key={district} value={district}>
+                  {district}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Block</label>
+            <select
+              value={selectedBlock}
+              onChange={(e) => {
+                setSelectedBlock(e.target.value);
+                if (e.target.value !== selectedBlock) {
+                  setSelectedGramPanchayat("");
+                  setSelectedVillage("");
+                }
+              }}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Blocks</option>
+              {getUniqueBlocks().map((block) => (
+                <option key={block} value={block}>
+                  {block}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Gram Panchayat</label>
+            <select
+              value={selectedGramPanchayat}
+              onChange={(e) => {
+                setSelectedGramPanchayat(e.target.value);
+                if (e.target.value !== selectedGramPanchayat) {
+                  setSelectedVillage("");
+                }
+              }}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Gram Panchayats</option>
+              {getUniqueGramPanchayats().map((gp) => (
+                <option key={gp} value={gp}>
+                  {gp}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Village</label>
+            <select
+              value={selectedVillage}
+              onChange={(e) => setSelectedVillage(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Villages</option>
+              {getUniqueVillages().map((village) => (
+                <option key={village} value={village}>
+                  {village}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Status</option>
+              <option value="Working">Working</option>
+              <option value="Not Working">Not Working</option>
+              <option value="Under Repair">Under Repair</option>
+              <option value="Needs Repair">Needs Repair</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Water Quality</label>
+            <select
+              value={filterWaterQuality}
+              onChange={(e) => setFilterWaterQuality(e.target.value)}
+              className="w-full p-2 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              disabled={loading}
+            >
+              <option value="">All Quality</option>
+              <option value="Good">Good</option>
+              <option value="Fair">Fair</option>
+              <option value="Poor">Poor</option>
+              <option value="Needs Testing">Needs Testing</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Search and Actions */}
+        <div className="flex flex-col lg:flex-row justify-between gap-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-4 flex-1">
+            <input
+              type="text"
+              className="flex-1 p-3 border rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              placeholder="Search by handpump ID or nearby person..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              disabled={loading}
+            />
+            <button
+              onClick={clearFilters}
+              className="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 transition-colors"
+              disabled={loading}
+            >
+              Clear Filters
+            </button>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button 
+              className={`px-4 py-2 rounded-md text-white transition-colors ${
+                downloading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'
+              }`}
+              onClick={handleDownload} 
+              disabled={loading || downloading || filteredData.length === 0}
+            >
+              {downloading ? 'Downloading...' : 'Download Excel'}
+            </button>
+
+            <button 
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors" 
+              onClick={() => setShowModal(true)} 
+              disabled={loading}
+            >
+              Bulk Import
+            </button>
+
+            {!editMode ? (
+              <button 
+                className="bg-yellow-500 text-white px-4 py-2 rounded-md hover:bg-yellow-600 transition-colors" 
+                onClick={handleEditToggle} 
+                disabled={loading || handpumps.length === 0}
+              >
+                Edit Records
+              </button>
+            ) : (
+              <div className="flex gap-2">
+                <button 
+                  className="bg-gray-400 text-white px-4 py-2 rounded-md hover:bg-gray-500 transition-colors" 
+                  onClick={handleEditToggle}
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+                <button
+                  className={`px-4 py-2 rounded-md text-white transition-colors ${
+                    saving ? 'bg-gray-400' : 'bg-blue-600 hover:bg-blue-700'
+                  }`}
+                  onClick={handleSaveChanges}
+                  disabled={saving || editedHandpumps.size === 0}
+                >
+                  {saving ? 'Saving...' : `Save Changes (${editedHandpumps.size})`}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
-    );
-  }
 
-  return (
-    <div className="w-full bg-gray-50 relative z-10">
-        <div className="p-4 md:p-6 space-y-6">
-          {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-800 rounded-xl p-4 md:p-6 shadow-lg text-white">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold mb-2">Water Management System</h1>
-                <p className="text-blue-100">
-                  View and monitor pump house roaster schedules and operations
-                </p>
+      {/* Results Summary */}
+      <div className="bg-white rounded-lg shadow-sm p-4 mb-6">
+        <div className="flex flex-wrap gap-4 text-sm text-gray-600">
+          <span>Location: <strong>{getSelectedLocationName()}</strong></span>
+          <span>Showing <strong>{startIndex + 1}-{Math.min(endIndex, filteredData.length)}</strong> of <strong>{filteredData.length}</strong> handpumps</span>
+          <span>Total records: <strong>{handpumps.length}</strong></span>
+          {editedHandpumps.size > 0 && (
+            <span className="text-orange-600">
+              <strong>{editedHandpumps.size}</strong> records modified
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Data Table */}
+      <div className="bg-white rounded-lg shadow-sm overflow-hidden">
+        
+        {/* Quick Stats Cards */}
+        {handpumps.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6 px-6">
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-blue-100 p-2 rounded-lg">
+                  <span className="text-2xl">🚰</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Total Handpumps</p>
+                  <p className="text-xl font-bold text-gray-800">{filteredData.length}</p>
+                </div>
               </div>
-              <div className="text-left md:text-right">
-                <div className="text-sm text-blue-200">Current Date</div>
-                <div className="text-lg font-semibold">
-                  {new Date().toLocaleDateString('en-GB', { 
-                    day: '2-digit', 
-                    month: 'long', 
-                    year: 'numeric' 
-                  })}
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-green-100 p-2 rounded-lg">
+                  <span className="text-2xl">✅</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Working</p>
+                  <p className="text-xl font-bold text-green-600">
+                    {filteredData.filter(h => h.status === 'Working').length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-red-100 p-2 rounded-lg">
+                  <span className="text-2xl">❌</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Not Working</p>
+                  <p className="text-xl font-bold text-red-600">
+                    {filteredData.filter(h => h.status === 'Not Working').length}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow-sm p-4">
+              <div className="flex items-center gap-3">
+                <div className="bg-yellow-100 p-2 rounded-lg">
+                  <span className="text-2xl">🔧</span>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-600">Needs Attention</p>
+                  <p className="text-xl font-bold text-yellow-600">
+                    {filteredData.filter(h => h.status === 'Under Repair' || h.status === 'Needs Repair').length}
+                  </p>
                 </div>
               </div>
             </div>
           </div>
+        )}
 
-          {/* Error Display */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-3 shadow-sm">
-              <AlertCircle className="w-6 h-6 flex-shrink-0" />
-              <div className="flex-1">
-                <div className="font-semibold">Error</div>
-                <div className="text-sm">{error}</div>
-              </div>
-              <button
-                onClick={() => setError('')}
-                className="text-red-500 hover:text-red-700 text-xl font-bold transition-colors"
+        {/* Pagination Controls - Top */}
+        {filteredData.length > 0 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b border-gray-200 gap-4">
+            <div className="flex items-center gap-4">
+              <label className="text-sm font-medium text-gray-700">
+                Rows per page:
+              </label>
+              <select
+                value={rowsPerPage}
+                onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
-                ×
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
               </button>
-            </div>
-          )}
 
-          {/* Location Selection */}
-          {!locationLoading && (
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center gap-3 mb-6">
-                <MapPin className="w-6 h-6 text-green-600" />
-                <h2 className="text-xl font-semibold text-gray-800">Select Location</h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                {/* District Selection */}
-                <div>
-                  <label className="block font-medium text-gray-700 mb-2">District</label>
-                  <select
-                    value={selectedDistrictId || ''}
-                    onChange={(e) => setSelectedDistrictId(Number(e.target.value) || null)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="">Select District</option>
-                    {districts.map((district) => (
-                      <option key={district.DistrictId} value={district.DistrictId}>
-                        {district.DistrictName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Block Selection */}
-                <div>
-                  <label className="block font-medium text-gray-700 mb-2">Block</label>
-                  <select
-                    value={selectedBlockId || ''}
-                    onChange={(e) => setSelectedBlockId(Number(e.target.value) || null)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={!selectedDistrictId}
-                  >
-                    <option value="">Select Block</option>
-                    {blocks.map((block) => (
-                      <option key={block.BlockId} value={block.BlockId}>
-                        {block.BlockName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Gram Panchayat Selection */}
-                <div>
-                  <label className="block font-medium text-gray-700 mb-2">Gram Panchayat</label>
-                  <select
-                    value={selectedGramPanchayatId || ''}
-                    onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value) || null)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={!selectedBlockId}
-                  >
-                    <option value="">Select Gram Panchayat</option>
-                    {gramPanchayats.map((gp) => (
-                      <option key={gp.Id} value={gp.Id}>
-                        {gp.GramPanchayatName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Village Selection */}
-                <div>
-                  <label className="block font-medium text-gray-700 mb-2">Village</label>
-                  <select
-                    value={selectedVillageId || ''}
-                    onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={!selectedGramPanchayatId}
-                  >
-                    <option value="">Select Village</option>
-                    {villages.map((village) => (
-                      <option key={village.Id} value={village.Id}>
-                        {village.VillageName}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Selected Location Summary */}
-              {selectedVillageId && (
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                  <div className="font-medium text-green-800 mb-2 flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5" />
-                    Selected Location
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-700">District:</span>
-                      <div className="text-gray-900 font-semibold">
-                        {districts.find(d => d.DistrictId === selectedDistrictId)?.DistrictName}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Block:</span>
-                      <div className="text-gray-900 font-semibold">
-                        {blocks.find(b => b.BlockId === selectedBlockId)?.BlockName}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Gram Panchayat:</span>
-                      <div className="text-gray-900 font-semibold">
-                        {gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId)?.GramPanchayatName}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Village:</span>
-                      <div className="text-gray-900 font-semibold">
-                        {villages.find(v => v.Id === selectedVillageId)?.VillageName}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          
-          {/* Pump House Loading State */}
-          {pumpHouseLoading && (
-            <div className="bg-white p-6 rounded-lg shadow-sm border">
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600">Loading your pump houses...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Pump House Selection */}
-          {!pumpHouseLoading && uniquePumpHouses.length > 0 && (
-            <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <Zap className="w-6 h-6 text-blue-600" />
-                  <h2 className="text-xl font-semibold text-gray-800">Select Pump House</h2>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {uniquePumpHouses.length} pump house(s) available
-                </div>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {uniquePumpHouses.map((pump) => (
-                  <div
-                    key={pump.PumpId}
-                    onClick={() => handlePumpSelect(pump.PumpId)}
-                    className={`p-4 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md text-left w-full ${
-                      selectedPumpId === pump.PumpId
-                        ? 'border-blue-500 bg-blue-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="font-semibold text-lg text-gray-800">Pump #{pump.PumpId}</div>
-                      <span className={`px-3 py-1 text-xs font-medium rounded-full border ${getStatusBadgeClass(pump.Status)}`}>
-                        {getStatusText(pump.Status)}
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-600 space-y-2">
-                      <div className="flex items-center gap-2">
-                        <User className="w-4 h-4" />
-                        <span>{pump.OperatorName && pump.OperatorName !== '0' ? pump.OperatorName : 'No operator assigned'}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Zap className="w-4 h-4" />
-                        <span>{pump.HorsePower} HP ({getPowerSourceText(pump.PowerSource)})</span>
-                      </div>
-                      {pump.SolarOutput > 0 && (
-                        <div className="flex items-center gap-2">
-                          <div className="w-4 h-4 bg-yellow-400 rounded-full"></div>
-                          <span>Solar: {pump.SolarOutput} kW</span>
-                        </div>
-                      )}
-                    </div>
-                  </div>
+              <div className="flex items-center gap-1">
+                {getVisiblePageNumbers().map((page, index) => (
+                  <span key={index}>
+                    {page === '...' ? (
+                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                    ) : (
+                      <button
+                        onClick={() => handlePageChange(page as number)}
+                        className={`px-3 py-1 border rounded-md text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )}
+                  </span>
                 ))}
               </div>
 
-              {/* Selected Pump Details */}
-              {selectedPumpDetails && (
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-lg p-4">
-                  <div className="font-medium text-blue-800 mb-3 flex items-center gap-2">
-                    <Eye className="w-5 h-5" />
-                    Selected Pump House Details
-                  </div>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium text-gray-700">Pump ID:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.PumpId}</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">OHT ID:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.OhtId}</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Horse Power:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.HorsePower} HP</div>
-                    </div>
-                    <div>
-                      <span className="font-medium text-gray-700">Contact:</span>
-                      <div className="text-gray-900">{selectedPumpDetails.Contact || 'N/A'}</div>
-                    </div>
-                  </div>
-                </div>
-              )}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {/* No Pump Houses Available */}
-          {!pumpHouseLoading && uniquePumpHouses.length === 0 && !error && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-6">
-              <div className="flex items-center gap-3 text-yellow-800">
-                <AlertCircle className="w-6 h-6" />
-                <div>
-                  <div className="font-semibold text-lg">No Pump Houses Assigned</div>
-                  <div className="text-sm text-yellow-700">No pump houses are currently assigned to your user account. Please contact your administrator.</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Filters and Controls - Only show if pump and village are selected */}
-          {selectedPumpId && selectedVillageId && (
-            <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-              <div className="flex flex-col lg:flex-row lg:items-center gap-6">
-                {/* Title */}
-                <div className="flex flex-col md:flex-row md:items-center gap-4">
-                  <div className="flex items-center gap-3">
-                    <Calendar className="w-6 h-6 text-blue-600" />
-                    <span className="text-xl font-semibold text-gray-800">Monthly Roaster Schedule</span>
-                  </div>
-                </div>
-
-                {/* Refresh Button */}
-                <button
-                  onClick={refreshData}
-                  disabled={loading}
-                  className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
-                >
-                  <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                  Refresh Data
-                </button>
-              </div>
-
-              {/* Filters */}
-              <div className="mt-6 pt-6 border-t border-gray-200">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block font-medium text-gray-700 mb-2">Month</label>
-                    <select
-                      value={selectedMonth}
-                      onChange={handleMonthChange}
-                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {Array.from({length: 12}, (_, i) => (
-                        <option key={i + 1} value={i + 1}>
-                          {getMonthName(i + 1)}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-medium text-gray-700 mb-2">Year</label>
-                    <select
-                      value={selectedYear}
-                      onChange={handleYearChange}
-                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      {Array.from({length: 5}, (_, i) => {
-                        const year = new Date().getFullYear() + i - 2;
-                        return (
-                          <option key={year} value={year}>
-                            {year}
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-medium text-gray-700 mb-2">Activity Type</label>
-                    <select
-                      value={filterActivity}
-                      onChange={handleActivityFilterChange}
-                      className="border border-gray-300 rounded-lg px-3 py-2 w-full shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="all">All Activities</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="maintenance">Maintenance</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Requirements Info */}
-              {(!selectedPumpId || !selectedVillageId) && (
-                <div className="mt-6 bg-blue-50 border border-blue-200 rounded p-3 text-sm">
-                  <div className="font-medium text-blue-800 mb-1">Selection Requirements:</div>
-                  <div className="text-blue-700 space-y-1">
-                    <div className={`flex items-center gap-2 ${selectedVillageId ? 'text-green-700' : 'text-red-700'}`}>
-                      {selectedVillageId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                      Village must be selected
-                    </div>
-                    <div className={`flex items-center gap-2 ${selectedPumpId ? 'text-green-700' : 'text-red-700'}`}>
-                      {selectedPumpId ? <CheckCircle className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
-                      Pump house must be selected
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Statistics Cards */}
-          {selectedPumpId && selectedVillageId && !loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold text-blue-600">{roasterStats.totalSchedules}</div>
-                    <div className="text-sm font-medium text-gray-700">Total Roasters</div>
-                  </div>
-                  <Calendar className="w-8 h-8 text-blue-600 opacity-60" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold text-green-600">{roasterStats.activeSchedules}</div>
-                    <div className="text-sm font-medium text-gray-700">Active Roasters</div>
-                  </div>
-                  <Droplets className="w-8 h-8 text-green-600 opacity-60" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold text-orange-600">{roasterStats.maintenanceSchedules}</div>
-                    <div className="text-sm font-medium text-gray-700">Monthly Schedules</div>
-                  </div>
-                  <Zap className="w-8 h-8 text-orange-600 opacity-60" />
-                </div>
-              </div>
-              
-              <div className="bg-white p-4 md:p-6 rounded-lg shadow-sm border">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="text-2xl font-bold text-purple-600">{roasterStats.avgDistributionHours.toFixed(1)}</div>
-                    <div className="text-sm font-medium text-gray-700">Avg Hours/Day</div>
-                  </div>
-                  <Clock className="w-8 h-8 text-purple-600 opacity-60" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Loading State */}
-          {loading && (
-            <div className="bg-white p-8 rounded-lg shadow-sm border">
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                <span className="ml-3 text-gray-600 text-lg">Loading roaster data...</span>
-              </div>
-            </div>
-          )}
-
-          {/* Monthly Roaster Data */}
-          {!loading && selectedPumpId && selectedVillageId && (
-            <div className="space-y-6">
-              <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 md:p-6">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <Calendar className="w-6 h-6" />
-                      <h2 className="text-xl font-semibold">
-                        Monthly Roaster Schedule - {getMonthName(selectedMonth)} {selectedYear}
-                      </h2>
-                    </div>
-                    <div className="flex flex-wrap items-center gap-2 md:gap-4">
-                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
-                        Pump #{selectedPumpId}
-                      </span>
-                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
-                        Village #{selectedVillageId}
-                      </span>
-                      <span className="bg-blue-500 bg-opacity-50 text-blue-100 px-3 py-1 rounded-full text-sm">
-                        {filteredMonthlyData.length} records
-                      </span>
-                    </div>
-                  </div>
-                </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-blue-600 text-white">
+                <th className="border border-gray-300 p-3 text-left font-medium">Sr. No.</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Handpump ID</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Status</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Image</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Video</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Navigate</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Date of Geotag</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Nearby Person</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Contact</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Soak Pit</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Drainage</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Platform</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Last Repair Date</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Last Rebore Date</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Water Quality</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Remark</th>
+                <th className="border border-gray-300 p-3 text-left font-medium">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paginatedData.map((h, index) => {
+                const isEdited = editedHandpumps.has(h.HandpumpId);
+                const srNo = startIndex + index + 1;
                 
-                {filteredMonthlyData.length === 0 ? (
-                  <div className="text-center py-12 text-gray-500">
-                    <AlertCircle className="w-16 h-16 mx-auto mb-4 opacity-50" />
-                    <p className="text-lg font-medium">No roaster data found</p>
-                    <p className="text-sm">No monthly roaster data found for the selected criteria.</p>
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="bg-gray-50 border-b border-gray-200">
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Roaster Date</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Activity Type</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Duration</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Distribution Shifts</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Filling Shifts</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Remark</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Status</th>
-                          <th className="text-left p-3 md:p-4 font-semibold text-gray-700">Updated</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredMonthlyData.map((item, index) => (
-                          <tr key={item.RoasterId || index} className="bg-white hover:bg-gray-50 border-b border-gray-100 transition-colors">
-                            <td className="p-3 md:p-4 font-medium text-gray-900">
-                              {formatDate(item.RoasterDate)}
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getActivityBadgeClass(item.ActivityType)}`}>
-                                {item.ActivityType || 'N/A'}
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4 text-gray-700">
-                              <div className="text-xs">
-                                <div><strong>From:</strong> {formatDate(item.StartDate)}</div>
-                                <div><strong>To:</strong> {formatDate(item.EndDate)}</div>
-                              </div>
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <div className="space-y-1 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift1DistributionFrom)} - {formatTime(item.Shift1DistributionTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift2DistributionFrom)} - {formatTime(item.Shift2DistributionTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift3DistributionFrom)} - {formatTime(item.Shift3DistributionTo)}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <div className="space-y-1 text-xs">
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 1:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift1FillingFrom)} - {formatTime(item.Shift1FillingTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 2:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift2FillingFrom)} - {formatTime(item.Shift2FillingTo)}</span>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <span className="w-16 font-medium text-gray-600">Shift 3:</span>
-                                  <span className="text-gray-900">{formatTime(item.Shift3FillingFrom)} - {formatTime(item.Shift3FillingTo)}</span>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-3 md:p-4 text-gray-700 max-w-xs">
-                              <div className="truncate" title={item.Remark}>
-                                {item.Remark || 'N/A'}
-                              </div>
-                            </td>
-                            <td className="p-3 md:p-4">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getStatusBadgeClass(item.Status)}`}>
-                                {getStatusText(item.Status)}
-                              </span>
-                            </td>
-                            <td className="p-3 md:p-4 text-gray-600 text-xs">
-                              {formatDate(item.UpdatedDate)}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
+                return (
+                  <tr 
+                    key={h.HandpumpId} 
+                    className={`${
+                      index % 2 === 0 ? 'bg-gray-50' : 'bg-white'
+                    } hover:bg-blue-50 transition-colors ${
+                      isEdited ? 'ring-2 ring-orange-200 bg-orange-50' : ''
+                    }`}
+                  >
+                    <td className="border border-gray-300 p-3">{srNo}</td>
+
+                    <td className="border border-gray-300 p-3">
+                      <span className="font-medium text-blue-600">{h.HandpumpCode}</span>
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <select 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.status} 
+                          onChange={(e) => handleChange(h.HandpumpId, "status", e.target.value)}
+                        >
+                          <option value="Working">Working</option>
+                          <option value="Not Working">Not Working</option>
+                          <option value="Under Repair">Under Repair</option>
+                          <option value="Needs Repair">Needs Repair</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          h.status === 'Working' 
+                            ? 'bg-green-100 text-green-800' 
+                            : h.status === 'Not Working'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-yellow-100 text-yellow-800'
+                        }`}>
+                          {h.status}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {h.imageUrl ? (
+                        <a 
+                          href={h.imageUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline text-xs"
+                        >
+                          View Image
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No Image</span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {h.videoUrl ? (
+                        <a 
+                          href={h.videoUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:text-blue-800 underline text-xs"
+                        >
+                          View Video
+                        </a>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No Video</span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      <a 
+                        href={h.navigateUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="text-blue-600 hover:text-blue-800 underline text-xs"
+                      >
+                        Open Map
+                      </a>
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input 
+                          type="date"
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs" 
+                          value={h.dateOfGeotag} 
+                          onChange={(e) => handleChange(h.HandpumpId, "dateOfGeotag", e.target.value)}
+                        />
+                      ) : (
+                        h.dateOfGeotag || "-"
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.nearbyPerson} 
+                          onChange={(e) => handleChange(h.HandpumpId, "nearbyPerson", e.target.value)}
+                        />
+                      ) : (
+                        h.nearbyPerson || "-"
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.contact} 
+                          onChange={(e) => handleChange(h.HandpumpId, "contact", e.target.value)}
+                        />
+                      ) : (
+                        h.contact || "-"
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <select 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.soakPit} 
+                          onChange={(e) => handleChange(h.HandpumpId, "soakPit", e.target.value)}
+                        >
+                          <option value="Yes">Yes</option>
+                          <option value="No">No</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          h.soakPit === 'Yes' 
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {h.soakPit}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <select 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.drainage} 
+                          onChange={(e) => handleChange(h.HandpumpId, "drainage", e.target.value)}
+                        >
+                          <option value="Good">Good</option>
+                          <option value="Fair">Fair</option>
+                          <option value="Poor">Poor</option>
+                          <option value="Needs Improvement">Needs Improvement</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          h.drainage === 'Good' 
+                            ? 'bg-green-100 text-green-800' 
+                            : h.drainage === 'Fair'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {h.drainage}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <select 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.platform} 
+                          onChange={(e) => handleChange(h.HandpumpId, "platform", e.target.value)}
+                        >
+                          <option value="Good">Good</option>
+                          <option value="Fair">Fair</option>
+                          <option value="Poor">Poor</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          h.platform === 'Good' 
+                            ? 'bg-green-100 text-green-800' 
+                            : h.platform === 'Fair'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {h.platform}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input 
+                          type="date"
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs" 
+                          value={h.lastRepairDate} 
+                          onChange={(e) => handleChange(h.HandpumpId, "lastRepairDate", e.target.value)}
+                        />
+                      ) : (
+                        h.lastRepairDate || "-"
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <input 
+                          type="date"
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs" 
+                          value={h.lastReboreDate} 
+                          onChange={(e) => handleChange(h.HandpumpId, "lastReboreDate", e.target.value)}
+                        />
+                      ) : (
+                        h.lastReboreDate || "-"
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <select 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                          value={h.waterQuality} 
+                          onChange={(e) => handleChange(h.HandpumpId, "waterQuality", e.target.value)}
+                        >
+                          <option value="Good">Good</option>
+                          <option value="Fair">Fair</option>
+                          <option value="Poor">Poor</option>
+                          <option value="Needs Testing">Needs Testing</option>
+                        </select>
+                      ) : (
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          h.waterQuality === 'Good' 
+                            ? 'bg-green-100 text-green-800' 
+                            : h.waterQuality === 'Fair'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : h.waterQuality === 'Poor'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {h.waterQuality}
+                        </span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      {editMode ? (
+                        <textarea 
+                          className="w-full border rounded p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-xs" 
+                          rows={2}
+                          value={h.remark} 
+                          onChange={(e) => handleChange(h.HandpumpId, "remark", e.target.value)}
+                        />
+                      ) : (
+                        <span className="text-xs">{h.remark || "-"}</span>
+                      )}
+                    </td>
+
+                    <td className="border border-gray-300 p-3">
+                      <div className="flex flex-col gap-1">
+                        <button className="text-blue-600 hover:text-blue-800 underline text-xs">
+                          View Details
+                        </button>
+                        <button className="text-green-600 hover:text-green-800 underline text-xs">
+                          Update Status
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
+
+        {/* Pagination Controls - Bottom */}
+        {filteredData.length > 0 && totalPages > 1 && (
+          <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-gray-200 gap-4">
+            <div className="text-sm text-gray-600">
+              Showing {startIndex + 1} to {Math.min(endIndex, filteredData.length)} of {filteredData.length} entries
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => handlePageChange(1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                First
+              </button>
+
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+
+              <div className="flex items-center gap-1">
+                {getVisiblePageNumbers().map((page, index) => (
+                  <span key={index}>
+                    {page === '...' ? (
+                      <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                    ) : (
+                      <button
+                        onClick={() => handlePageChange(page as number)}
+                        className={`px-3 py-1 border rounded-md text-sm ${
+                          currentPage === page
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    )}
+                  </span>
+                ))}
+              </div>
+
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+
+              <button
+                onClick={() => handlePageChange(totalPages)}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Last
+              </button>
+            </div>
+          </div>
+        )}
+
+        {filteredData.length === 0 && !loading && (
+          <div className="text-center py-12 text-gray-500">
+            <div className="text-4xl mb-4">🚰</div>
+            <h3 className="text-lg font-medium mb-2">No handpumps found</h3>
+            <p className="text-sm">Try adjusting your filters or search criteria.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Bulk Import Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center px-4">
+          <div ref={modalRef} className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md relative">
+            <button 
+              onClick={() => { setShowModal(false); setCsvFile(null); }} 
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 text-2xl"
+            >
+              &times;
+            </button>
+
+            <h2 className="text-xl font-bold mb-4 text-gray-800">Bulk Import Handpumps</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              Upload handpump records in CSV format. Make sure your file follows the required format.
+            </p>
+
+            <div className="mb-4">
+              <a 
+                href="/handpumps_sample.csv" 
+                download 
+                className="inline-block text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+              >
+                📄 Download Sample Format
+              </a>
+            </div>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium mb-2">Select CSV File</label>
+              <input 
+                type="file" 
+                accept=".csv" 
+                onChange={(e) => setCsvFile(e.target.files?.[0] || null)} 
+                className="w-full border rounded-md p-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+              {csvFile && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✓ File selected: {csvFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button 
+                onClick={handleUpload} 
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md transition-colors"
+                disabled={!csvFile}
+              >
+                Upload & Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-export default ViewRoaster;
+export default ManageHandpump;

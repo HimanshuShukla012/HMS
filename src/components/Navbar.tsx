@@ -23,14 +23,14 @@ const Navbar = () => {
   const toggleNav = () => setNavOpen(!navOpen);
 
   return (
-    <nav className="navbar fixed top-0 left-0 w-full z-50 backdrop-blur bg-gradient-to-r from-blue-950 via-blue-900 to-cyan-800 text-white border-b border-blue-800 shadow-lg">
+    <nav className="navbar fixed top-0 left-0 w-full z-50 backdrop-blur bg-[#0c1f33] text-white shadow-lg">
       <div className="max-w-7xl mx-auto px-6 py-3 flex items-center justify-between">
         {/* Left: Logo & Title */}
         <Link to="/" className="flex items-center gap-3 flex-shrink-0">
           <img src="/logo.png" alt="IWMS Logo" className="h-14 w-auto object-contain" />
           <div className="leading-tight">
             <div className="text-lg md:text-xl font-bold">
-               Water Management System
+               Handpump Management System
             </div>
             
           </div>

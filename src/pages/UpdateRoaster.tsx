@@ -1,10 +1,1105 @@
-import PumpHouseRoaster from "./PumpHouseRoaster";
+import React, { useState, useEffect } from "react";
+import * as XLSX from 'xlsx';
+import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, ArrowLeft, MapPin, Phone, User, Droplets, Hammer, Shield } from 'lucide-react';
 
-export default function UpdateRoaster() {
-  return (
-    <div className="relative z-10">
+// Define the API response structure
+interface HandpumpData {
+  H_id: number;
+  HandpumpId: string;
+  HandpumpImage: string;
+  Latitude: number;
+  Longitude: number;
+  VillegeId: number;
+  NearByPersonName: string;
+  NearByPersonContact: string;
+  SoakpitConnected: number;
+  DrainageConnected: number;
+  PlateformBuild: number;
+  HandpumpStatus: string;
+  CreatedDate: string;
+  CreatedByID: number;
+  CreatedBy: string;
+  DistrictId: number;
+  DistrictName: string;
+  BlockId: number;
+  BlockName: string;
+  GPId: number;
+  GrampanchayatName: string;
+  VillegeName: string;
+  HandpumpVideoPath: string;
+  LastRepairDate: string | null;
+  LastReboreDate: string | null;
+  WaterQuality: string;
+  WaterQualityRemarks: string;
+}
+
+interface ApiResponse {
+  Data: HandpumpData[];
+  Message: string;
+  Status: boolean;
+  Errror: string | null;
+}
+
+// User info hook (same as GP Dashboard)
+const useUserInfo = () => {
+  const [userInfo, setUserInfo] = useState({
+    userId: null,
+    role: null,
+    isLoading: true
+  });
+
+  useEffect(() => {
+    const getUserInfo = () => {
+      try {
+        // Try to get from localStorage first
+        const storedUserId = localStorage.getItem('userId');
+        const storedRole = localStorage.getItem('userRole');
+        
+        if (storedUserId) {
+          setUserInfo({
+            userId: parseInt(storedUserId, 10),
+            role: storedRole,
+            isLoading: false
+          });
+          return;
+        }
+
+        // Try to get from JWT token
+        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
+        if (token) {
+          try {
+            const payload = JSON.parse(atob(token.split('.')[1]));
+            const userId = payload.UserID || payload.userId || payload.sub;
+            const role = payload.UserRoll || payload.role || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
+            
+            if (userId) {
+              const numericUserId = parseInt(userId, 10);
+              setUserInfo({
+                userId: numericUserId,
+                role: role,
+                isLoading: false
+              });
+              
+              // Store for future use
+              localStorage.setItem('userId', numericUserId.toString());
+              if (role) localStorage.setItem('userRole', role);
+              return;
+            }
+          } catch (e) {
+            console.warn('Error parsing JWT token:', e);
+          }
+        }
+
+        // Fallback: try common storage keys
+        const fallbackKeys = ['user_id', 'currentUserId', 'loggedInUserId'];
+        for (const key of fallbackKeys) {
+          const value = localStorage.getItem(key) || sessionStorage.getItem(key);
+          if (value && !isNaN(Number(value))) {
+            setUserInfo({
+              userId: parseInt(value, 10),
+              role: storedRole,
+              isLoading: false
+            });
+            return;
+          }
+        }
+
+        // If no userId found, set loading to false but keep userId null
+        setUserInfo({
+          userId: null,
+          role: null,
+          isLoading: false
+        });
+
+      } catch (error) {
+        console.error('Error getting user info:', error);
+        setUserInfo({
+          userId: null,
+          role: null,
+          isLoading: false
+        });
+      }
+    };
+
+    getUserInfo();
+  }, []);
+
+  return userInfo;
+};
+
+const ManageHandpump = () => {
+  const { userId, role, isLoading: userLoading } = useUserInfo();
+  
+  // API Data States
+  const [handpumps, setHandpumps] = useState<HandpumpData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Search and Filter States
+  const [search, setSearch] = useState("");
+  const [downloading, setDownloading] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
+  
+  // Filters
+  const [selectedDistrict, setSelectedDistrict] = useState("");
+  const [selectedBlock, setSelectedBlock] = useState("");
+  const [selectedVillage, setSelectedVillage] = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterWaterQuality, setFilterWaterQuality] = useState("");
+
+  // Check if user is Admin
+  const isAdmin = role === 'Admin';
+
+  // Fetch handpumps from API
+  const fetchHandpumps = async (currentUserId: number, userRole: string) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Get the auth token from storage (same as GP Dashboard approach)
+      const authToken = localStorage.getItem('authToken') || 
+                       sessionStorage.getItem('authToken') ||
+                       localStorage.getItem('token') ||
+                       sessionStorage.getItem('token');
       
-      <PumpHouseRoaster />
+      if (!authToken) {
+        throw new Error('Authentication token not found. Please log in again.');
+      }
+
+      let apiUrl: string;
+      let requestMethod: string;
+      let requestBody: string | null = null;
+
+      // Choose API endpoint based on user role
+      if (userRole === 'Admin') {
+        // Admin users get all handpumps using POST endpoint
+        apiUrl = 'https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListDetail';
+        requestMethod = 'POST';
+        requestBody = '';
+      } else {
+        // Non-admin users get filtered handpumps using GET endpoint
+        apiUrl = `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListByUserId?UserId=${currentUserId}`;
+        requestMethod = 'GET';
+      }
+
+      const requestOptions: RequestInit = {
+        method: requestMethod,
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        }
+      };
+
+      if (requestBody !== null) {
+        requestOptions.body = requestBody;
+      }
+
+      const response = await fetch(apiUrl, requestOptions);
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          throw new Error('Authentication failed. Please log in again.');
+        } else if (response.status === 403) {
+          throw new Error('Access denied. You may not have permission to view handpumps.');
+        } else {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+      }
+      
+      const data: ApiResponse = await response.json();
+      
+      if (data.Status && Array.isArray(data.Data)) {
+        setHandpumps(data.Data);
+        console.log(`Loaded ${data.Data.length} handpumps for ${userRole} user (ID: ${currentUserId})`);
+      } else {
+        throw new Error(data.Message || data.Errror || 'Failed to fetch handpumps');
+      }
+    } catch (error) {
+      console.error('Error fetching handpumps:', error);
+      setError(error instanceof Error ? error.message : 'Failed to fetch handpumps');
+      setHandpumps([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize data when userId and role are available
+  useEffect(() => {
+    if (!userId || userLoading || !role) return;
+    
+    console.log(`Fetching handpumps for ${role} user (ID: ${userId})`);
+    fetchHandpumps(userId, role);
+  }, [userId, role, userLoading]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, selectedDistrict, selectedBlock, selectedVillage, filterStatus, filterWaterQuality]);
+
+  // Get unique values for filters
+  const getUniqueDistricts = () => {
+    return [...new Set(handpumps.map(h => h.DistrictName))].sort();
+  };
+
+  const getUniqueBlocks = () => {
+    return [...new Set(handpumps
+      .filter(h => !selectedDistrict || h.DistrictName === selectedDistrict)
+      .map(h => h.BlockName))].sort();
+  };
+
+  const getUniqueVillages = () => {
+    return [...new Set(handpumps
+      .filter(h => (!selectedDistrict || h.DistrictName === selectedDistrict) &&
+                   (!selectedBlock || h.BlockName === selectedBlock))
+      .map(h => h.VillegeName))].sort();
+  };
+
+  const clearFilters = () => {
+    setSelectedDistrict("");
+    setSelectedBlock("");
+    setSelectedVillage("");
+    setFilterStatus("");
+    setFilterWaterQuality("");
+    setSearch("");
+  };
+
+  const getSelectedLocationName = () => {
+    if (selectedVillage) return selectedVillage;
+    if (selectedBlock) return selectedBlock;
+    if (selectedDistrict) return selectedDistrict;
+    return "All Areas";
+  };
+
+  // Transform API data for filtering
+  const transformHandpumpForFiltering = (h: HandpumpData) => ({
+    id: h.H_id,
+    handpumpId: h.HandpumpId,
+    districtName: h.DistrictName,
+    blockName: h.BlockName,
+    villageName: h.VillegeName,
+    status: h.HandpumpStatus,
+    hasImage: h.HandpumpImage ? "Yes" : "No",
+    hasVideo: h.HandpumpVideoPath ? "Yes" : "No",
+    navigate: `${h.Latitude}, ${h.Longitude}`,
+    geotagDate: new Date(h.CreatedDate).toLocaleDateString(),
+    nearbyPerson: h.NearByPersonName,
+    contact: h.NearByPersonContact,
+    soakPit: h.SoakpitConnected ? "Yes" : "No",
+    drainage: h.DrainageConnected ? "Yes" : "No",
+    platform: h.PlateformBuild ? "Yes" : "No",
+    lastRepairDate: h.LastRepairDate ? new Date(h.LastRepairDate).toLocaleDateString() : "N/A",
+    lastReboreDate: h.LastReboreDate ? new Date(h.LastReboreDate).toLocaleDateString() : "N/A",
+    waterQuality: h.WaterQuality || "N/A",
+    remark: h.WaterQualityRemarks || "",
+    originalData: h
+  });
+
+  // Filter handpumps
+  const filteredData = handpumps
+    .map(transformHandpumpForFiltering)
+    .filter((h) => {
+      const matchesSearch = h.handpumpId.toLowerCase().includes(search.toLowerCase()) ||
+                           h.nearbyPerson.toLowerCase().includes(search.toLowerCase());
+      const matchesDistrict = !selectedDistrict || h.districtName === selectedDistrict;
+      const matchesBlock = !selectedBlock || h.blockName === selectedBlock;
+      const matchesVillage = !selectedVillage || h.villageName === selectedVillage;
+      const matchesStatus = !filterStatus || h.status === filterStatus;
+      const matchesWaterQuality = !filterWaterQuality || h.waterQuality === filterWaterQuality;
+
+      return matchesSearch && matchesDistrict && matchesBlock && matchesVillage && 
+             matchesStatus && matchesWaterQuality;
+    });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+  const startIndex = (currentPage - 1) * rowsPerPage;
+  const endIndex = startIndex + rowsPerPage;
+  const paginatedData = filteredData.slice(startIndex, endIndex);
+
+  const handleDownload = () => {
+    if (filteredData.length === 0) return;
+    
+    setDownloading(true);
+    
+    try {
+      const exportData = filteredData.map((h, index) => ({
+        'Sr. No.': index + 1,
+        'Handpump ID': h.handpumpId,
+        'District': h.districtName,
+        'Block': h.blockName,
+        'Village': h.villageName,
+        'Status': h.status,
+        'Image': h.hasImage,
+        'Video': h.hasVideo,
+        'Navigate': h.navigate,
+        'Date of Geotag': h.geotagDate,
+        'Nearby Person': h.nearbyPerson,
+        'Contact': h.contact,
+        'Soak Pit': h.soakPit,
+        'Drainage': h.drainage,
+        'Platform': h.platform,
+        'Last Repair Date': h.lastRepairDate,
+        'Last Rebore Date': h.lastReboreDate,
+        'Water Quality': h.waterQuality,
+        'Remark': h.remark
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      XLSX.utils.book_append_sheet(wb, ws, 'Handpumps');
+      
+      const filename = `handpumps_export_${isAdmin ? 'admin' : 'user'}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+      
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const handleRefresh = () => {
+    if (!userId || !role) return;
+    fetchHandpumps(userId, role);
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handleRowsPerPageChange = (newRowsPerPage: number) => {
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1);
+  };
+
+  const getVisiblePageNumbers = () => {
+    const delta = 2;
+    const range = [];
+    const rangeWithDots = [];
+
+    for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+      range.push(i);
+    }
+
+    if (currentPage - delta > 2) {
+      rangeWithDots.push(1, '...');
+    } else {
+      rangeWithDots.push(1);
+    }
+
+    rangeWithDots.push(...range);
+
+    if (currentPage + delta < totalPages - 1) {
+      rangeWithDots.push('...', totalPages);
+    } else if (totalPages > 1) {
+      rangeWithDots.push(totalPages);
+    }
+
+    return rangeWithDots;
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'Active': return 'text-green-700 bg-green-100 border-green-200';
+      case 'Inactive': return 'text-red-700 bg-red-100 border-red-200';
+      default: return 'text-gray-700 bg-gray-100 border-gray-200';
+    }
+  };
+
+  const getWaterQualityColor = (quality: string) => {
+    switch (quality) {
+      case 'Good': return 'text-green-700 bg-green-100 border-green-200';
+      case 'Fair': return 'text-yellow-700 bg-yellow-100 border-yellow-200';
+      case 'Poor': return 'text-orange-700 bg-orange-100 border-orange-200';
+      case 'Contaminated': return 'text-red-700 bg-red-100 border-red-200';
+      default: return 'text-gray-700 bg-gray-100 border-gray-200';
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case 'Active': return <CheckCircle size={14} />;
+      case 'Inactive': return <X size={14} />;
+      default: return <Clock size={14} />;
+    }
+  };
+
+  // Loading state while user info is being fetched
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-slate-600 mx-auto"></div>
+          <p className="mt-4 text-slate-600 font-medium">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error if no userId is available
+  if (!userId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-8 border border-white/20">
+          <AlertCircle size={48} className="text-red-500 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-slate-800 mt-4">Authentication Required</h2>
+          <p className="text-slate-600 mt-2">Please log in to access the handpump management system.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
+      <div className="max-w-7xl mx-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-slate-800 via-gray-800 to-blue-900 rounded-xl shadow-xl p-6 mb-6 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -translate-y-16 translate-x-16"></div>
+          <div className="absolute bottom-0 left-0 w-24 h-24 bg-white/5 rounded-full translate-y-12 -translate-x-12"></div>
+          <div className="relative z-10">
+            <h1 className="text-3xl font-bold mb-4 flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center">
+                <Droplets size={24} />
+              </div>
+              Handpump Master Dashboard
+              {isAdmin && (
+                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-500/20 to-orange-500/20 px-3 py-1 rounded-lg border border-amber-400/30">
+                  <Shield size={18} className="text-amber-300" />
+                  <span className="text-amber-200 font-medium text-sm">Admin View</span>
+                </div>
+              )}
+            </h1>
+            <p className="text-slate-200 mb-2">
+              {isAdmin 
+                ? "Administrator access - Monitor all handpump installations across the system." 
+                : "Monitor and manage handpump installations across districts. Track status, maintenance, and water quality."
+              }
+            </p>
+            {userId && (
+              <p className="text-slate-300 text-sm">
+                User ID: {userId} {role && `• Role: ${role}`} {isAdmin && `• API: GetHandpumpListDetail (All Data)`}
+              </p>
+            )}
+
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-500/20 backdrop-blur-sm rounded-lg p-4 mb-4 border border-red-400/30">
+                <div className="flex items-center gap-2">
+                  <AlertCircle size={18} className="text-red-200" />
+                  <span className="text-red-200 font-medium">Error: {error}</span>
+                  <button 
+                    onClick={handleRefresh}
+                    className="ml-auto bg-red-400/30 hover:bg-red-400/50 px-3 py-1 rounded transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Loading Indicator */}
+            {loading && (
+              <div className="bg-blue-500/20 backdrop-blur-sm rounded-lg p-4 mb-4 border border-blue-400/30">
+                <div className="flex items-center gap-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-200 border-t-transparent"></div>
+                  <span className="text-blue-200 font-medium">
+                    Loading handpump data{isAdmin ? ' (Admin - All Records)' : ' (User Specific)'}...
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Location Filters */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedDistrict}
+                  onChange={(e) => {
+                    setSelectedDistrict(e.target.value);
+                    if (e.target.value !== selectedDistrict) {
+                      setSelectedBlock("");
+                      setSelectedVillage("");
+                    }
+                  }}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                >
+                  <option value="" className="text-gray-800">All Districts</option>
+                  {getUniqueDistricts().map((district) => (
+                    <option key={district} value={district} className="text-gray-800">{district}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedBlock}
+                  onChange={(e) => {
+                    setSelectedBlock(e.target.value);
+                    if (e.target.value !== selectedBlock) {
+                      setSelectedVillage("");
+                    }
+                  }}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                >
+                  <option value="" className="text-gray-800">All Blocks</option>
+                  {getUniqueBlocks().map((block) => (
+                    <option key={block} value={block} className="text-gray-800">{block}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={selectedVillage}
+                  onChange={(e) => setSelectedVillage(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                >
+                  <option value="" className="text-gray-800">All Villages</option>
+                  {getUniqueVillages().map((village) => (
+                    <option key={village} value={village} className="text-gray-800">{village}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                >
+                  <option value="" className="text-gray-800">All Status</option>
+                  <option value="Active" className="text-gray-800">Active</option>
+                  <option value="Inactive" className="text-gray-800">Inactive</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+                <Filter size={18} className="text-white" />
+                <select
+                  value={filterWaterQuality}
+                  onChange={(e) => setFilterWaterQuality(e.target.value)}
+                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+                >
+                  <option value="" className="text-gray-800">All Quality</option>
+                  <option value="Good" className="text-gray-800">Good</option>
+                  <option value="Fair" className="text-gray-800">Fair</option>
+                  <option value="Poor" className="text-gray-800">Poor</option>
+                  <option value="Contaminated" className="text-gray-800">Contaminated</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Search and Actions */}
+            <div className="flex flex-col lg:flex-row justify-between gap-4 mt-6">
+              <div className="flex flex-col sm:flex-row gap-4 flex-1">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20 flex-1">
+                  <Search size={18} className="text-white" />
+                  <input
+                    type="text"
+                    className="bg-transparent text-white placeholder-white/70 focus:outline-none flex-1"
+                    placeholder="Search by Handpump ID or Nearby Person..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                </div>
+                <button
+                  onClick={clearFilters}
+                  className="flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium"
+                >
+                  <X size={16} />
+                  Clear Filters
+                </button>
+                <button
+                  onClick={handleRefresh}
+                  disabled={loading || !userId}
+                  className="flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium disabled:opacity-50"
+                >
+                  <div className={loading ? "animate-spin" : ""}>
+                    <TrendingUp size={16} />
+                  </div>
+                  Refresh
+                </button>
+              </div>
+
+              <button 
+                className={`flex items-center gap-2 px-5 py-2 rounded-lg text-white transition-all duration-300 shadow-lg font-medium ${
+                  downloading || filteredData.length === 0 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700'
+                }`}
+                onClick={handleDownload} 
+                disabled={downloading || filteredData.length === 0}
+              >
+                <Download size={18} />
+                {downloading ? 'Downloading...' : 'Download Excel'}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Results Summary */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200">
+          <div className="flex flex-wrap gap-6 text-sm">
+            {isAdmin && (
+              <div className="flex items-center gap-2">
+                <Shield size={16} className="text-amber-600" />
+                <span className="text-gray-600">Access Level: <strong className="text-amber-700">Administrator (All Handpumps)</strong></span>
+              </div>
+            )}
+            <div className="flex items-center gap-2">
+              <MapPin size={16} className="text-blue-600" />
+              <span className="text-gray-600">Location: <strong className="text-gray-800">{getSelectedLocationName()}</strong></span>
+            </div>
+            <div className="flex items-center gap-2">
+              <Eye size={16} className="text-purple-600" />
+              <span className="text-gray-600">Showing <strong className="text-gray-800">{startIndex + 1}-{Math.min(endIndex, filteredData.length)}</strong> of <strong className="text-gray-800">{filteredData.length}</strong> handpumps</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <TrendingUp size={16} className="text-green-600" />
+              <span className="text-gray-600">Total handpumps: <strong className="text-gray-800">{handpumps.length}</strong></span>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
+          <div className="group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+                <p className="text-2xl font-bold mt-1">{filteredData.length}</p>
+                <p className="text-blue-200 text-xs mt-1">{isAdmin ? 'System-wide' : 'API sourced'}</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <Droplets size={24} />
+              </div>
+            </div>
+          </div>
+
+          <div className="group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Active</p>
+                <p className="text-2xl font-bold mt-1">
+                  {filteredData.filter(h => h.status === 'Active').length}
+                </p>
+                <p className="text-green-200 text-xs mt-1">Operational units</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <CheckCircle size={24} />
+              </div>
+            </div>
+          </div>
+
+          <div className="group bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-red-100 text-sm font-medium">Inactive</p>
+                <p className="text-2xl font-bold mt-1">
+                  {filteredData.filter(h => h.status === 'Inactive').length}
+                </p>
+                <p className="text-red-200 text-xs mt-1">Need attention</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <X size={24} />
+              </div>
+            </div>
+          </div>
+
+          <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-amber-100 text-sm font-medium">With Images</p>
+                <p className="text-2xl font-bold mt-1">
+                  {filteredData.filter(h => h.hasImage === 'Yes').length}
+                </p>
+                <p className="text-amber-200 text-xs mt-1">Documented</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <FileText size={24} />
+              </div>
+            </div>
+          </div>
+
+          <div className="group bg-gradient-to-br from-purple-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-purple-100 text-sm font-medium">With Platform</p>
+                <p className="text-2xl font-bold mt-1">
+                  {filteredData.filter(h => h.platform === 'Yes').length}
+                </p>
+                <p className="text-purple-200 text-xs mt-1">Infrastructure ready</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <Wrench size={24} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Data Table */}
+        <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+          <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Droplets size={20} />
+                </div>
+                Handpump Management
+                {isAdmin && (
+                  <div className="flex items-center gap-1 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-400/30">
+                    <Shield size={14} className="text-amber-300" />
+                    <span className="text-amber-200 text-xs font-medium">Admin</span>
+                  </div>
+                )}
+              </h2>
+              <p className="text-gray-200 mt-2">
+                {isAdmin 
+                  ? "Complete system data from GetHandpumpListDetail API" 
+                  : "Live API data from handpump registration system"
+                }
+              </p>
+            </div>
+          </div>
+
+          {/* Pagination Controls - Top */}
+          {filteredData.length > 0 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-b border-gray-200 gap-4 bg-gray-50">
+              <div className="flex items-center gap-4">
+                <label className="text-sm font-medium text-gray-700">Rows per page:</label>
+                <select
+                  value={rowsPerPage}
+                  onChange={(e) => handleRowsPerPageChange(Number(e.target.value))}
+                  className="border border-gray-300 rounded-md px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {getVisiblePageNumbers().map((page, index) => (
+                    <span key={index}>
+                      {page === '...' ? (
+                        <span className="px-3 py-1 text-sm text-gray-500">...</span>
+                      ) : (
+                        <button
+                          onClick={() => handlePageChange(page as number)}
+                          className={`px-3 py-1 border rounded-md text-sm ${
+                            currentPage === page
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'border-gray-300 hover:bg-gray-50'
+                          }`}
+                        >
+                          {page}
+                        </button>
+                      )}
+                    </span>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Sr. No.</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Handpump ID</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">District</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Block</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Village</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Status</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Image</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Video</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Navigate</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Date of Geotag</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Nearby Person</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Contact</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Soak Pit</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Drainage</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Platform</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Last Repair Date</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Last Rebore Date</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Water Quality</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Remark</th>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {paginatedData.map((h, index) => (
+                  <tr key={h.id} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors duration-300`}>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                        <span className="text-sm font-semibold text-gray-900">{startIndex + index + 1}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-lg font-semibold text-blue-600">{h.handpumpId}</span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-gray-700">{h.districtName}</span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-gray-700">{h.blockName}</span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-gray-700">{h.villageName}</span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md border ${getStatusColor(h.status)}`}>
+                        {getStatusIcon(h.status)}
+                        {h.status}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${h.hasImage === 'Yes' ? 'text-green-700 bg-green-100 border-green-200' : 'text-gray-700 bg-gray-100 border-gray-200'}`}>
+                        {h.hasImage === 'Yes' ? <CheckCircle size={12} /> : <X size={12} />}
+                        {h.hasImage}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${h.hasVideo === 'Yes' ? 'text-green-700 bg-green-100 border-green-200' : 'text-gray-700 bg-gray-100 border-gray-200'}`}>
+                        {h.hasVideo === 'Yes' ? <CheckCircle size={12} /> : <X size={12} />}
+                        {h.hasVideo}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <MapPin size={14} className="text-blue-500" />
+                        <span className="text-xs text-gray-600 max-w-24 truncate">{h.navigate}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Calendar size={14} className="text-purple-500" />
+                        <span className="text-sm text-gray-700">{h.geotagDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <User size={14} className="text-indigo-500" />
+                        <span className="text-sm text-gray-700">{h.nearbyPerson}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Phone size={14} className="text-emerald-500" />
+                        <span className="text-sm text-gray-700">{h.contact}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${h.soakPit === 'Yes' ? 'text-green-700 bg-green-100 border-green-200' : 'text-red-700 bg-red-100 border-red-200'}`}>
+                        {h.soakPit === 'Yes' ? <CheckCircle size={12} /> : <X size={12} />}
+                        {h.soakPit}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${h.drainage === 'Yes' ? 'text-green-700 bg-green-100 border-green-200' : 'text-red-700 bg-red-100 border-red-200'}`}>
+                        {h.drainage === 'Yes' ? <CheckCircle size={12} /> : <X size={12} />}
+                        {h.drainage}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded-md border ${h.platform === 'Yes' ? 'text-green-700 bg-green-100 border-green-200' : 'text-red-700 bg-red-100 border-red-200'}`}>
+                        {h.platform === 'Yes' ? <CheckCircle size={12} /> : <X size={12} />}
+                        {h.platform}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Hammer size={14} className="text-orange-500" />
+                        <span className="text-sm text-gray-700">{h.lastRepairDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex items-center gap-2">
+                        <Drill size={14} className="text-cyan-500" />
+                        <span className="text-sm text-gray-700">{h.lastReboreDate}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md border ${getWaterQualityColor(h.waterQuality)}`}>
+                        <Droplets size={12} />
+                        {h.waterQuality}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <span className="text-sm text-gray-600">{h.remark || "-"}</span>
+                    </td>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => h.originalData.HandpumpImage && window.open(h.originalData.HandpumpImage, '_blank')}
+                          disabled={!h.originalData.HandpumpImage}
+                          className={`flex items-center gap-1 px-3 py-1 text-white text-xs rounded-md transition-all duration-300 shadow-sm font-medium ${
+                            h.originalData.HandpumpImage 
+                              ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 cursor-pointer' 
+                              : 'bg-gray-400 cursor-not-allowed'
+                          }`}
+                        >
+                          <Eye size={12} />
+                          View
+                        </button>
+                        <button className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium">
+                          <FileText size={12} />
+                          Details
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredData.length === 0 && !loading && (
+            <div className="p-12 text-center">
+              <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+                <Search size={24} className="text-gray-400" />
+              </div>
+              <p className="text-lg text-gray-500 font-medium">
+                {handpumps.length === 0 ? 
+                  (isAdmin ? 'No handpumps found in the system' : 'No handpumps found for this user') : 
+                  'No handpumps match your filters'
+                }
+              </p>
+              <p className="text-gray-400 mt-1">
+                {handpumps.length === 0 ? 
+                  (isAdmin ? 'Check system data or API connection' : 'Check API connection or user permissions') : 
+                  'Try adjusting your search criteria'
+                }
+              </p>
+              {error && (
+                <button 
+                  onClick={handleRefresh}
+                  className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Retry Loading
+                </button>
+              )}
+            </div>
+          )}
+
+          {loading && (
+            <div className="p-12 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-slate-600 mx-auto mb-4"></div>
+              <p className="text-lg text-gray-500 font-medium">
+                Loading handpump data{isAdmin ? ' (Admin - All Records)' : ' (User Specific)'}...
+              </p>
+              <p className="text-gray-400 mt-1">
+                {isAdmin ? 'Fetching from GetHandpumpListDetail API...' : 'Fetching from API...'}
+              </p>
+            </div>
+          )}
+
+          {/* Bottom Pagination */}
+          {filteredData.length > 0 && (
+            <div className="flex flex-col sm:flex-row justify-between items-center px-6 py-4 border-t border-gray-200 gap-4 bg-gray-50">
+              <div className="text-sm text-gray-600">
+                Page {currentPage} of {totalPages} • {filteredData.length} total records {isAdmin && '(Admin View)'}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handlePageChange(1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  First
+                </button>
+                <button
+                  onClick={() => handlePageChange(currentPage - 1)}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <button
+                  onClick={() => handlePageChange(currentPage + 1)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+                <button
+                  onClick={() => handlePageChange(totalPages)}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Last
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* System Status Footer */}
+        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl shadow-xl p-6 border border-slate-700 mt-8">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-white">
+            <div className="flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                <div className={`w-3 h-3 rounded-full animate-pulse shadow-lg ${error ? 'bg-red-400 shadow-red-400/50' : loading ? 'bg-yellow-400 shadow-yellow-400/50' : 'bg-emerald-400 shadow-emerald-400/50'}`}></div>
+                <span className="text-sm font-semibold">
+                  {error ? 'API Error' : loading ? 'Loading...' : 'API Connected'}
+                </span>
+              </div>
+              <div className="text-sm opacity-75">
+                User ID: {userId} • {role} • {handpumps.length} handpumps loaded
+              </div>
+              {isAdmin && (
+                <div className="flex items-center gap-2 bg-amber-500/20 px-2 py-1 rounded-md border border-amber-400/30">
+                  <Shield size={14} className="text-amber-300" />
+                  <span className="text-amber-200 text-xs font-medium">Admin Access</span>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-8 text-sm">
+              <div className="flex items-center gap-2 opacity-90">
+                <Droplets />
+                <span className="font-medium">{filteredData.filter(h => h.status === 'Active').length} Active</span>
+              </div>
+              <div className="flex items-center gap-2 opacity-90">
+                <FileText />
+                <span className="font-medium">{filteredData.filter(h => h.hasImage === 'Yes').length} With Images</span>
+              </div>
+              <div className="flex items-center gap-2 opacity-90">
+                <Wrench />
+                <span className="font-medium">{filteredData.filter(h => h.platform === 'Yes').length} With Platform</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+};
+
+export default ManageHandpump;
