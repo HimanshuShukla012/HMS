@@ -51,48 +51,24 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   if (role === "admin") {
     return [
       { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "GMAS", to: "/admin/gmas", icon: <Satellite size={16} /> },
       { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
-      { name: "Fee Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
-      {
-        name: "Handpump",
-        icon: <Building2 size={18} />,
-        children: [
-          { name: "Manage Handpump", to: "/admin/manage-handpump", icon: <Calendar size={16} /> },
-          { name: "Manage Pump House", to: "/admin/gmas", icon: <Satellite size={16} /> },
-        ],
-      },
-      { name: "MIS Reports", to: "/admin/reporting", icon: <BarChart3 size={18} /> },
+      { name: "Role Management", to: "/admin/role-management", icon: <Users size={18} /> },
+      { name: "Manage Handpump", to: "/admin/manage-handpump", icon: <Calendar size={16} /> },
+      { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={16} /> },
+      { name: "Finance Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
     ];
   } else if (role === "gp" || role === "gram_panchayat_sachiv") {
     return [
       { name: "Dashboard", to: "/gp/dashboard", icon: <LayoutDashboard size={18} /> },
-      {
-        name: "Requisition",
-        icon: <Users2 size={18} />,
-        children: [
-          { name: "Raise Requisition", to: "/gp/raise-requisition", icon: <UserPlus size={16} /> },
-          { name: "View Estimation", to: "/gp/manage-beneficiary", icon: <Users2 size={16} /> },
-          { name: "Attach Completion", to: "/gp/attach-completion", icon: <Users2 size={16} /> },
-          { name: "View Closure Updates", to: "/gp/view-closure", icon: <Users2 size={16} /> },
-        ],
-      },
-      {
-        name: "Handpump",
-        icon: <Building2 size={18} />,
-        children: [
-          { name: "Manage Handpump", to: "/gp/manage-handpump", icon: <Calendar size={16} /> },
-          { name: "Manage Pump House", to: "/gp/gmas", icon: <Satellite size={16} /> },
-        ],
-      },
-      {
-        name: "Complaints",
-        icon: <Megaphone size={18} />,
-        children: [
-          { name: "Lodge Complaint", to: "/gp/lodge-complaint", icon: <Megaphone size={16} /> },
-          { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={16} /> },
-        ],
-      },
-      { name: "Reporting", to: "/gp/reporting", icon: <FileText size={18} /> },
+      { name: "Raise Requisition", to: "/gp/raise-requisition", icon: <UserPlus size={16} /> },
+      { name: "View Estimation", to: "/gp/manage-beneficiary", icon: <Users2 size={16} /> },
+      { name: "Attach Completion", to: "/gp/attach-completion", icon: <Users2 size={16} /> },
+      { name: "View Closure Updates", to: "/gp/view-closure", icon: <Users2 size={16} /> },
+      { name: "Manage Handpump", to: "/gp/manage-handpump", icon: <Calendar size={16} /> },
+      { name: "Manage Pump House", to: "/gp/gmas", icon: <Satellite size={16} /> },
+      { name: "Lodge Complaint", to: "/gp/lodge-complaint", icon: <Megaphone size={16} /> },
+      { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={16} /> },
       { name: "User Manual", to: "/gp/user-manual", icon: <BookAIcon size={18} /> },
     ];
   } else if (role === "assistant_development_officer") {
@@ -121,6 +97,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
   } else if (role === "district_panchayati_raj_officer") {
     return [
       { name: "Dashboard", to: "/dpro/dashboard", icon: <LayoutDashboard size={18} /> },
+      { name: "GMAS", to: "/dpro/gmas", icon: <Satellite size={16} /> },
       {
         name: "District Overview",
         icon: <MapPin size={18} />,

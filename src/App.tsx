@@ -116,6 +116,7 @@ function App() {
               <Route path="complaint-overview" element={<div>Complaint Overview - Coming Soon</div>} />
               <Route path="performance-metrics" element={<div>Performance Metrics - Coming Soon</div>} />
               <Route path="reporting" element={<div>DPRO Reports - Coming Soon</div>} />
+              <Route path="gmas" element={<GMAS />} />
             </Route>
           </Route>
 

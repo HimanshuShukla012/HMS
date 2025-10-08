@@ -1,1552 +1,1177 @@
-import React, { useEffect, useState } from "react";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-} from "recharts";
-import { useUserInfo } from '../utils/userInfo'; // Import the hook
+import React, { useState, useRef, useEffect } from 'react';
+import { 
+  LayoutDashboard, 
+  Droplets, 
+  FileText, 
+  AlertTriangle, 
+  CheckCircle, 
+  Clock, 
+  TrendingUp, 
+  Users, 
+  MapPin, 
+  Settings,
+  Bell,
+  Search,
+  Filter,
+  Download,
+  Eye,
+  Calendar,
+  Wrench,
+  Drill,
+  Shield,
+  BarChart3,
+  Activity,
+  Map,
+  Database,
+  X,
+  ChevronRight,
+  Navigation,
+  AlertCircle,
+} from 'lucide-react';
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
-// Professional Icons (using Unicode symbols)
-const Icons = {
-  Users: () => <span className="text-2xl">👥</span>,
-  Water: () => <span className="text-2xl">💧</span>,
-  Warning: () => <span className="text-2xl">⚠️</span>,
-  Money: () => <span className="text-2xl">💰</span>,
-  Refresh: () => <span className="text-xl">🔄</span>,
-  Search: () => <span className="text-lg">🔍</span>,
-  Chart: () => <span className="text-xl">📊</span>,
-  Settings: () => <span className="text-xl">⚙️</span>,
-  Pump: () => <span className="text-2xl">⚡</span>,
-  Tank: () => <span className="text-2xl">🏛️</span>,
-  Schedule: () => <span className="text-2xl">📅</span>,
-  Calendar: () => <span className="text-xl">📅</span>,
-  Filter: () => <span className="text-xl">🔍</span>
-};
+const AdminDashboard = () => {
+  const [activeTab, setActiveTab] = useState('overview');
+  const [showNotifications, setShowNotifications] = useState(false);
 
-const StatCard = ({ title, value, icon: Icon, change, changeType, gradient, trend, isLoading, subtitle }) => (
-  <div className={`relative overflow-hidden rounded-xl ${gradient} shadow-xl hover:shadow-2xl transition-all duration-500 hover:-translate-y-2 border border-white/10`}>
-    <div className="absolute inset-0 bg-gradient-to-br from-white/5 to-transparent"></div>
-    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-16 -mt-16"></div>
-    <div className="relative p-6 text-white">
-      <div className="flex items-center justify-between mb-4">
-        <div className="p-3 bg-white/10 rounded-lg backdrop-blur-md border border-white/20">
-          <Icon />
-        </div>
-        {trend && (
-          <div className={`text-xs px-3 py-1 rounded-full backdrop-blur-md border ${
-            changeType === 'increase' 
-              ? 'bg-emerald-500/20 text-emerald-100 border-emerald-400/30' 
-              : 'bg-rose-500/20 text-rose-100 border-rose-400/30'
-          }`}>
-            {changeType === 'increase' ? '↗' : '↘'} {change}
-          </div>
-        )}
-      </div>
-      <h3 className="text-sm font-medium opacity-90 mb-2 tracking-wide uppercase">{title}</h3>
-      <div className="text-3xl font-bold mb-2 tracking-tight">
-        {isLoading ? (
-          <div className="animate-pulse bg-white/20 h-9 w-20 rounded"></div>
-        ) : (
-          typeof value === 'string' ? value : value?.toLocaleString() || '0'
-        )}
-      </div>
-      {subtitle && <div className="text-sm opacity-75">{subtitle}</div>}
-    </div>
-  </div>
-);
+  // GMAS Component State
+  const [selectedDistrict, setSelectedDistrict] = useState('All');
+  const [selectedBlock, setSelectedBlock] = useState('All');
+  const [selectedGramPanchayat, setSelectedGramPanchayat] = useState('All');
+  const [selectedHandpump, setSelectedHandpump] = useState(null);
+  const [selectedRequisition, setSelectedRequisition] = useState(null);
+  const [showRequisitionDetails, setShowRequisitionDetails] = useState(false);
+  const [isSatelliteView, setIsSatelliteView] = useState(false);
+  const mapRef = useRef(null);
+  const modalMapRef = useRef(null);
 
-const LoadingSpinner = () => (
-  <div className="flex items-center justify-center p-12">
-    <div className="relative">
-      <div className="animate-spin rounded-full h-12 w-12 border-4 border-slate-200 border-t-slate-600"></div>
-      <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border-4 border-slate-400 opacity-20"></div>
-    </div>
-  </div>
-);
-
-// API Response Types
-interface PumpHouseData {
-  OhtId: number;
-  OperatorName: string;
-  Contact: string;
-  PumpId: number;
-  HorsePower: string;
-  PowerSource: string;
-  SolarOutput: number;
-  Status: number;
-}
-
-interface OHTData {
-  OhtId: number;
-  Districtname: string;
-  BlockName: string;
-  GramPanchayatName: string;
-  VillageName: string;
-  OHTCapacity: number;
-  NoOfPumps: number;
-}
-
-interface OHTCountData {
-  TotalOHTCount: number;
-}
-
-interface ComplaintData {
-  ComplaintID: number;
-  District: string;
-  Block: string;
-  GramPanchayat: string;
-  Village: string;
-  BeneficiaryName: string;
-  Contact: string;
-  Landmark: string;
-  Category: string;
-  Status: boolean;
-}
-
-interface FeeCollectionData {
-  FeeCollectionId: number;
-  BeneficiaryId: number;
-  BeneficiaryName: string;
-  FatherHusbandName: string;
-  VillageId: number;
-  VillageName: string;
-  BaseFee: number;
-  PreviousBalance: number;
-  OutstandingAmount: number;
-  PaidAmount: number;
-  BalanceAmount: number;
-}
-
-interface Village {
-  VillageId: number;
-  VillageName: string;
-}
-
-// NEW: District-based API Types
-interface DistrictFeeData {
-  DistrictId: number;
-  DistrictName: string;
-  TotalAmount: number;
-}
-
-interface DistrictComplaintData {
-  DistrictId: number;
-  DistrictName: string;
-  TotalComplaint: number;
-}
-
-interface ApiResponse<T> {
-  Data: T;
-  Error?: string | null;
-  Errror?: string | null;
-  Message: string;
-  Status: boolean;
-}
-
-export default function EnhancedGPDashboard() {
-  // Get userId from the authentication hook
-  const { userId, role, isLoading: userLoading } = useUserInfo();
-  
-  // Real API Data States
-  const [pumpHouses, setPumpHouses] = useState<PumpHouseData[]>([]);
-  const [ohtData, setOHTData] = useState<OHTData[]>([]);
-  const [ohtCount, setOHTCount] = useState<number>(0);
-  const [complaints, setComplaints] = useState<ComplaintData[]>([]);
-  const [feeData, setFeeData] = useState<FeeCollectionData[]>([]);
-  const [villages, setVillages] = useState<Village[]>([]);
-  
-  // NEW: District Data States
-  const [topDistrictsByFee, setTopDistrictsByFee] = useState<DistrictFeeData[]>([]);
-  const [bottomDistrictsByFee, setBottomDistrictsByFee] = useState<DistrictFeeData[]>([]);
-  const [topDistrictsByComplaint, setTopDistrictsByComplaint] = useState<DistrictComplaintData[]>([]);
-  const [bottomDistrictsByComplaint, setBottomDistrictsByComplaint] = useState<DistrictComplaintData[]>([]);
-  
-  // Original Dashboard APIs
-  const [totalBeneficiaries, setTotalBeneficiaries] = useState(0);
-  const [totalActiveConnections, setTotalActiveConnections] = useState(0);
-  const [totalPendingComplaints, setTotalPendingComplaints] = useState(0);
-  const [totalVillageCount, setTotalVillageCount] = useState(0);
-  const [complaintStatusData, setComplaintStatusData] = useState([]);
-  const [waterConnectionData, setWaterConnectionData] = useState([]);
-  const [villageFeeData, setVillageFeeData] = useState([]);
-  
-  // NEW: Date Controls State
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  
-  // Loading states
-  const [isLoading, setIsLoading] = useState({
-    pumps: true,
-    ohts: true,
-    complaints: true,
-    fees: true,
-    villages: true,
-    beneficiaries: true,
-    connections: true,
-    complaintStatus: true,
-    waterConnection: true,
-    villageFee: true,
-    districtApis: true,
-    villageCount: true
-  });
-
-  const [currentTime, setCurrentTime] = useState(new Date());
-  const [refreshing, setRefreshing] = useState(false);
-
-  // Time update effect
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // NEW: District APIs Functions
-  const fetchDistrictAPIs = async (year: number) => {
-    setIsLoading(prev => ({ ...prev, districtApis: true }));
-    try {
-      const [topFeeRes, bottomFeeRes, topComplaintRes, bottomComplaintRes] = await Promise.all([
-        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByFeeCollection?FinancialYear=${year}`, {
-          method: 'POST',
-          headers: { 'accept': '*/*' }
-        }),
-        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByFeeCollection?FinancialYear=${year}`, {
-          method: 'POST',
-          headers: { 'accept': '*/*' }
-        }),
-        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTop10DistrictByComplaint?FinancialYear=${year}`, {
-          method: 'POST',
-          headers: { 'accept': '*/*' }
-        }),
-        fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetBottom10DistrictByComplaint?FinancialYear=${year}`, {
-          method: 'POST',
-          headers: { 'accept': '*/*' }
-        })
-      ]);
-
-      const [topFeeData, bottomFeeData, topComplaintData, bottomComplaintData] = await Promise.all([
-        topFeeRes.json(),
-        bottomFeeRes.json(),
-        topComplaintRes.json(),
-        bottomComplaintRes.json()
-      ]);
-
-      if (topFeeData.Status && Array.isArray(topFeeData.Data)) {
-        setTopDistrictsByFee(topFeeData.Data);
-      }
-      if (bottomFeeData.Status && Array.isArray(bottomFeeData.Data)) {
-        setBottomDistrictsByFee(bottomFeeData.Data);
-      }
-      if (topComplaintData.Status && Array.isArray(topComplaintData.Data)) {
-        setTopDistrictsByComplaint(topComplaintData.Data);
-      }
-      if (bottomComplaintData.Status && Array.isArray(bottomComplaintData.Data)) {
-        setBottomDistrictsByComplaint(bottomComplaintData.Data);
-      }
-    } catch (error) {
-      console.error('Error fetching district APIs:', error);
-    } finally {
-      setIsLoading(prev => ({ ...prev, districtApis: false }));
-    }
+  // GMAS Data
+  const statusIcons = {
+    functional: new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }),
+    nonfunctional: new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }),
+    underrepair: new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-yellow.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }),
   };
 
-  // Real API Functions
-  const fetchPumpHouses = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, pumps: true }));
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetPumpHouseListByUserId?UserId=${currentUserId}`);
-      const data: ApiResponse<PumpHouseData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setPumpHouses(data.Data);
-      } else {
-        setPumpHouses([]);
-      }
-    } catch (error) {
-      console.error('Error fetching pump houses:', error);
-      setPumpHouses([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, pumps: false }));
-    }
+  const districts = ['All', 'Lucknow', 'Kanpur', 'Agra', 'Varanasi', 'Allahabad'];
+  const blocks = {
+    All: ['All'],
+    Lucknow: ['All', 'Sadar', 'Mohanlalganj', 'Malihabad', 'Bakshi Ka Talab'],
+    Kanpur: ['All', 'Kanpur Sadar', 'Ghatampur', 'Bilhaur', 'Chaubepur'],
+    Agra: ['All', 'Agra Sadar', 'Kheragarh', 'Fatehabad', 'Bah'],
+    Varanasi: ['All', 'Varanasi Sadar', 'Pindra', 'Chiraigaon', 'Harhua'],
+    Allahabad: ['All', 'Phulpur', 'Soraon', 'Handia', 'Karchana'],
   };
 
-  const fetchVillages = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, villages: true }));
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetVillageListByUserId?UserId=${currentUserId}`);
-      const data: ApiResponse<Village[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setVillages(data.Data);
-      } else {
-        setVillages([]);
-      }
-    } catch (error) {
-      console.error('Error fetching villages:', error);
-      setVillages([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villages: false }));
-    }
+  const gramPanchayats = {
+    All: ['All'],
+    Sadar: ['All', 'Rampur', 'Shyampur', 'Govindpur', 'Krishnapur'],
+    Mohanlalganj: ['All', 'Malihabad', 'Bakshi Ka Talab', 'Chinhat', 'Itaunja'],
+    Malihabad: ['All', 'Malihabad Central', 'Kakori', 'Mall', 'Nagram'],
   };
 
-  // FIXED: Fee Collection API with proper parameters
-  const fetchFeeCollectionData = async (month: number, year: number) => {
-    setIsLoading(prev => ({ ...prev, fees: true }));
-    try {
-      console.log('Fetching fee collection with params:', { month, year });
-      
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Master/GetFeeCollectionDetails', {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-          'accept': '*/*'
-        },
-        body: JSON.stringify({
-          VillageId: 0, // 0 for all villages as per your requirement
-          Month: month,
-          Year: year
-        })
-      });
-      
-      const data: ApiResponse<FeeCollectionData[]> = await response.json();
-      console.log('Fee collection response:', data);
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setFeeData(data.Data);
-        console.log(`Loaded ${data.Data.length} fee collection records`);
-      } else {
-        setFeeData([]);
-        console.warn('No fee data available or API error:', data.Message);
-      }
-    } catch (error) {
-      console.error('Error fetching fee data:', error);
-      setFeeData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, fees: false }));
-    }
-  };
-
-  const fetchOHTCount = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, ohts: true }));
-    try {
-      const response = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetOHTCountByVillage?VillageId=0&UserId=${currentUserId}`);
-      const data: ApiResponse<OHTCountData> = await response.json();
-      
-      if (data.Status && data.Data?.TotalOHTCount !== undefined) {
-        setOHTCount(data.Data.TotalOHTCount);
-      } else {
-        setOHTCount(0);
-      }
-    } catch (error) {
-      console.error('Error fetching OHT count:', error);
-      setOHTCount(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, ohts: false }));
-    }
-  };
-
-  const fetchComplaints = async () => {
-    setIsLoading(prev => ({ ...prev, complaints: true }));
-    try {
-      const response = await fetch('https://wmsapi.kdsgroup.co.in/api/Complain/GetComplaintListByUserIdVillageAndStatus', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          UserId: 0,
-          VillageId: 0,
-          Status: null
-        })
-      });
-      
-      const data: ApiResponse<ComplaintData[]> = await response.json();
-      
-      if (data.Status && Array.isArray(data.Data)) {
-        setComplaints(data.Data);
-      } else {
-        setComplaints([]);
-      }
-    } catch (error) {
-      console.error('Error fetching complaints:', error);
-      setComplaints([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, complaints: false }));
-    }
-  };
-
-  const fetchTotalBeneficiaries = async () => {
-    setIsLoading(prev => ({ ...prev, beneficiaries: true }));
-    try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalBeneficiaryCountforAdmin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-        body: JSON.stringify({ InputType: "string" })
-      });
-
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalBeneficiaryCount !== undefined) {
-        setTotalBeneficiaries(data.Data.TotalBeneficiaryCount);
-      } else {
-        setTotalBeneficiaries(0);
-      }
-    } catch (error) {
-      console.error("Error fetching beneficiaries:", error);
-      setTotalBeneficiaries(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, beneficiaries: false }));
-    }
-  };
-
-  const fetchActiveConnections = async () => {
-    setIsLoading(prev => ({ ...prev, connections: true }));
-    try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalActiveWaterConnectionCountforAdmin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-        body: JSON.stringify({ InputType: "string" })
-      });
-
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalActiveWaterConnectionCount !== undefined) {
-        setTotalActiveConnections(data.Data.TotalActiveWaterConnectionCount);
-      } else {
-        setTotalActiveConnections(0);
-      }
-    } catch (error) {
-      console.error("Error fetching connections:", error);
-      setTotalActiveConnections(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, connections: false }));
-    }
-  };
-
-  const fetchTotalVillageCount = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, villageCount: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalVillageCountforAdmin?UserId=${currentUserId}`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-        body: ""
-      });
-
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalVillageCount !== undefined) {
-        setTotalVillageCount(data.Data.TotalVillageCount);
-      } else {
-        setTotalVillageCount(0);
-      }
-    } catch (error) {
-      console.error("Error fetching village count:", error);
-      setTotalVillageCount(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villageCount: false }));
-    }
-  };
-
-  const fetchPendingComplaints = async () => {
-    setIsLoading(prev => ({ ...prev, complaints: true }));
-    try {
-      const res = await fetch("https://wmsapi.kdsgroup.co.in/api/Dashboard/GetTotalPendingComplaintCountforAdmin", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          accept: "*/*",
-        },
-        body: JSON.stringify({ InputType: "string" })
-      });
-
-      const data = await res.json();
-      if (data?.Status && data?.Data?.TotalPendingComplaintCount !== undefined) {
-        setTotalPendingComplaints(data.Data.TotalPendingComplaintCount);
-      } else {
-        setTotalPendingComplaints(0);
-      }
-    } catch (error) {
-      console.error("Error fetching pending complaints:", error);
-      setTotalPendingComplaints(0);
-    } finally {
-      setIsLoading(prev => ({ ...prev, complaints: false }));
-    }
-  };
-
-  const fetchComplaintStatusDistribution = async () => {
-    setIsLoading(prev => ({ ...prev, complaintStatus: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetComplaintStatusDistributionforAdmin`, {
-        method: 'POST',
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          InputType: "string"
-        })
-      });
-      
-      const data = await res.json();
-      if (data?.Status && data?.Data) {
-        const transformedData = data.Data.map(item => ({
-          name: item.ComplaintStatus === 0 ? "Pending" : "Resolved",
-          value: item.TotalCount,
-          status: item.ComplaintStatus
-        }));
-        setComplaintStatusData(transformedData);
-      } else {
-        setComplaintStatusData([]);
-      }
-    } catch (error) {
-      console.error("Error fetching complaint status:", error);
-      setComplaintStatusData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, complaintStatus: false }));
-    }
-  };
-
-  const fetchWaterConnectionStatus = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, waterConnection: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetWaterConnectionStatus?UserId=${currentUserId}`);
-      const data = await res.json();
-      if (data?.Status && data?.Data) {
-        const statusMap = {};
-        data.Data.forEach(item => {
-          const status = item.WaterConnectionStatus === 1 ? "Active" : "Inactive";
-          statusMap[status] = (statusMap[status] || 0) + item.TotalCount;
-        });
-        
-        const transformedData = Object.entries(statusMap).map(([status, count]) => ({
-          name: status,
-          value: count
-        }));
-        setWaterConnectionData(transformedData);
-      } else {
-        setWaterConnectionData([]);
-      }
-    } catch (error) {
-      console.error("Error fetching water connection status:", error);
-      setWaterConnectionData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, waterConnection: false }));
-    }
-  };
-
-  const fetchVillageFeeCollectionData = async (currentUserId: number) => {
-    setIsLoading(prev => ({ ...prev, villageFee: true }));
-    try {
-      const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Dashboard/GetVillageFeeCollectionVSTargetStatus?UserId=${currentUserId}`);
-      const data = await res.json();
-      if (data?.Status && data?.Data) {
-        setVillageFeeData(data.Data);
-      } else {
-        setVillageFeeData([]);
-      }
-    } catch (error) {
-      console.error("Error fetching village fee collection:", error);
-      setVillageFeeData([]);
-    } finally {
-      setIsLoading(prev => ({ ...prev, villageFee: false }));
-    }
-  };
-
-  // Modified initialization effect that waits for userId
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      if (!userId || userLoading) return;
-      
-      console.log('Initializing dashboard with userId:', userId, 'Month:', selectedMonth, 'Year:', selectedYear);
-
-      await Promise.all([
-        fetchTotalBeneficiaries(),
-        fetchActiveConnections(),
-        fetchPendingComplaints(),
-        fetchTotalVillageCount(userId),
-        fetchComplaintStatusDistribution(),
-        fetchWaterConnectionStatus(userId),
-        fetchVillageFeeCollectionData(userId),
-        fetchPumpHouses(userId),
-        fetchVillages(userId),
-        fetchComplaints(),
-        fetchOHTCount(userId),
-        fetchFeeCollectionData(selectedMonth, selectedYear), // FIXED: Now uses selected month/year
-        fetchDistrictAPIs(selectedYear) // NEW: Fetch district data
-      ]);
-    };
-
-    initializeDashboard();
-  }, [userId, userLoading, role, selectedMonth, selectedYear]); // Added selectedMonth and selectedYear as dependencies
-
-  // Modified refresh function
-  const handleRefresh = async () => {
-    if (!userId) {
-      console.warn('Cannot refresh: userId not available');
-      return;
-    }
-
-    setRefreshing(true);
-    setIsLoading({
-      pumps: true,
-      ohts: true,
-      complaints: true,
-      fees: true,
-      villages: true,
-      beneficiaries: true,
-      connections: true,
-      complaintStatus: true,
-      waterConnection: true,
-      villageFee: true,
-      districtApis: true,
-      villageCount: true
-    });
-
-    // Clear existing data
-    setPumpHouses([]);
-    setOHTData([]);
-    setFeeData([]);
-    setOHTCount(0);
-    setTotalVillageCount(0);
-    setTopDistrictsByFee([]);
-    setBottomDistrictsByFee([]);
-    setTopDistrictsByComplaint([]);
-    setBottomDistrictsByComplaint([]);
-
-    await Promise.all([
-      fetchTotalBeneficiaries(),
-      fetchActiveConnections(),
-      fetchPendingComplaints(),
-      fetchTotalVillageCount(userId),
-      fetchComplaintStatusDistribution(),
-      fetchWaterConnectionStatus(userId),
-      fetchVillageFeeCollectionData(userId),
-      fetchPumpHouses(userId),
-      fetchVillages(userId),
-      fetchComplaints(),
-      fetchOHTCount(userId),
-      fetchFeeCollectionData(selectedMonth, selectedYear),
-      fetchDistrictAPIs(selectedYear)
-    ]);
-
-    setRefreshing(false);
-  };
-
-  // Show loading state while user info is being fetched
-  if (userLoading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 flex items-center justify-center">
-        <div className="text-center">
-          <LoadingSpinner />
-          <p className="mt-4 text-slate-600 font-medium">Loading user information...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show error if no userId is available
-  if (!userId) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200 flex items-center justify-center">
-        <div className="text-center bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-8 border border-white/20">
-          <Icons.Warning />
-          <h2 className="text-xl font-bold text-slate-800 mt-4">Authentication Required</h2>
-          <p className="text-slate-600 mt-2">Please log in to access the dashboard.</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Calculate real-time metrics from API data
-  const activePumps = pumpHouses.filter(p => p.Status === 1).length;
-  const totalPumps = pumpHouses.length;
-  const totalOHTs = ohtCount;
-  const totalCapacity = ohtData.reduce((sum, oht) => sum + (oht.OHTCapacity || 0), 0);
-  const totalComplaintsFromData = complaints.length;
-  const resolvedComplaints = complaints.filter(c => c.Status === true).length;
-  const totalCollection = feeData.reduce((sum, fee) => sum + (fee.PaidAmount || 0), 0);
-  const totalOutstanding = feeData.reduce((sum, fee) => sum + (fee.OutstandingAmount || 0), 0);
-  const uniqueBeneficiaries = new Set(feeData.map(f => f.BeneficiaryId)).size;
-  const solarPumps = pumpHouses.filter(p => p.PowerSource === '2').length;
-  const electricPumps = pumpHouses.filter(p => p.PowerSource === '1').length;
-
-  // Collection efficiency from API data
-  const totalCollectedVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalCollectedAmount || 0), 0);
-  const totalTargetVillage = villageFeeData.reduce((sum, item) => sum + (item.TotalTargetedAmount || 0), 0);
-  const collectionEfficiency = totalTargetVillage > 0 ? ((totalCollectedVillage / totalTargetVillage) * 100).toFixed(1) : '0.0';
-
-  // Professional color schemes
-  const COLORS = {
-    primary: ["#1e293b", "#334155", "#475569"],
-    secondary: ["#0f172a", "#1e293b", "#334155"],
-    success: ["#065f46", "#047857", "#059669"],
-    warning: ["#92400e", "#b45309", "#d97706"],
-    danger: ["#991b1b", "#dc2626", "#ef4444"],
-    chart: ["#1e293b", "#059669", "#d97706", "#dc2626", "#7c3aed", "#0891b2"]
-  };
-
-  // Transform pump data for charts
-  const pumpTypeData = totalPumps > 0 ? [
-    { name: 'Electric Pumps', value: electricPumps, fill: '#1e293b' },
-    { name: 'Solar Pumps', value: solarPumps, fill: '#059669' }
-  ].filter(item => item.value > 0) : [];
-
-  const pumpStatusData = totalPumps > 0 ? [
-    { name: 'Active', value: activePumps, fill: '#059669' },
-    { name: 'Inactive', value: totalPumps - activePumps, fill: '#dc2626' }
-  ].filter(item => item.value > 0) : [];
-
-  // Generate year options (current year ± 5 years)
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
-  const monthOptions = [
-    { value: 1, label: 'January' }, { value: 2, label: 'February' }, { value: 3, label: 'March' },
-    { value: 4, label: 'April' }, { value: 5, label: 'May' }, { value: 6, label: 'June' },
-    { value: 7, label: 'July' }, { value: 8, label: 'August' }, { value: 9, label: 'September' },
-    { value: 10, label: 'October' }, { value: 11, label: 'November' }, { value: 12, label: 'December' }
+  const handpumps = [
+    {
+      id: 'HP001',
+      name: 'Handpump Rampur-1',
+      coordinates: [26.8467, 80.9462],
+      status: 'active',
+      district: 'Lucknow',
+      block: 'Sadar',
+      gramPanchayat: 'Rampur',
+      village: 'Rampur',
+      image: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop',
+      installationDate: '2020-03-15',
+      requisitions: [
+        { id: 'REQ001', date: '2024-03-15', mode: 'Repair', status: 'Completed', estimatedAmount: 5140, actualAmount: 5890, completionDate: '2024-04-05' },
+      ],
+    },
+    {
+      id: 'HP002',
+      name: 'Handpump Shyampur-1',
+      coordinates: [26.8567, 80.9562],
+      status: 'inactive',
+      district: 'Lucknow',
+      block: 'Sadar',
+      gramPanchayat: 'Shyampur',
+      village: 'Shyampur',
+      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop',
+      installationDate: '2019-07-22',
+      requisitions: [],
+    },
+    {
+      id: 'HP003',
+      name: 'Handpump Govindpur-1',
+      coordinates: [26.8667, 80.9662],
+      status: 'faulty',
+      district: 'Lucknow',
+      block: 'Sadar',
+      gramPanchayat: 'Govindpur',
+      village: 'Govindpur',
+      image: 'https://images.unsplash.com/photo-1571068316344-75bc76f77890?w=300&h=200&fit=crop',
+      installationDate: '2018-12-10',
+      requisitions: [],
+    },
+    {
+      id: 'HP004',
+      name: 'Handpump Krishnapur-1',
+      coordinates: [26.8767, 80.9762],
+      status: 'active',
+      district: 'Lucknow',
+      block: 'Sadar',
+      gramPanchayat: 'Krishnapur',
+      village: 'Krishnapur',
+      image: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop',
+      installationDate: '2021-05-18',
+      requisitions: [],
+    },
+    {
+      id: 'HP005',
+      name: 'Handpump Central-1',
+      coordinates: [26.9167, 80.9862],
+      status: 'active',
+      district: 'Lucknow',
+      block: 'Mohanlalganj',
+      gramPanchayat: 'Malihabad',
+      village: 'Malihabad Central',
+      image: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop',
+      installationDate: '2022-01-12',
+      requisitions: [],
+    },
+    {
+      id: 'HP006',
+      name: 'Handpump Kanpur-1',
+      coordinates: [26.4499, 80.3319],
+      status: 'inactive',
+      district: 'Kanpur',
+      block: 'Kanpur Sadar',
+      gramPanchayat: 'Kanpur Central',
+      village: 'Kanpur Central',
+      image: 'https://images.unsplash.com/photo-1578662996442-48f60103fc96?w=300&h=200&fit=crop',
+      installationDate: '2020-08-15',
+      requisitions: [],
+    },
   ];
 
+  const getFilteredHandpumps = () => {
+    return handpumps.filter((hp) => {
+      const districtMatch = selectedDistrict === 'All' || hp.district === selectedDistrict;
+      const blockMatch = selectedBlock === 'All' || hp.block === selectedBlock;
+      const gpMatch = selectedGramPanchayat === 'All' || hp.gramPanchayat === selectedGramPanchayat;
+      return districtMatch && blockMatch && gpMatch;
+    });
+  };
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'active': return '#10B981';
+      case 'inactive': return '#F59E0B';
+      case 'faulty': return '#EF4444';
+      default: return '#6B7280';
+    }
+  };
+
+  const handleDistrictChange = (district) => {
+    setSelectedDistrict(district);
+    setSelectedBlock('All');
+    setSelectedGramPanchayat('All');
+  };
+
+  const handleBlockChange = (block) => {
+    setSelectedBlock(block);
+    setSelectedGramPanchayat('All');
+  };
+
+  const filteredHandpumps = getFilteredHandpumps();
+  const activeCount = filteredHandpumps.filter((hp) => hp.status === 'active').length;
+  const inactiveCount = filteredHandpumps.filter((hp) => hp.status === 'inactive').length;
+  const faultyCount = filteredHandpumps.filter((hp) => hp.status === 'faulty').length;
+
+  useEffect(() => {
+    if (activeTab === 'gis' && mapRef.current && filteredHandpumps.length > 0) {
+      const bounds = L.latLngBounds(filteredHandpumps.map((hp) => hp.coordinates));
+      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+    }
+  }, [filteredHandpumps, activeTab]);
+
+  // Dashboard Statistics
+  const stats = {
+    totalHandpumps: 1247,
+    activeHandpumps: 1089,
+    inactiveHandpumps: 158,
+    totalComplaints: 342,
+    pendingComplaints: 89,
+    resolvedComplaints: 253,
+    totalRequisitions: 156,
+    pendingEstimations: 23,
+    sanctionedRequisitions: 87,
+    completedWork: 46,
+    totalDistricts: 12,
+    totalBlocks: 78,
+    totalGPs: 456,
+    activeUsers: 892
+  };
+
+  // Recent Activities
+  const recentActivities = [
+    { id: 1, type: 'complaint', message: 'New complaint registered - HP001234', time: '5 min ago', priority: 'high' },
+    { id: 2, type: 'requisition', message: 'Requisition REQ089 approved', time: '15 min ago', priority: 'normal' },
+    { id: 3, type: 'estimation', message: 'Estimation EST045 created', time: '1 hour ago', priority: 'normal' },
+    { id: 4, type: 'completion', message: 'Work completed for HP005678', time: '2 hours ago', priority: 'low' },
+    { id: 5, type: 'handpump', message: 'New handpump registered - HP009876', time: '3 hours ago', priority: 'normal' }
+  ];
+
+  // District-wise Summary
+  const districtSummary = [
+    { name: 'Lucknow', handpumps: 245, complaints: 45, requisitions: 23, active: 218 },
+    { name: 'Kanpur', handpumps: 198, complaints: 38, requisitions: 19, active: 175 },
+    { name: 'Agra', handpumps: 167, complaints: 32, requisitions: 15, active: 148 },
+    { name: 'Varanasi', handpumps: 143, complaints: 28, requisitions: 12, active: 127 },
+    { name: 'Allahabad', handpumps: 134, complaints: 25, requisitions: 11, active: 119 }
+  ];
+
+  const getPriorityColor = (priority) => {
+    switch(priority) {
+      case 'high': return 'text-red-600 bg-red-100';
+      case 'normal': return 'text-blue-600 bg-blue-100';
+      case 'low': return 'text-green-600 bg-green-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const getActivityIcon = (type) => {
+    switch(type) {
+      case 'complaint': return <AlertTriangle size={16} />;
+      case 'requisition': return <FileText size={16} />;
+      case 'estimation': return <BarChart3 size={16} />;
+      case 'completion': return <CheckCircle size={16} />;
+      case 'handpump': return <Droplets size={16} />;
+      default: return <Activity size={16} />;
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200">
-      <div className="container mx-auto p-6">
-        
-        {/* Header with Date Controls */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-8 gap-4">
-          <div className="flex items-center gap-4">
-            <div>
-              <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 via-slate-700 to-slate-600 bg-clip-text text-transparent">
-                Water Management Dashboard
-              </h1>
-              <p className="text-slate-600 mt-1 font-medium">
-                Real-time System Overview & Analytics 
-                {userId && <span className="text-slate-500"> • User ID: {userId}</span>}
-                {role && <span className="text-slate-500"> • Role: {role}</span>}
-              </p>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-            {/* NEW: Date Filter Controls */}
-            <div className="flex items-center gap-3 bg-white/90 backdrop-blur-md rounded-xl shadow-lg p-3 border border-white/20">
-              <Icons.Calendar />
-              <div className="flex items-center gap-2">
-                <select
-                  value={selectedMonth}
-                  onChange={(e) => setSelectedMonth(Number(e.target.value))}
-                  className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer text-slate-700"
-                >
-                  {monthOptions.map(month => (
-                    <option key={month.value} value={month.value}>{month.label}</option>
-                  ))}
-                </select>
-                <span className="text-slate-400">•</span>
-                <select
-                  value={selectedYear}
-                  onChange={(e) => setSelectedYear(Number(e.target.value))}
-                  className="text-sm font-medium bg-transparent border-none outline-none cursor-pointer text-slate-700"
-                >
-                  {yearOptions.map(year => (
-                    <option key={year} value={year}>{year}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing || !userId}
-              className="flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white rounded-xl transition-all duration-300 disabled:opacity-50 shadow-lg hover:shadow-xl"
-            >
-              <Icons.Refresh />
-              <span className="font-medium">{refreshing ? 'Refreshing...' : 'Refresh Data'}</span>
-            </button>
-            
-            
-          </div>
-        </div>
-
-        {/* Main Stats Cards - Only API Data */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Total Beneficiaries"
-            value={totalBeneficiaries}
-            subtitle={uniqueBeneficiaries > 0 ? `${uniqueBeneficiaries} with fee records` : "No fee data available"}
-            icon={Icons.Users}
-            gradient="bg-gradient-to-br from-slate-800 via-slate-700 to-slate-600"
-            isLoading={isLoading.beneficiaries}
-          />
-          
-          <StatCard
-            title="Active Connections"
-            value={totalActiveConnections}
-            subtitle={`${totalVillageCount} villages managed`}
-            icon={Icons.Water}
-            gradient="bg-gradient-to-br from-teal-800 via-teal-700 to-teal-600"
-            isLoading={isLoading.connections}
-          />
-          
-          <StatCard
-            title="Pump Infrastructure"
-            value={totalPumps}
-            subtitle={totalPumps > 0 ? `${activePumps} active, ${solarPumps} solar` : "No pump data"}
-            icon={Icons.Pump}
-            gradient="bg-gradient-to-br from-amber-800 via-amber-700 to-amber-600"
-            isLoading={isLoading.pumps}
-          />
-          
-          <StatCard
-  title="Collection Rate"
-  value={
-    totalCollection + totalOutstanding > 0
-      ? `${Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)}%`
-      : "0%"
-  }
-  subtitle={
-    totalCollection > 0
-      ? `₹${totalCollection.toLocaleString()} collected`
-      : "No collection data"
-  }
-  icon={Icons.Money}
-  gradient="bg-gradient-to-br from-emerald-800 via-emerald-700 to-emerald-600"
-  isLoading={isLoading.fees}
-/>
-        </div>
-
-        {/* Secondary Stats Cards - Only API Data */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <StatCard
-            title="Pending Complaints"
-            value={totalPendingComplaints || (totalComplaintsFromData - resolvedComplaints)}
-            subtitle={totalComplaintsFromData > 0 ? `${resolvedComplaints}/${totalComplaintsFromData} resolved` : "No complaint data"}
-            icon={Icons.Warning}
-            gradient="bg-gradient-to-br from-rose-800 via-rose-700 to-rose-600"
-            isLoading={isLoading.complaints}
-          />
-          
-          <StatCard
-            title="OHT Infrastructure"
-            value={totalOHTs}
-            subtitle={totalCapacity > 0 ? `${(totalCapacity / 1000).toFixed(0)}K L capacity` : `${totalOHTs} overhead tanks`}
-            icon={Icons.Tank}
-            gradient="bg-gradient-to-br from-cyan-800 via-cyan-700 to-cyan-600"
-            isLoading={isLoading.ohts}
-          />
-          
-          <StatCard
-            title="Fee Collection"
-            value={totalCollection > 0 ? `₹${totalCollection.toLocaleString()}` : '₹0'}
-            subtitle={totalOutstanding > 0 ? `₹${totalOutstanding.toLocaleString()} outstanding` : "All payments current"}
-            icon={Icons.Money}
-            gradient="bg-gradient-to-br from-green-800 via-green-700 to-green-600"
-            isLoading={isLoading.fees}
-          />
-          
-          <StatCard
-            title="Villages"
-            value={totalVillageCount}
-            subtitle="Under management"
-            icon={Icons.Users}
-            gradient="bg-gradient-to-br from-indigo-800 via-indigo-700 to-indigo-600"
-            isLoading={isLoading.villageCount}
-          />
-        </div>
-
-        {/* NEW: District Performance Tables - 4 Tables as requested */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Top Districts by Fee Collection */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Top Districts - Fee Collection</h3>
-              <div className="text-sm text-slate-500 bg-emerald-100 text-emerald-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
-            </div>
-            
-            {isLoading.districtApis ? (
-              <LoadingSpinner />
-            ) : topDistrictsByFee.length > 0 ? (
-              <div className="space-y-3">
-                {topDistrictsByFee.map((district, index) => (
-                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-emerald-100/50 rounded-lg border border-emerald-200/50 hover:from-emerald-100 hover:to-emerald-200/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-8 h-8 bg-emerald-600 text-white rounded-full text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
-                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-emerald-700">₹{district.TotalAmount.toLocaleString()}</div>
-                      <div className="text-xs text-emerald-600 font-medium">Total Collection</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Money />
-                <p className="mt-2 font-medium">No fee collection data</p>
-                <p className="text-sm">Check API connection for FY {selectedYear}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Districts by Fee Collection */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Bottom Districts - Fee Collection</h3>
-              <div className="text-sm text-slate-500 bg-amber-100 text-amber-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
-            </div>
-            
-            {isLoading.districtApis ? (
-              <LoadingSpinner />
-            ) : bottomDistrictsByFee.length > 0 ? (
-              <div className="space-y-3">
-                {bottomDistrictsByFee.map((district, index) => (
-                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-amber-50 to-amber-100/50 rounded-lg border border-amber-200/50 hover:from-amber-100 hover:to-amber-200/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-8 h-8 bg-amber-600 text-white rounded-full text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
-                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-amber-700">₹{district.TotalAmount.toLocaleString()}</div>
-                      <div className="text-xs text-amber-600 font-medium">Total Collection</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Money />
-                <p className="mt-2 font-medium">No fee collection data</p>
-                <p className="text-sm">Check API connection for FY {selectedYear}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Top Districts by Complaint */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Top Districts - Complaints</h3>
-              <div className="text-sm text-slate-500 bg-rose-100 text-rose-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
-            </div>
-            
-            {isLoading.districtApis ? (
-              <LoadingSpinner />
-            ) : topDistrictsByComplaint.length > 0 ? (
-              <div className="space-y-3">
-                {topDistrictsByComplaint.map((district, index) => (
-                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-rose-50 to-rose-100/50 rounded-lg border border-rose-200/50 hover:from-rose-100 hover:to-rose-200/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-8 h-8 bg-rose-600 text-white rounded-full text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
-                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-rose-700">{district.TotalComplaint}</div>
-                      <div className="text-xs text-rose-600 font-medium">Total Complaints</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Warning />
-                <p className="mt-2 font-medium">No complaint data</p>
-                <p className="text-sm">Check API connection for FY {selectedYear}</p>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom Districts by Complaint */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Bottom Districts - Complaints</h3>
-              <div className="text-sm text-slate-500 bg-blue-100 text-blue-800 px-3 py-1 rounded-lg font-medium">FY {selectedYear}</div>
-            </div>
-            
-            {isLoading.districtApis ? (
-              <LoadingSpinner />
-            ) : bottomDistrictsByComplaint.length > 0 ? (
-              <div className="space-y-3">
-                {bottomDistrictsByComplaint.map((district, index) => (
-                  <div key={district.DistrictId} className="flex items-center justify-between p-4 bg-gradient-to-r from-blue-50 to-blue-100/50 rounded-lg border border-blue-200/50 hover:from-blue-100 hover:to-blue-200/50 transition-all">
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center justify-center w-8 h-8 bg-blue-600 text-white rounded-full text-sm font-bold">
-                        {index + 1}
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{district.DistrictName}</div>
-                        <div className="text-sm text-slate-600">District ID: {district.DistrictId}</div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-lg font-bold text-blue-700">{district.TotalComplaint}</div>
-                      <div className="text-xs text-blue-600 font-medium">Total Complaints</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Warning />
-                <p className="mt-2 font-medium">No complaint data</p>
-                <p className="text-sm">Check API connection for FY {selectedYear}</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Charts Section - Only API Data */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          
-          {/* Pump Distribution */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Pump Distribution</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Live Data</div>
-            </div>
-            
-            {isLoading.pumps ? (
-              <LoadingSpinner />
-            ) : pumpTypeData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pumpTypeData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="40%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={5}
-                    label={({ value, name }) => `${name}: ${value}`}
-                    labelLine={false}
-                  >
-                    {pumpTypeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.95)",
-                      borderRadius: "12px",
-                      border: "none",
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)"
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    iconType="rect"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Pump />
-                <p className="mt-2 font-medium">No pump data available</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            )}
-          </div>
-
-          {/* Complaint Status */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Complaint Status</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Real-time</div>
-            </div>
-            
-            {isLoading.complaintStatus ? (
-              <LoadingSpinner />
-            ) : complaintStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={complaintStatusData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="40%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={5}
-                    label={({ value, name }) => `${name}: ${value}`}
-                    labelLine={false}
-                  >
-                    {complaintStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS.chart[index % COLORS.chart.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.95)",
-                      borderRadius: "12px",
-                      border: "none",
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)"
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    iconType="rect"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Warning />
-                <p className="mt-2 font-medium">No complaint data available</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Water Connection & Village Fee Collection */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          
-          {/* Water Connection Status */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Connection Status</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">API Data</div>
-            </div>
-            
-            {isLoading.waterConnection ? (
-              <LoadingSpinner />
-            ) : waterConnectionData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={waterConnectionData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="40%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={5}
-                    label={({ value, name }) => `${name}: ${value}`}
-                    labelLine={false}
-                  >
-                    {waterConnectionData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS.chart[index % COLORS.chart.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.95)",
-                      borderRadius: "12px",
-                      border: "none",
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)"
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    iconType="rect"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Water />
-                <p className="mt-2 font-medium">No connection data available</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            )}
-          </div>
-
-          {/* Pump Operational Status */}
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Pump Status</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Live Status</div>
-            </div>
-            
-            {isLoading.pumps ? (
-              <LoadingSpinner />
-            ) : pumpStatusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <PieChart>
-                  <Pie
-                    data={pumpStatusData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="40%"
-                    outerRadius={80}
-                    innerRadius={40}
-                    paddingAngle={5}
-                    label={({ value, name }) => `${name}: ${value}`}
-                    labelLine={false}
-                  >
-                    {pumpStatusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.95)",
-                      borderRadius: "12px",
-                      border: "none",
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)"
-                    }}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    iconType="rect"
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Pump />
-                <p className="mt-2 font-medium">No pump status data</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Village Fee Collection Performance - Only API Data */}
-        {villageFeeData.length > 0 && (
-          <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20 mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Village Fee Collection vs Target</h3>
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">API Performance Data</div>
-            </div>
-            
-            {isLoading.villageFee ? (
-              <LoadingSpinner />
-            ) : (
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart 
-                  data={villageFeeData} 
-                  margin={{ top: 20, right: 30, left: 40, bottom: 60 }}
-                  barGap={10}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-                  <XAxis 
-                    dataKey="Village_Name" 
-                    stroke="#64748b"
-                    fontSize={11}
-                    fontWeight="500"
-                    angle={-45}
-                    textAnchor="end"
-                    height={80}
-                    interval={0}
-                  />
-                  <YAxis 
-                    stroke="#64748b" 
-                    fontSize={12}
-                    tickFormatter={(value) => `₹${(value / 1000).toFixed(0)}K`}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      backgroundColor: "rgba(255, 255, 255, 0.95)",
-                      borderRadius: "12px",
-                      border: "none",
-                      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.15)"
-                    }}
-                    formatter={(value, name) => [`₹${value.toLocaleString()}`, name]}
-                  />
-                  <Legend 
-                    wrapperStyle={{ paddingTop: '20px' }}
-                    iconType="rect"
-                  />
-                  <Bar 
-                    dataKey="TotalTargetedAmount" 
-                    name="Target Amount"
-                    fill="#94a3b8" 
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={60}
-                  />
-                  <Bar 
-                    dataKey="TotalCollectedAmount" 
-                    name="Collected Amount"
-                    fill="#1e293b" 
-                    radius={[4, 4, 0, 0]}
-                    maxBarSize={60}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-        )}
-
-        {/* Real-time Data Tables - Only API Data */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          
-          {/* Recent Complaints */}
-          {complaints.length > 0 ? (
-            <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-800">Recent Complaints</h3>
-                <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Live API Data</div>
-              </div>
-              
-              <div className="space-y-4 max-h-80 overflow-y-auto">
-                {complaints.slice(0, 5).map((complaint) => (
-                  <div key={complaint.ComplaintID} className="flex items-center justify-between p-4 bg-slate-50/80 rounded-lg border border-slate-200/50 hover:bg-slate-100/80 transition-colors">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3">
-                        <span className="font-semibold text-slate-800">{complaint.BeneficiaryName}</span>
-                        <span className={`px-2 py-1 text-xs rounded-full font-medium ${
-                          complaint.Status 
-                            ? 'bg-emerald-100 text-emerald-800 border border-emerald-200' 
-                            : 'bg-rose-100 text-rose-800 border border-rose-200'
-                        }`}>
-                          {complaint.Status ? 'Resolved' : 'Pending'}
-                        </span>
-                      </div>
-                      <div className="text-sm text-slate-600 mt-1 font-medium">{complaint.Village} • {complaint.Category}</div>
-                      <div className="text-xs text-slate-500">{complaint.Landmark}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-slate-500 font-mono">ID: {complaint.ComplaintID}</div>
-                      <div className="text-xs text-slate-400">{complaint.Contact}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-xl font-bold text-slate-800 mb-6">Recent Complaints</h3>
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Warning />
-                <p className="mt-2 font-medium">No complaints data available</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            </div>
-          )}
-
-          {/* Active Pump Houses */}
-          {pumpHouses.length > 0 ? (
-            <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-slate-800">Pump House Status</h3>
-                <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">Real-time API</div>
-              </div>
-              
-              <div className="space-y-4 max-h-80 overflow-y-auto">
-                {pumpHouses.map((pump) => (
-                  <div key={pump.PumpId} className="flex items-center justify-between p-4 bg-slate-50/80 rounded-lg border border-slate-200/50 hover:bg-slate-100/80 transition-colors">
-                    <div className="flex items-center gap-4">
-                      <div className={`w-3 h-3 rounded-full shadow-md ${
-                        pump.Status === 1 ? 'bg-emerald-500 shadow-emerald-200' : 'bg-rose-500 shadow-rose-200'
-                      }`}></div>
-                      <div>
-                        <div className="font-semibold text-slate-800">{pump.OperatorName}</div>
-                        <div className="text-sm text-slate-600 font-medium">
-                          Pump {pump.PumpId} • {pump.HorsePower} HP
-                        </div>
-                        <div className="text-xs text-slate-500">
-                          {pump.PowerSource === '2' ? `Solar (${pump.SolarOutput}W)` : 'Electric Power'}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <div className={`text-sm font-semibold ${
-                        pump.Status === 1 ? 'text-emerald-600' : 'text-rose-600'
-                      }`}>
-                        {pump.Status === 1 ? 'Active' : 'Inactive'}
-                      </div>
-                      <div className="text-xs text-slate-500 font-mono">{pump.Contact}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20">
-              <h3 className="text-xl font-bold text-slate-800 mb-6">Pump House Status</h3>
-              <div className="text-center py-16 text-slate-500">
-                <Icons.Pump />
-                <p className="mt-2 font-medium">No pump house data available</p>
-                <p className="text-sm">Check API connection</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* FIXED Fee Collection Details - Now shows API data properly */}
-        <div className="bg-white/90 backdrop-blur-md rounded-xl shadow-xl p-6 border border-white/20 mb-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-slate-800">Fee Collection Summary</h3>
-            <div className="flex items-center gap-2">
-              <div className="text-sm text-slate-500 bg-slate-100 px-3 py-1 rounded-lg">
-                {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear} Data
-              </div>
-              {isLoading.fees && (
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-slate-400 border-t-transparent"></div>
-              )}
-            </div>
-          </div>
-          
-          {isLoading.fees ? (
-            <LoadingSpinner />
-          ) : feeData.length > 0 ? (
-            <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-                <div className="bg-gradient-to-br from-slate-800 to-slate-900 p-6 rounded-xl text-white shadow-lg">
-                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Total Collection</div>
-                  <div className="text-3xl font-bold mt-2">₹{totalCollection.toLocaleString()}</div>
-                  <div className="text-xs opacity-75 mt-1">From {uniqueBeneficiaries} beneficiaries</div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-amber-800 to-amber-900 p-6 rounded-xl text-white shadow-lg">
-                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Outstanding Amount</div>
-                  <div className="text-3xl font-bold mt-2">₹{totalOutstanding.toLocaleString()}</div>
-                  <div className="text-xs opacity-75 mt-1">Pending collection</div>
-                </div>
-                
-                <div className="bg-gradient-to-br from-emerald-800 to-emerald-900 p-6 rounded-xl text-white shadow-lg">
-                  <div className="text-sm opacity-90 font-medium uppercase tracking-wider">Collection Rate</div>
-                  <div className="text-3xl font-bold mt-2">
-                    {totalCollection + totalOutstanding > 0 
-                      ? Math.round((totalCollection / (totalCollection + totalOutstanding)) * 100)
-                      : 0}%
-                  </div>
-                  <div className="text-xs opacity-75 mt-1">Payment efficiency</div>
-                </div>
-              </div>
-
-              {/* Fee Collection Details Table */}
-              <div className="bg-slate-50/80 rounded-xl p-4 border border-slate-200/50">
-                <h4 className="text-lg font-semibold text-slate-800 mb-4">Recent Transactions ({feeData.length} records)</h4>
-                <div className="max-h-96 overflow-y-auto">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {feeData.slice(0, 10).map((fee) => (
-                      <div key={fee.FeeCollectionId} className="bg-white p-4 rounded-lg border border-slate-200/50 shadow-sm hover:shadow-md transition-all">
-                        <div className="flex justify-between items-start mb-2">
-                          <div>
-                            <div className="font-semibold text-slate-800">{fee.BeneficiaryName}</div>
-                            <div className="text-sm text-slate-600">{fee.FatherHusbandName}</div>
-                            <div className="text-xs text-slate-500">{fee.VillageName}</div>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-mono text-slate-500">ID: {fee.FeeCollectionId}</div>
-                            {fee.BalanceAmount > 0 && (
-                              <div className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full font-medium">
-                                Balance Due
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4 text-xs">
-                          <div>
-                            <span className="text-slate-500">Base Fee:</span>
-                            <span className="font-semibold ml-1">₹{fee.BaseFee}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Paid:</span>
-                            <span className="font-semibold ml-1 text-emerald-600">₹{fee.PaidAmount}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Outstanding:</span>
-                            <span className="font-semibold ml-1 text-rose-600">₹{fee.OutstandingAmount}</span>
-                          </div>
-                          <div>
-                            <span className="text-slate-500">Balance:</span>
-                            <span className={`font-semibold ml-1 ${fee.BalanceAmount === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                              ₹{fee.BalanceAmount}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  {feeData.length > 10 && (
-                    <div className="text-center mt-4 text-sm text-slate-500">
-                      Showing 10 of {feeData.length} records • 
-                      <span className="font-medium"> {feeData.length - 10} more available</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="text-center py-16 text-slate-500">
-              <Icons.Money />
-              <p className="mt-2 font-medium">No fee collection data available</p>
-              <p className="text-sm">Try selecting a different month/year or check API connection</p>
-              <div className="mt-4 text-xs bg-slate-100 rounded-lg p-3 text-left max-w-md mx-auto">
-                <p><strong>Current Parameters:</strong></p>
-                <p>Month: {selectedMonth} ({monthOptions.find(m => m.value === selectedMonth)?.label})</p>
-                <p>Year: {selectedYear}</p>
-                <p>VillageId: 0 (All villages)</p>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* System Status Footer */}
-        <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl shadow-xl p-6 border border-slate-700">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-4 text-white">
-            <div className="flex items-center gap-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100">
+      {/* Top Navigation Bar */}
+      <div className="bg-white shadow-md border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
               <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-emerald-400 rounded-full animate-pulse shadow-lg shadow-emerald-400/50"></div>
-                <span className="text-sm font-semibold">System Online</span>
-              </div>
-              <div className="text-sm opacity-75">
-                Last updated: {currentTime.toLocaleTimeString('en-IN')} • Data for {monthOptions.find(m => m.value === selectedMonth)?.label} {selectedYear}
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                  <Shield size={24} className="text-white" />
+                </div>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-800">Admin Dashboard</h1>
+                  <p className="text-sm text-gray-500">Handpump Management System</p>
+                </div>
               </div>
             </div>
             
-            <div className="flex items-center gap-8 text-sm">
-              <div className="flex items-center gap-2 opacity-90">
-                <Icons.Users />
-                <span className="font-medium">{totalBeneficiaries} Beneficiaries</span>
+            <div className="flex items-center gap-4">
+              {/* Search Bar */}
+              <div className="flex items-center gap-2 bg-gray-100 rounded-lg px-4 py-2 w-80">
+                <Search size={18} className="text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search handpumps, complaints, requisitions..."
+                  className="bg-transparent focus:outline-none flex-1 text-sm"
+                />
               </div>
-              <div className="flex items-center gap-2 opacity-90">
-                <Icons.Pump />
-                <span className="font-medium">{activePumps}/{totalPumps} Pumps Active</span>
-              </div>
-              <div className="flex items-center gap-2 opacity-90">
-                <Icons.Tank />
-                <span className="font-medium">{totalOHTs} OHTs</span>
-              </div>
-              <div className="flex items-center gap-2 opacity-90">
-                <Icons.Water />
-                <span className="font-medium">{totalVillageCount} Villages</span>
-              </div>
-              <div className="flex items-center gap-2 opacity-90">
-                <Icons.Money />
-                <span className="font-medium">₹{totalCollection.toLocaleString()} Collected</span>
+              
+              {/* Notifications */}
+              <button 
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Bell size={20} className="text-gray-600" />
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+              
+              {/* User Profile */}
+              <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-800">Admin User</p>
+                  <p className="text-xs text-gray-500">System Administrator</p>
+                </div>
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold">
+                  A
+                </div>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Tab Navigation */}
+        <div className="bg-white rounded-xl shadow-lg p-2 mb-6 flex gap-2 overflow-x-auto">
+          {[
+            { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+            { id: 'handpumps', label: 'Handpumps', icon: Droplets },
+            { id: 'complaints', label: 'Complaints', icon: AlertTriangle },
+            { id: 'requisitions', label: 'Requisitions', icon: FileText },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
+            { id: 'gis', label: 'GIS Map', icon: Map }
+          ].map(tab => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-300 ${
+                  activeTab === tab.id
+                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                <Icon size={18} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Overview Tab */}
+        {activeTab === 'overview' && (
+          <div className="space-y-6">
+            {/* Main Stats Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              {/* Total Handpumps */}
+              <div className="group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+                    <p className="text-3xl font-bold mt-2">{stats.totalHandpumps.toLocaleString()}</p>
+                    <p className="text-blue-200 text-xs mt-1">System-wide</p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Droplets size={28} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Active Handpumps */}
+              <div className="group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Active Handpumps</p>
+                    <p className="text-3xl font-bold mt-2">{stats.activeHandpumps.toLocaleString()}</p>
+                    <p className="text-green-200 text-xs mt-1">87% operational</p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                    <CheckCircle size={28} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Complaints */}
+              <div className="group bg-gradient-to-br from-orange-600 to-red-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Total Complaints</p>
+                    <p className="text-3xl font-bold mt-2">{stats.totalComplaints}</p>
+                    <p className="text-orange-200 text-xs mt-1">{stats.pendingComplaints} pending</p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                    <AlertTriangle size={28} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Requisitions */}
+              <div className="group bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Total Requisitions</p>
+                    <p className="text-3xl font-bold mt-2">{stats.totalRequisitions}</p>
+                    <p className="text-purple-200 text-xs mt-1">{stats.sanctionedRequisitions} sanctioned</p>
+                  </div>
+                  <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center">
+                    <FileText size={28} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Secondary Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm font-medium">Districts</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalDistricts}</p>
+                  </div>
+                  <MapPin size={24} className="text-blue-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm font-medium">Blocks</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalBlocks}</p>
+                  </div>
+                  <Database size={24} className="text-green-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm font-medium">Gram Panchayats</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">{stats.totalGPs}</p>
+                  </div>
+                  <Settings size={24} className="text-purple-600" />
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-gray-500 text-sm font-medium">Active Users</p>
+                    <p className="text-2xl font-bold text-gray-800 mt-1">{stats.activeUsers}</p>
+                  </div>
+                  <Users size={24} className="text-orange-600" />
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activities & District Summary */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Activities */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <Activity size={20} className="text-blue-600" />
+                      Recent Activities
+                    </h3>
+                    <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      View All
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {recentActivities.map(activity => (
+                      <div key={activity.id} className="flex items-start gap-3 p-3 hover:bg-gray-50 rounded-lg transition-colors">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${getPriorityColor(activity.priority)}`}>
+                          {getActivityIcon(activity.type)}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm text-gray-800 font-medium">{activity.message}</p>
+                          <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+                        </div>
+                        <ChevronRight size={16} className="text-gray-400" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* District Summary */}
+              <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+                <div className="p-6 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+                      <MapPin size={20} className="text-blue-600" />
+                      Top Districts
+                    </h3>
+                    <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+                      View All
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <div className="space-y-4">
+                    {districtSummary.map((district, index) => (
+                      <div key={index} className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg border border-blue-100">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-bold text-gray-800">{district.name}</h4>
+                          <span className="text-sm font-semibold text-blue-600">{district.handpumps} HPs</span>
+                        </div>
+                        <div className="grid grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <span className="text-gray-500">Active:</span>
+                            <span className="ml-1 font-semibold text-green-600">{district.active}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Complaints:</span>
+                            <span className="ml-1 font-semibold text-orange-600">{district.complaints}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Requisitions:</span>
+                            <span className="ml-1 font-semibold text-purple-600">{district.requisitions}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Actions */}
+            <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Quick Actions</h3>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <button className="flex flex-col items-center gap-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200 hover:shadow-md transition-all">
+                  <Droplets size={24} className="text-blue-600" />
+                  <span className="text-sm font-medium text-gray-700">View Handpumps</span>
+                </button>
+                <button className="flex flex-col items-center gap-3 p-4 bg-gradient-to-br from-orange-50 to-red-50 rounded-lg border border-orange-200 hover:shadow-md transition-all">
+                  <AlertTriangle size={24} className="text-orange-600" />
+                  <span className="text-sm font-medium text-gray-700">View Complaints</span>
+                </button>
+                <button className="flex flex-col items-center gap-3 p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-lg border border-purple-200 hover:shadow-md transition-all">
+                  <FileText size={24} className="text-purple-600" />
+                  <span className="text-sm font-medium text-gray-700">View Requisitions</span>
+                </button>
+                <button className="flex flex-col items-center gap-3 p-4 bg-gradient-to-br from-green-50 to-emerald-50 rounded-lg border border-green-200 hover:shadow-md transition-all">
+                  <Download size={24} className="text-green-600" />
+                  <span className="text-sm font-medium text-gray-700">Export Reports</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Handpumps Tab */}
+        {activeTab === 'handpumps' && (
+          <div className="space-y-6">
+            {/* Stats for Handpumps */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+                    <p className="text-3xl font-bold mt-2">1,247</p>
+                  </div>
+                  <Droplets size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Functional</p>
+                    <p className="text-3xl font-bold mt-2">1,089</p>
+                  </div>
+                  <CheckCircle size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm font-medium">Under Repair</p>
+                    <p className="text-3xl font-bold mt-2">98</p>
+                  </div>
+                  <Clock size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-red-100 text-sm font-medium">Non-Functional</p>
+                    <p className="text-3xl font-bold mt-2">60</p>
+                  </div>
+                  <AlertCircle size={28} />
+                </div>
+              </div>
+            </div>
+
+            {/* Handpumps Table */}
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="p-6 border-b border-gray-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-800">Handpump Registry</h3>
+                  <div className="flex gap-2">
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2">
+                      <Filter size={16} />
+                      Filter
+                    </button>
+                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
+                      <Download size={16} />
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Last Maintenance</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {[
+                      { id: 'HP001', location: 'Lucknow - Sadar', status: 'Functional', date: '2024-03-15' },
+                      { id: 'HP002', location: 'Kanpur - Ghatampur', status: 'Under Repair', date: '2024-03-10' },
+                      { id: 'HP003', location: 'Agra - Kheragarh', status: 'Functional', date: '2024-03-12' },
+                      { id: 'HP004', location: 'Varanasi - Pindra', status: 'Non-Functional', date: '2024-02-28' },
+                      { id: 'HP005', location: 'Allahabad - Phulpur', status: 'Functional', date: '2024-03-18' }
+                    ].map((hp) => (
+                      <tr key={hp.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-semibold text-blue-600">{hp.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-800">{hp.location}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            hp.status === 'Functional' ? 'bg-green-100 text-green-700' :
+                            hp.status === 'Under Repair' ? 'bg-amber-100 text-amber-700' :
+                            'bg-red-100 text-red-700'
+                          }`}>
+                            {hp.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm text-gray-600">{hp.date}</td>
+                        <td className="px-6 py-4">
+                          <button className="text-blue-600 hover:text-blue-800">
+                            <Eye size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Complaints Tab */}
+        {activeTab === 'complaints' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-orange-600 to-red-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-orange-100 text-sm font-medium">Total Complaints</p>
+                    <p className="text-3xl font-bold mt-2">342</p>
+                  </div>
+                  <AlertTriangle size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-yellow-600 to-amber-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-yellow-100 text-sm font-medium">Pending</p>
+                    <p className="text-3xl font-bold mt-2">89</p>
+                  </div>
+                  <Clock size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">In Progress</p>
+                    <p className="text-3xl font-bold mt-2">76</p>
+                  </div>
+                  <Activity size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Resolved</p>
+                    <p className="text-3xl font-bold mt-2">177</p>
+                  </div>
+                  <CheckCircle size={28} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800">Complaint Management</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Complaint ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Handpump</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Issue</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Priority</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {[
+                      { id: 'CMP001', hp: 'HP001', issue: 'Water Quality Issues', priority: 'High', status: 'Pending' },
+                      { id: 'CMP002', hp: 'HP023', issue: 'Not Working', priority: 'Critical', status: 'In Progress' },
+                      { id: 'CMP003', hp: 'HP045', issue: 'Low Pressure', priority: 'Medium', status: 'Resolved' },
+                      { id: 'CMP004', hp: 'HP067', issue: 'Handle Broken', priority: 'Low', status: 'Pending' }
+                    ].map((complaint) => (
+                      <tr key={complaint.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-semibold text-orange-600">{complaint.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-800">{complaint.hp}</td>
+                        <td className="px-6 py-4 text-sm text-gray-800">{complaint.issue}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            complaint.priority === 'Critical' ? 'bg-red-100 text-red-700' :
+                            complaint.priority === 'High' ? 'bg-orange-100 text-orange-700' :
+                            complaint.priority === 'Medium' ? 'bg-yellow-100 text-yellow-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {complaint.priority}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            complaint.status === 'Pending' ? 'bg-amber-100 text-amber-700' :
+                            complaint.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                            'bg-green-100 text-green-700'
+                          }`}>
+                            {complaint.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button className="text-blue-600 hover:text-blue-800">
+                            <Eye size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Requisitions Tab */}
+        {activeTab === 'requisitions' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-purple-100 text-sm font-medium">Total</p>
+                    <p className="text-3xl font-bold mt-2">156</p>
+                  </div>
+                  <FileText size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm font-medium">Pending</p>
+                    <p className="text-3xl font-bold mt-2">23</p>
+                  </div>
+                  <Clock size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Sanctioned</p>
+                    <p className="text-3xl font-bold mt-2">87</p>
+                  </div>
+                  <CheckCircle size={28} />
+                </div>
+              </div>
+              <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Completed</p>
+                    <p className="text-3xl font-bold mt-2">46</p>
+                  </div>
+                  <TrendingUp size={28} />
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+              <div className="p-6 border-b border-gray-200">
+                <h3 className="text-xl font-bold text-gray-800">Requisition Management</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Req. ID</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Handpump</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Type</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Amount</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {[
+                      { id: 'REQ001', hp: 'HP001', type: 'Repair', amount: '₹5,140', status: 'Completed' },
+                      { id: 'REQ002', hp: 'HP002', type: 'Rebore', amount: '₹21,947', status: 'Sanctioned' },
+                      { id: 'REQ003', hp: 'HP003', type: 'Repair', amount: '₹4,890', status: 'Pending' },
+                      { id: 'REQ004', hp: 'HP004', type: 'Rebore', amount: '₹19,875', status: 'Completed' }
+                    ].map((req) => (
+                      <tr key={req.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4 text-sm font-semibold text-purple-600">{req.id}</td>
+                        <td className="px-6 py-4 text-sm text-gray-800">{req.hp}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            req.type === 'Repair' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700'
+                          }`}>
+                            {req.type}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-sm font-semibold text-green-600">{req.amount}</td>
+                        <td className="px-6 py-4">
+                          <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                            req.status === 'Completed' ? 'bg-green-100 text-green-700' :
+                            req.status === 'Sanctioned' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            {req.status}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <button className="text-blue-600 hover:text-blue-800">
+                            <Eye size={16} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analytics Tab */}
+        {activeTab === 'analytics' && (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Success Rate</h4>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-green-600">87%</div>
+                  <p className="text-sm text-gray-600 mt-2">Handpumps Operational</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Avg Resolution Time</h4>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-blue-600">2.5</div>
+                  <p className="text-sm text-gray-600 mt-2">Days</p>
+                </div>
+              </div>
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Monthly Budget</h4>
+                <div className="text-center">
+                  <div className="text-5xl font-bold text-purple-600">₹4.2L</div>
+                  <p className="text-sm text-gray-600 mt-2">Spent This Month</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">District Performance</h4>
+                <div className="space-y-4">
+                  {districtSummary.map((district, index) => (
+                    <div key={index}>
+                      <div className="flex justify-between mb-2">
+                        <span className="text-sm font-medium text-gray-700">{district.name}</span>
+                        <span className="text-sm font-semibold text-gray-800">{Math.round((district.active / district.handpumps) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-gradient-to-r from-blue-500 to-indigo-600 h-2 rounded-full"
+                          style={{ width: `${(district.active / district.handpumps) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200">
+                <h4 className="text-lg font-bold text-gray-800 mb-4">Monthly Trends</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">New Installations</span>
+                    <span className="text-xl font-bold text-green-600">+23</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">Repairs Completed</span>
+                    <span className="text-xl font-bold text-blue-600">46</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">Pending Complaints</span>
+                    <span className="text-xl font-bold text-orange-600">89</span>
+                  </div>
+                  <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-700">Budget Utilization</span>
+                    <span className="text-xl font-bold text-purple-600">73%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* GIS Tab - Full GMAS Component */}
+        {activeTab === 'gis' && (
+          <div className="space-y-6">
+            
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+              <div className="group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-green-100 text-sm font-medium">Active Handpumps</p>
+                    <p className="text-3xl font-bold mt-1">{activeCount}</p>
+                    <p className="text-green-200 text-xs mt-1">Operational</p>
+                  </div>
+                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-green-400"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-amber-100 text-sm font-medium">Inactive Handpumps</p>
+                    <p className="text-3xl font-bold mt-1">{inactiveCount}</p>
+                    <p className="text-amber-200 text-xs mt-1">Needs Attention</p>
+                  </div>
+                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-amber-400"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="group bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-red-100 text-sm font-medium">Faulty Handpumps</p>
+                    <p className="text-3xl font-bold mt-1">{faultyCount}</p>
+                    <p className="text-red-200 text-xs mt-1">Requires Repair</p>
+                  </div>
+                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-red-400"></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+                    <p className="text-3xl font-bold mt-1">{filteredHandpumps.length}</p>
+                    <p className="text-blue-200 text-xs mt-1">In Current View</p>
+                  </div>
+                  <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                    <MapPin size={24} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Main Map Container */}
+            <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
+              <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                    <Navigation size={20} />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold">Interactive GIS Map</h2>
+                    <p className="text-gray-200 mt-1">Real-time handpump locations and status monitoring</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsSatelliteView(!isSatelliteView)}
+                  className="bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium flex items-center gap-2"
+                >
+                  {isSatelliteView ? 'Switch to Map View' : 'Switch to Satellite View'}
+                </button>
+              </div>
+
+              <div className="relative h-[600px] overflow-hidden">
+                <MapContainer
+                  center={[26.8467, 80.9462]}
+                  zoom={10}
+                  style={{ height: '100%', width: '100%', zIndex: 10 }}
+                  ref={mapRef}
+                >
+                  <TileLayer
+                    url={isSatelliteView
+                      ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                      : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
+                    attribution={
+                      isSatelliteView
+                        ? '&copy; <a href="https://www.esri.com/">Esri</a>'
+                        : '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    }
+                  />
+                  {filteredHandpumps.map((handpump) => (
+                    <Marker
+                      key={handpump.id}
+                      position={handpump.coordinates}
+                      icon={statusIcons[handpump.status === 'active' ? 'functional' : handpump.status === 'inactive' ? 'nonfunctional' : 'underrepair']}
+                      eventHandlers={{
+                        click: () => setSelectedHandpump(handpump),
+                      }}
+                    >
+                      <Popup>
+                        <div className="p-2">
+                          <h3 className="font-bold">{handpump.name}</h3>
+                          <p>Status: {handpump.status}</p>
+                          <p>District: {handpump.district}</p>
+                          <p>Block: {handpump.block}</p>
+                          <p>Gram Panchayat: {handpump.gramPanchayat}</p>
+                          <p>Village: {handpump.village}</p>
+                        </div>
+                      </Popup>
+                    </Marker>
+                  ))}
+                </MapContainer>
+
+                <div className="absolute top-4 left-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg z-[100]">
+                  <h3 className="text-lg font-bold text-gray-800">Uttar Pradesh</h3>
+                  <p className="text-sm text-gray-600">Handpump Distribution Map</p>
+                </div>
+
+                <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm rounded-lg p-3 shadow-lg z-[100]">
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <div className="w-16 h-1 bg-gray-400"></div>
+                    <span>50 km</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Handpump Info Modal */}
+            {selectedHandpump && (
+              <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000] p-4">
+                <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[80vh] overflow-y-auto z-[1001]">
+                  <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white rounded-t-2xl">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className="w-12 h-12 rounded-full border-2 border-white flex items-center justify-center"
+                          style={{ backgroundColor: getStatusColor(selectedHandpump.status) }}
+                        >
+                          <MapPin size={20} className="text-white" />
+                        </div>
+                        <div>
+                          <h3 className="text-2xl font-bold">{selectedHandpump.name}</h3>
+                          <p className="text-blue-100">ID: {selectedHandpump.id}</p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setSelectedHandpump(null)}
+                        className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-6">
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-semibold capitalize ${
+                            selectedHandpump.status === 'active'
+                              ? 'bg-green-100 text-green-800'
+                              : selectedHandpump.status === 'inactive'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {selectedHandpump.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">District:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.district}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Block:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.block}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Gram Panchayat:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.gramPanchayat}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Village:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.village}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Installation Date:</span>
+                        <span className="font-semibold text-gray-800">
+                          {new Date(selectedHandpump.installationDate).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Coordinates:</span>
+                        <span className="font-semibold text-gray-800">
+                          {selectedHandpump.coordinates[0].toFixed(4)}°N, {selectedHandpump.coordinates[1].toFixed(4)}°E
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Notifications Panel */}
+      {showNotifications && (
+        <div className="fixed top-16 right-6 w-96 bg-white rounded-xl shadow-2xl border border-gray-200 z-50">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+            <h3 className="font-bold text-gray-800">Notifications</h3>
+            <button onClick={() => setShowNotifications(false)}>
+              <X size={18} className="text-gray-500" />
+            </button>
+          </div>
+          <div className="max-h-96 overflow-y-auto">
+            {recentActivities.map(activity => (
+              <div key={activity.id} className="p-4 border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                <p className="text-sm text-gray-800">{activity.message}</p>
+                <p className="text-xs text-gray-500 mt-1">{activity.time}</p>
+              </div>
+            ))}
+          </div>
+          <div className="p-3 text-center border-t border-gray-200">
+            <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
+              View All Notifications
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
-}
+};
+
+export default AdminDashboard;

@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Filter, Search, Plus, Eye, Calendar, FileText, Wrench, Drill, X, Upload, Trash2, Edit3, Check, Calculator, MapPin } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
 
 const CreateEstimationScreen = () => {
+  const { userId } = useUserInfo();
   const [filterMode, setFilterMode] = useState('All');
   const [showModal, setShowModal] = useState(false);
   const [selectedRequisition, setSelectedRequisition] = useState(null);
@@ -12,6 +14,9 @@ const CreateEstimationScreen = () => {
     rate: '',
     quantity: 1,
     source: 'CPWD-SOR',
+    length: '',
+    width: '',
+    height: '',
     quotationFile: null
   });
   const [addedItems, setAddedItems] = useState([]);
@@ -20,94 +25,136 @@ const CreateEstimationScreen = () => {
   const [estimationId, setEstimationId] = useState('');
   const [savedEstimationData, setSavedEstimationData] = useState(null);
   
-  // Sample data for requisitions that need estimation
-  const requisitions = [
-    {
-      id: 'REQ005',
-      handpumpId: 'HP005',
-      gramPanchayat: 'Saraswati GP',
-      village: 'Rampur',
-      mode: 'Repair',
-      date: '2024-03-19',
-      status: 'Pending Estimation'
-    },
-    {
-      id: 'REQ006',
-      handpumpId: 'HP006',
-      gramPanchayat: 'Ganga GP',
-      village: 'Shivpur',
-      mode: 'Rebore',
-      date: '2024-03-20',
-      status: 'Pending Estimation'
-    },
-    {
-      id: 'REQ007',
-      handpumpId: 'HP007',
-      gramPanchayat: 'Yamuna GP',
-      village: 'Krishnapur',
-      mode: 'Repair',
-      date: '2024-03-21',
-      status: 'Pending Estimation'
-    },
-    {
-      id: 'REQ008',
-      handpumpId: 'HP008',
-      gramPanchayat: 'Kaveri GP',
-      village: 'Govindpur',
-      mode: 'Rebore',
-      date: '2024-03-22',
-      status: 'Pending Estimation'
-    }
-  ];
+  // API data states
+  const [requisitions, setRequisitions] = useState([]);
+  const [repairItems, setRepairItems] = useState([]);
+  const [reboreItems, setReboreItems] = useState([]);
+  const [gstDetails, setGstDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const repairItems = [
-    { id: 1, name: 'Chain(25.4mm pitch roller chain with 7links)', unit: 'Nos', rate: 120, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 2, name: 'Axle', unit: 'Nos', rate: 80, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 3, name: 'Plunger', unit: 'Nos', rate: 250, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 4, name: 'Check Valve', unit: 'Nos', rate: 125, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 5, name: 'Cylinder Casing', unit: 'Nos', rate: 220, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 6, name: 'Nutbolt', unit: 'Nos', rate: 15, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 7, name: 'Handle Complete Set', unit: 'Nos', rate: 2200, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 8, name: 'Pipe', unit: 'Nos', rate: 750, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 9, name: 'Bearing', unit: 'Nos', rate: 60, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 10, name: 'Plunger Rod', unit: 'Nos', rate: 220, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 11, name: 'Socket(same as number of pipes)', unit: 'Nos', rate: 50, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 12, name: 'Thread', unit: 'Nos', rate: 25, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 13, name: 'Washer set', unit: 'Nos', rate: 80, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 14, name: 'Cylinder', unit: 'Nos', rate: 925, l: '', b: '', h: '', qty: 1, source: 'CPWD-SOR' }
-  ];
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiUHJha2FzaEBnbWFpbC5jb20iLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJDb25zdWx0aW5nX0VuZ2luZWVyIiwiVXNlcklEIjoiMTIiLCJVc2VyTmFtZSI6IlByYWthc2hAZ21haWwuY29tIiwiVXNlclJvbGwiOiJDb25zdWx0aW5nX0VuZ2luZWVyIiwianRpIjoiNjY2YWEzNzMtNGRlYS00ZjFkLTk2MzAtMWE1M2ZjZWI1ODI3IiwiZXhwIjoxNzYwMDU3OTEzLCJpc3MiOiJodHRwczovL2htc2FwaS5rZHNncm91cC5jby5pbiIsImF1ZCI6Imh0dHBzOi8vaG1zYXBpLmtkc2dyb3VwLmNvLmluIn0.zOaaMBRZ2dw4BeIo9L-XH8s4aMSRK_cEY4hTrrypMDs';
 
-  const reboreItems = [
-    { id: 1, name: 'Transportation of handpump material and T&P etc From market to the work site Including loading unloading and proper stacking at site work also including return cartage of unused material and T&P complete.', unit: 'Job', rate: 1706.46, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 2, name: 'Dismantling of old PCC Platform Handpump machine GI pipe, Connecting rod and cylinder Including all labour T & P Complete', unit: 'Job', rate: 1984.15, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 3, name: 'Cost of essential material for INDIA MARK- II handpump installation work', unit: '', rate: 0.00, l: '', b: '', h: '', qty: 0, source: 'CPWD-SOR', isHeader: true },
-    { id: 4, name: 'A. P.V.C PIPE(6KG/SQCM) 110 mm dia', unit: 'Rm', rate: 328.88, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 5, name: 'B. P.V.C PIPE(6KG/SQCM) 63 mm dia', unit: 'Rm', rate: 124.11, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 6, name: 'C. 63 mm nominal dia strainer or blind pipe', unit: 'Rm', rate: 651.56, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 7, name: 'D.REDUCER (110 TO 63 MM)', unit: 'set', rate: 183.06, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 8, name: 'E. G.I.PIPE 32 MM dia medium quality(riser)', unit: 'Rm', rate: 341.29, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 9, name: 'F. Spare parts', unit: 'Job', rate: 2714.82, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 10, name: 'Rent of equipment/plant and work of digging pit, erecting tripod etc. for drilling work by casing method or pump and pressure method', unit: 'Job', rate: 798.93, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 11, name: 'Drilling work 150 mm dia in hard and conker mix soil by (pump and pressure method OR casing while drilling method)', unit: '', rate: 0.00, l: '', b: '', h: '', qty: 0, source: 'CPWD-SOR', isHeader: true },
-    { id: 12, name: 'A. 0 -15m', unit: 'Rm', rate: 511.94, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 13, name: 'B. 15-30m', unit: 'Rm', rate: 511.94, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 14, name: 'C. 30-45m', unit: 'Rm', rate: 589.50, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 15, name: 'D. 45-65m', unit: 'Rm', rate: 899.77, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 16, name: 'P.V.C. pipe assembly(110/63mm),blind pipe,strainer(63mm) should be lowered in the bore hole', unit: '', rate: 0.00, l: '', b: '', h: '', qty: 0, source: 'CPWD-SOR', isHeader: true },
-    { id: 17, name: 'A. 0.00-30m', unit: 'Rm', rate: 18.62, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 18, name: 'B. 30-45m', unit: 'Rm', rate: 19.39, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 19, name: 'C. 45-65m', unit: 'Rm', rate: 20.20, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 20, name: 'A supply/Pouring of course sand around strainer in drilling i/c all', unit: 'Job', rate: 806.69, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 21, name: 'Filling of bentonite between borehole and casing pipe', unit: 'Job', rate: 387.83, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 22, name: 'Installation of GI pipe of India Mark - II handpump or connecting rod', unit: 'Job', rate: 971.13, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 23, name: 'Disinfection by chlorination after installation and Development of handpump india mark-2 including with riser', unit: 'Job', rate: 232.70, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 24, name: 'Making handpump platform 1.85 dia', unit: 'Job', rate: 8997.70, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 25, name: 'Making drain i/c', unit: 'Rm', rate: 620.53, l: '1', b: '', h: '', qty: 1, source: 'CPWD-SOR' },
-    { id: 26, name: 'Embossing and painting work', unit: 'Job', rate: 232.70, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' },
-    { id: 27, name: 'Water Testing work', unit: 'Job', rate: 775.66, l: '1', b: '1', h: '1', qty: 1, source: 'CPWD-SOR' }
-  ];
+  // Fetch all data on component mount
+  useEffect(() => {
+    if (!userId) return;
 
-  const filteredRequisitions = filterMode === 'All' ? requisitions : requisitions.filter(req => req.mode === filterMode);
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+
+        // Fetch requisitions
+        const reqResponse = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${AUTH_TOKEN}`
+            }
+          }
+        );
+        const reqData = await reqResponse.json();
+
+        // Fetch repair estimation items
+        const repairResponse = await fetch(
+          `${API_BASE}/Master/GetRepairEstimation`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${AUTH_TOKEN}`
+            }
+          }
+        );
+        const repairData = await repairResponse.json();
+
+        // Fetch rebore estimation items
+        const reboreResponse = await fetch(
+          `${API_BASE}/Master/GetReboreEstimation`,
+          {
+            headers: {
+              'accept': '*/*'
+            }
+          }
+        );
+        const reboreData = await reboreResponse.json();
+
+        // Fetch GST details
+        const gstResponse = await fetch(
+          `${API_BASE}/Master/GstActiveDetails`,
+          {
+            headers: {
+              'accept': '*/*'
+            }
+          }
+        );
+        const gstData = await gstResponse.json();
+
+        // Process requisitions - filter only pending ones (RequisitionStatus = 1)
+        const processedRequisitions = reqData.Data
+          .filter(req => req.RequisitionStatus === 1)
+          .map(req => ({
+            id: req.RequisitionId.toString(),
+            handpumpId: req.HandpumpId,
+            gramPanchayat: req.GrampanchayatName,
+            village: req.VillageName,
+            mode: req.RequisitionType,
+            date: req.RequisitionDate,
+            status: 'Pending Estimation',
+            requisitionData: req
+          }));
+
+        // Process repair items
+        const processedRepairItems = repairData.Data.map(item => ({
+          id: item.Id,
+          name: item.ItemName,
+          unit: item.Unit || '',
+          rate: item.Rate,
+          qty: item.Quantity,
+          source: item.Source || 'CPWD-SOR',
+          l: item.Length?.toString() || '',
+          b: item.Width?.toString() || '',
+          h: item.Height?.toString() || '',
+          amount: item.Amount,
+          isHeader: item.Quantity === 0 && item.Rate === 0
+        }));
+
+        // Process rebore items
+        const processedReboreItems = reboreData.Data.map(item => ({
+          id: item.Id,
+          name: item.ItemName,
+          unit: item.Unit || '',
+          rate: item.Rate,
+          qty: item.Quantity,
+          source: item.Source || 'CPWD-SOR',
+          l: item.Length?.toString() || '',
+          b: item.Width?.toString() || '',
+          h: item.Height?.toString() || '',
+          amount: item.Amount,
+          isHeader: item.Quantity === 0 && item.Rate === 0
+        }));
+
+        setRequisitions(processedRequisitions);
+        setRepairItems(processedRepairItems);
+        setReboreItems(processedReboreItems);
+        setGstDetails(gstData.Data[0]);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [userId]);
+
+  const filteredRequisitions = requisitions.filter(req => {
+    const modeMatch = filterMode === 'All' || req.mode.toUpperCase() === filterMode.toUpperCase();
+    const searchMatch = searchQuery === '' || 
+      req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.handpumpId.toLowerCase().includes(searchQuery.toLowerCase());
+    return modeMatch && searchMatch;
+  });
 
   const handleCreateEstimation = (requisition) => {
     setSelectedRequisition(requisition);
@@ -116,7 +163,7 @@ const CreateEstimationScreen = () => {
     setSelectedPreDefinedItems({});
   };
 
-  const handleAddItem = () => {
+  const handleAddItem = async () => {
     if (newItem.name && newItem.unit && newItem.rate && newItem.quantity) {
       const item = {
         id: Date.now(),
@@ -125,17 +172,57 @@ const CreateEstimationScreen = () => {
         rate: parseFloat(newItem.rate),
         quantity: parseInt(newItem.quantity),
         source: newItem.source,
+        length: parseFloat(newItem.length) || 0,
+        width: parseFloat(newItem.width) || 0,
+        height: parseFloat(newItem.height) || 0,
         amount: parseFloat(newItem.rate) * parseInt(newItem.quantity),
         quotationFile: newItem.quotationFile,
         isCustom: true
       };
-      setAddedItems([...addedItems, item]);
+
+      // Save to API based on requisition type
+      try {
+        const endpoint = selectedRequisition.mode.toUpperCase() === 'REPAIR' 
+          ? '/Master/InsertRepairEstimateItems'
+          : '/Master/InsertReborEstimateItems';
+
+        const response = await fetch(`${API_BASE}${endpoint}`, {
+          method: 'POST',
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            ItemName: newItem.name,
+            Unit: newItem.unit,
+            Quantity: parseInt(newItem.quantity),
+            Rate: parseFloat(newItem.rate),
+            Amount: parseFloat(newItem.rate) * parseInt(newItem.quantity),
+            UpdatedBy: userId,
+            Source: newItem.source,
+            Length: parseFloat(newItem.length) || 0,
+            Width: parseFloat(newItem.width) || 0,
+            Height: parseFloat(newItem.height) || 0
+          })
+        });
+
+        if (response.ok) {
+          setAddedItems([...addedItems, item]);
+        }
+      } catch (error) {
+        console.error('Error adding item:', error);
+      }
+
       setNewItem({
         name: '',
         unit: '',
         rate: '',
         quantity: 1,
         source: 'CPWD-SOR',
+        length: '',
+        width: '',
+        height: '',
         quotationFile: null
       });
       setShowAddItemModal(false);
@@ -143,10 +230,9 @@ const CreateEstimationScreen = () => {
   };
 
   const handleItemSelection = (itemId, checked) => {
-    const items = selectedRequisition?.mode === 'Repair' ? repairItems : reboreItems;
+    const items = selectedRequisition?.mode.toUpperCase() === 'REPAIR' ? repairItems : reboreItems;
     const item = items.find(i => i.id === itemId);
     
-    // Don't allow selection of header items
     if (item.isHeader || item.qty === 0) {
       return;
     }
@@ -198,7 +284,6 @@ const CreateEstimationScreen = () => {
       
       let finalQty = qty;
       
-      // For items that have L, B, H dimensions
       if (item.l && item.b && item.h) {
         finalQty = l * b * h * qty;
       } else if (item.l && !item.b && !item.h) {
@@ -208,7 +293,8 @@ const CreateEstimationScreen = () => {
       total += item.rate * finalQty;
     });
     
-    const gst = total * 0.18;
+    const gstRate = gstDetails ? (gstDetails.Igst / 100) : 0.18;
+    const gst = total * gstRate;
     const totalWithGST = total + gst;
     const consultingFeeEstimation = totalWithGST * 0.01;
     const consultingFeeMB = totalWithGST * 0.01;
@@ -217,25 +303,106 @@ const CreateEstimationScreen = () => {
     return { total, gst, totalWithGST, consultingFeeEstimation, consultingFeeMB, grandTotal };
   };
 
-  const handleSaveEstimation = () => {
-    // Generate a unique estimation ID
-    const randomId = 'EST' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    setEstimationId(randomId);
-    
-    // Save the estimation data before clearing selectedRequisition
-    const currentCalculations = calculateTotal();
-    setSavedEstimationData({
-      requisition: selectedRequisition,
-      calculations: currentCalculations,
-      estimationId: randomId
-    });
-    
-    // Logic to save the estimation would go here
-    
-    // Close the main modal and show success modal
-    setShowModal(false);
-    setSelectedRequisition(null);
-    setShowSuccessModal(true);
+  const handleSaveEstimation = async () => {
+    try {
+      const calculations = calculateTotal();
+      
+      // Prepare items array
+      const items = [];
+      
+      // Add predefined items
+      Object.entries(selectedPreDefinedItems).forEach(([itemId, item]) => {
+        const l = parseFloat(item.l) || 1;
+        const b = parseFloat(item.b) || 1;
+        const h = parseFloat(item.h) || 1;
+        const qty = parseFloat(item.quantity) || 1;
+        
+        let finalQty = qty;
+        if (item.l && item.b && item.h) {
+          finalQty = l * b * h * qty;
+        } else if (item.l && !item.b && !item.h) {
+          finalQty = l * qty;
+        }
+        
+        items.push({
+          ItemId: parseInt(itemId),
+          Quantity: finalQty,
+          Amount: item.rate * finalQty
+        });
+      });
+
+      // Prepare request body
+      const requestBody = {
+        UserId: userId,
+        RequisitionId: parseInt(selectedRequisition.id),
+        GstId: gstDetails?.Id || 4,
+        OrderDesc: `Estimation for ${selectedRequisition.mode} - ${selectedRequisition.handpumpId}`,
+        SubTotal: calculations.total,
+        EstimationConsultingFee: calculations.consultingFeeEstimation,
+        MbConsultingFee: calculations.consultingFeeMB,
+        GstFee: calculations.gst,
+        GrandTotal: calculations.grandTotal,
+        UpdatedDate: new Date().toISOString(),
+        UpdatedBy: userId,
+        Items: items
+      };
+
+      const response = await fetch(
+        `${API_BASE}/HandpumpRequisition/InsertRequisitionEstimation`,
+        {
+          method: 'POST',
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
+
+      if (response.ok) {
+        const randomId = 'EST' + Math.random().toString(36).substr(2, 6).toUpperCase();
+        setEstimationId(randomId);
+        
+        setSavedEstimationData({
+          requisition: selectedRequisition,
+          calculations: calculations,
+          estimationId: randomId
+        });
+        
+        setShowModal(false);
+        setSelectedRequisition(null);
+        setShowSuccessModal(true);
+
+        // Refresh requisitions list
+        const reqResponse = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${AUTH_TOKEN}`
+            }
+          }
+        );
+        const reqData = await reqResponse.json();
+        const processedRequisitions = reqData.Data
+          .filter(req => req.RequisitionStatus === 1)
+          .map(req => ({
+            id: req.RequisitionId.toString(),
+            handpumpId: req.HandpumpId,
+            gramPanchayat: req.GrampanchayatName,
+            village: req.VillageName,
+            mode: req.RequisitionType,
+            date: req.RequisitionDate,
+            status: 'Pending Estimation',
+            requisitionData: req
+          }));
+        setRequisitions(processedRequisitions);
+      }
+    } catch (error) {
+      console.error('Error saving estimation:', error);
+      alert('Failed to save estimation. Please try again.');
+    }
   };
 
   const closeSuccessModal = () => {
@@ -255,6 +422,20 @@ const CreateEstimationScreen = () => {
 
   const calculations = showModal ? calculateTotal() : { total: 0, gst: 0, totalWithGST: 0, consultingFeeEstimation: 0, consultingFeeMB: 0, grandTotal: 0 };
 
+  const repairCount = requisitions.filter(r => r.mode.toUpperCase() === 'REPAIR').length;
+  const reboreCount = requisitions.filter(r => r.mode.toUpperCase() === 'REBORE').length;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading estimation data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
       <div className="max-w-7xl mx-auto">
@@ -267,7 +448,7 @@ const CreateEstimationScreen = () => {
               <div className="w-12 h-12 bg-white/15 rounded-xl flex items-center justify-center">
                 <Edit3 size={24} />
               </div>
-              Create Estimation - Gram Panchayat
+              Create Estimation - Consulting Engineer
             </h1>
             
             <div className="flex flex-wrap gap-4 items-center">
@@ -279,8 +460,8 @@ const CreateEstimationScreen = () => {
                   className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
                 >
                   <option value="All" className="text-gray-800">All Modes</option>
-                  <option value="Repair" className="text-gray-800">Repair</option>
-                  <option value="Rebore" className="text-gray-800">Rebore</option>
+                  <option value="REPAIR" className="text-gray-800">Repair</option>
+                  <option value="REBORE" className="text-gray-800">Rebore</option>
                 </select>
               </div>
               
@@ -289,6 +470,8 @@ const CreateEstimationScreen = () => {
                 <input
                   type="text"
                   placeholder="Search by Requisition ID or Handpump ID"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-transparent text-white placeholder-white/70 focus:outline-none w-64"
                 />
               </div>
@@ -302,7 +485,7 @@ const CreateEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-orange-100 text-sm font-medium">Pending Estimations</p>
-                <p className="text-2xl font-bold mt-1">12</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.length}</p>
                 <p className="text-orange-200 text-xs mt-1">Need immediate attention</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -315,7 +498,7 @@ const CreateEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm font-medium">Repair Requests</p>
-                <p className="text-2xl font-bold mt-1">8</p>
+                <p className="text-2xl font-bold mt-1">{repairCount}</p>
                 <p className="text-blue-200 text-xs mt-1">Awaiting estimation</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -328,7 +511,7 @@ const CreateEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium">Rebore Requests</p>
-                <p className="text-2xl font-bold mt-1">4</p>
+                <p className="text-2xl font-bold mt-1">{reboreCount}</p>
                 <p className="text-emerald-200 text-xs mt-1">High priority items</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -340,9 +523,9 @@ const CreateEstimationScreen = () => {
           <div className="group bg-gradient-to-br from-purple-600 to-pink-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-purple-100 text-sm font-medium">Avg. Response Time</p>
-                <p className="text-2xl font-bold mt-1">2.5 hrs</p>
-                <p className="text-purple-200 text-xs mt-1">↓ 30 min this week</p>
+                <p className="text-purple-100 text-sm font-medium">GST Rate</p>
+                <p className="text-2xl font-bold mt-1">{gstDetails?.Igst || 18}%</p>
+                <p className="text-purple-200 text-xs mt-1">{gstDetails?.Description || 'Standard GST'}</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <Eye size={24} />
@@ -391,57 +574,69 @@ const CreateEstimationScreen = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredRequisitions.map((requisition, index) => (
-                  <tr key={requisition.id} className={`${
-                    index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                  } hover:bg-blue-50 transition-colors duration-300`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
-                        <span className="text-lg font-semibold text-gray-900">{requisition.id}</span>
+                {filteredRequisitions.length === 0 ? (
+                  <tr>
+                    <td colSpan="7" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center">
+                        <FileText size={48} className="text-gray-300 mb-4" />
+                        <p className="text-gray-600 text-lg">No pending estimations found</p>
+                        <p className="text-gray-400 text-sm mt-2">All requisitions have been processed</p>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <MapPin size={16} className="text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">{requisition.gramPanchayat}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-sm font-medium text-gray-700">{requisition.village}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
-                        requisition.mode === 'Repair' 
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      }`}>
-                        {requisition.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
-                        {requisition.mode}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-gray-500" />
-                        <span className="text-sm font-medium text-gray-700">
-                          {new Date(requisition.date).toLocaleDateString('en-IN')}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <button
-                        onClick={() => handleCreateEstimation(requisition)}
-                        className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-emerald-700 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
-                      >
-                        <Plus size={16} />
-                        Create Estimation
-                      </button>
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  filteredRequisitions.map((requisition, index) => (
+                    <tr key={requisition.id} className={`${
+                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                    } hover:bg-blue-50 transition-colors duration-300`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <div className="w-3 h-3 bg-orange-500 rounded-full mr-3"></div>
+                          <span className="text-lg font-semibold text-gray-900">{requisition.id}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <MapPin size={16} className="text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">{requisition.gramPanchayat}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm font-medium text-gray-700">{requisition.village}</span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
+                          requisition.mode.toUpperCase() === 'REPAIR' 
+                            ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+                            : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                        }`}>
+                          {requisition.mode.toUpperCase() === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
+                          {requisition.mode}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Calendar size={16} className="text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">
+                            {new Date(requisition.date).toLocaleDateString('en-IN')}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => handleCreateEstimation(requisition)}
+                          className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white text-sm font-semibold rounded-lg hover:from-emerald-700 hover:to-green-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                        >
+                          <Plus size={16} />
+                          Create Estimation
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -457,14 +652,14 @@ const CreateEstimationScreen = () => {
                   <div>
                     <h3 className="text-2xl font-bold flex items-center gap-3">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                        selectedRequisition.mode === 'Repair' ? 'bg-blue-500' : 'bg-emerald-500'
+                        selectedRequisition.mode.toUpperCase() === 'REPAIR' ? 'bg-blue-500' : 'bg-emerald-500'
                       }`}>
-                        {selectedRequisition.mode === 'Repair' ? <Wrench size={20} /> : <Drill size={20} />}
+                        {selectedRequisition.mode.toUpperCase() === 'REPAIR' ? <Wrench size={20} /> : <Drill size={20} />}
                       </div>
                       Create {selectedRequisition.mode} Estimation
                     </h3>
                     <p className="text-blue-100 mt-1">
-                      {selectedRequisition.id} - {selectedRequisition.handpumpId} | {selectedRequisition.gramPanchayat}
+                      REQ{selectedRequisition.id} - {selectedRequisition.handpumpId} | {selectedRequisition.gramPanchayat}
                     </p>
                   </div>
                   <button
@@ -513,7 +708,7 @@ const CreateEstimationScreen = () => {
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {(selectedRequisition.mode === 'Repair' ? repairItems : reboreItems).map((item, index) => {
+                          {(selectedRequisition.mode.toUpperCase() === 'REPAIR' ? repairItems : reboreItems).map((item, index) => {
                             const isSelected = !!selectedPreDefinedItems[item.id];
                             const selectedItem = selectedPreDefinedItems[item.id];
                             const isHeaderItem = item.isHeader || item.qty === 0;
@@ -655,7 +850,7 @@ const CreateEstimationScreen = () => {
                           </tr>
                           
                           <tr className="bg-indigo-50 font-semibold">
-                            <td colSpan="10" className="px-3 py-2 text-sm text-indigo-800">GST (18%)</td>
+                            <td colSpan="10" className="px-3 py-2 text-sm text-indigo-800">GST ({gstDetails?.Igst || 18}%)</td>
                             <td className="px-3 py-2 text-sm text-indigo-700">₹{calculations.gst.toLocaleString()}</td>
                           </tr>
                           
@@ -826,6 +1021,42 @@ const CreateEstimationScreen = () => {
                       min="1"
                     />
                   </div>
+
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Length</label>
+                      <input
+                        type="number"
+                        value={newItem.length}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, length: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
+                      <input
+                        type="number"
+                        value={newItem.width}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, width: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="0"
+                        step="0.01"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Height</label>
+                      <input
+                        type="number"
+                        value={newItem.height}
+                        onChange={(e) => setNewItem(prev => ({ ...prev, height: e.target.value }))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                        placeholder="0"
+                        step="0.01"
+                      />
+                    </div>
+                  </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Item Source</label>
@@ -885,7 +1116,7 @@ const CreateEstimationScreen = () => {
         )}
 
         {/* Success Modal */}
-        {showSuccessModal && (
+        {showSuccessModal && savedEstimationData && (
           <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
               <div className="bg-gradient-to-r from-emerald-600 to-green-600 p-6 text-white rounded-t-2xl text-center">
@@ -899,33 +1130,32 @@ const CreateEstimationScreen = () => {
               <div className="p-8 text-center space-y-6">
                 <div className="bg-emerald-50 rounded-lg p-6">
                   <p className="text-gray-700 leading-relaxed mb-4">
-                    Thank you! Your estimation has been successfully saved for the selected handpump <span className="font-semibold">{savedEstimationData?.requisition?.handpumpId || 'HP005'}</span> and has been shared with the respective authorities and Consulting Engineers (CE).
+                    Thank you! Your estimation has been successfully saved for the selected handpump <span className="font-semibold">{savedEstimationData.requisition.handpumpId}</span> and has been shared with the respective authorities and Gram Panchayat.
                   </p>
-                 
                 </div>
                 
                 <div className="bg-blue-50 rounded-lg p-4">
                   <p className="text-sm text-gray-600">Estimation ID</p>
-                  <p className="text-xl font-bold text-blue-600">{savedEstimationData?.estimationId || estimationId}</p>
+                  <p className="text-xl font-bold text-blue-600">{savedEstimationData.estimationId}</p>
                 </div>
 
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="grid grid-cols-2 gap-4 text-sm">
                     <div>
                       <span className="text-gray-600">Requisition:</span>
-                      <span className="ml-2 font-semibold">{savedEstimationData?.requisition?.id || 'REQ005'}</span>
+                      <span className="ml-2 font-semibold">REQ{savedEstimationData.requisition.id}</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Handpump:</span>
-                      <span className="ml-2 font-semibold">{savedEstimationData?.requisition?.handpumpId || 'HP005'}</span>
+                      <span className="ml-2 font-semibold">{savedEstimationData.requisition.handpumpId}</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Mode:</span>
-                      <span className="ml-2 font-semibold">{savedEstimationData?.requisition?.mode || 'Repair'}</span>
+                      <span className="ml-2 font-semibold">{savedEstimationData.requisition.mode}</span>
                     </div>
                     <div>
                       <span className="text-gray-600">Total Amount:</span>
-                      <span className="ml-2 font-semibold text-emerald-600">₹{(savedEstimationData?.calculations?.grandTotal || 25000).toLocaleString()}</span>
+                      <span className="ml-2 font-semibold text-emerald-600">₹{savedEstimationData.calculations.grandTotal.toLocaleString()}</span>
                     </div>
                   </div>
                 </div>

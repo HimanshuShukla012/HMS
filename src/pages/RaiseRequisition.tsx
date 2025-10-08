@@ -3,16 +3,24 @@ import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { ToastContainer } from "react-toastify";
 import { Camera, Upload, X, FileText, Wrench, Drill, CheckCircle, AlertCircle, MapPin, Settings } from "lucide-react";
+import { useUserInfo } from '../utils/userInfo';
 
 const RaiseRequisition = () => {
   type Handpump = { 
-    HandpumpId: number; 
-    HandpumpName: string;
-    VillageName?: string;
-    Status?: string;
+    Id: number; 
+    HandpumpId: string;
   };
 
-  // State for handpumps and form
+  type Village = {
+    Id: number;
+    GramPanchayatId: number;
+    VillageName: string;
+    Code: string | null;
+  };
+
+  // State for villages and handpumps
+  const [villages, setVillages] = useState<Village[]>([]);
+  const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
   const [handpumps, setHandpumps] = useState<Handpump[]>([]);
   const [selectedHandpumpId, setSelectedHandpumpId] = useState<number | null>(null);
   const [requisitionMode, setRequisitionMode] = useState("");
@@ -23,43 +31,98 @@ const RaiseRequisition = () => {
 
   // Validation errors
   const [errors, setErrors] = useState({
+    village: "",
     handpump: "",
     requisitionMode: "",
     image: ""
   });
 
-  // Mock userId - replace with actual user context
-  const userId = 1; // This should come from useUserInfo hook
+  const { userId } = useUserInfo();
+
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYW5tb2xAZ21haWwuY29tIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiR3JhbV9QYW5jaGF5YXRfU2FjaGl2IiwiVXNlcklEIjoiNDciLCJVc2VyTmFtZSI6ImFubW9sQGdtYWlsLmNvbSIsIlVzZXJSb2xsIjoiR3JhbV9QYW5jaGF5YXRfU2FjaGl2IiwianRpIjoiNGU2NWE4NzMtNTJjZC00ODE0LWIwODctZTExNzdlYjNhOThkIiwiZXhwIjoxNzYwMDU2ODU3LCJpc3MiOiJodHRwczovL2htc2FwaS5rZHNncm91cC5jby5pbiIsImF1ZCI6Imh0dHBzOi8vaG1zYXBpLmtkc2dyb3VwLmNvLmluIn0.qlrJLYLLNWPmakTMeR1zg6xlNQ8cCagL81S2Q7VIIs8';
 
   // Check if all mandatory fields are filled
   const isMandatoryFieldsFilled = () => {
     return (
+      selectedVillageId !== null &&
       selectedHandpumpId !== null &&
       requisitionMode !== "" &&
       handpumpImage !== null
     );
   };
 
-  // Fetch handpumps on component mount
+  // Fetch villages on component mount
   useEffect(() => {
-    // Mock API call - replace with actual API endpoint
+    if (!userId) return;
+
+    const fetchVillages = async () => {
+      try {
+        const response = await fetch(
+          `${API_BASE}/Master/GetVillagesByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${AUTH_TOKEN}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch villages');
+        const data = await response.json();
+
+        if (data.Status && data.Data) {
+          setVillages(data.Data);
+        } else {
+          toast.error("Failed to load villages");
+        }
+      } catch (error) {
+        console.error('Error fetching villages:', error);
+        toast.error("Failed to fetch villages");
+      }
+    };
+
+    fetchVillages();
+  }, [userId]);
+
+  // Fetch handpumps when village is selected
+  useEffect(() => {
+    if (!selectedVillageId) {
+      setHandpumps([]);
+      setSelectedHandpumpId(null);
+      return;
+    }
+
     const fetchHandpumps = async () => {
       try {
-        // Simulated API response
-        const mockHandpumps = [
-          { HandpumpId: 1, HandpumpName: "HP-001", VillageName: "Village A", Status: "Active" },
-          { HandpumpId: 2, HandpumpName: "HP-002", VillageName: "Village B", Status: "Inactive" },
-          { HandpumpId: 3, HandpumpName: "HP-003", VillageName: "Village C", Status: "Active" },
-          { HandpumpId: 4, HandpumpName: "HP-004", VillageName: "Village A", Status: "Under Maintenance" },
-        ];
-        setHandpumps(mockHandpumps);
+        const response = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetHandpumpListByVillege?villegeId=${selectedVillageId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${AUTH_TOKEN}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch handpumps');
+        const data = await response.json();
+
+        if (data.Status && data.Data) {
+          setHandpumps(data.Data);
+        } else {
+          toast.error("No handpumps found for selected village");
+          setHandpumps([]);
+        }
       } catch (error) {
+        console.error('Error fetching handpumps:', error);
         toast.error("Failed to fetch handpumps");
+        setHandpumps([]);
       }
     };
 
     fetchHandpumps();
-  }, []);
+  }, [selectedVillageId]);
 
   // Handle image upload
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -102,6 +165,7 @@ const RaiseRequisition = () => {
 
     // Validate mandatory fields
     const mandatoryErrors = {
+      village: !selectedVillageId ? "Please select a village" : "",
       handpump: !selectedHandpumpId ? "Please select a handpump" : "",
       requisitionMode: !requisitionMode ? "Please select requisition mode" : "",
       image: !handpumpImage ? "Please attach handpump image" : ""
@@ -119,47 +183,96 @@ const RaiseRequisition = () => {
     setLoading(true);
 
     try {
-      // Prepare form data for API
-      const formData = new FormData();
-      formData.append('HandpumpId', selectedHandpumpId?.toString() || '');
-      formData.append('RequisitionMode', requisitionMode);
-      formData.append('HandpumpImage', handpumpImage as File);
-      formData.append('CreatedBy', userId.toString());
-      formData.append('DeviceToken', '');
-      formData.append('IPAddress', '');
+      // Convert image to base64
+      const reader = new FileReader();
+      reader.readAsDataURL(handpumpImage);
+      
+      reader.onload = async () => {
+        const base64String = reader.result as string;
+        const base64Data = base64String.split(',')[1]; // Remove data:image/...;base64, prefix
 
-      // Mock API call - replace with actual endpoint
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate API delay
-      
-      // Show success modal
-      setShowSuccessModal(true);
-      
-      // Reset form after successful submission
-      resetForm();
+        // Prepare request body according to API spec
+        const requestBody = {
+          RequisitionId: 0,
+          UserId: userId,
+          HandpumpId: selectedHandpumpId,
+          VillageId: selectedVillageId,
+          RequisitionType: requisitionMode === "Repair" ? 1 : 2,
+          RequisitionRepairType: 0,
+          RequisitionDate: new Date().toISOString(),
+          RequisitionDescription: `${requisitionMode} requisition for handpump`,
+          RequisitionStatus: true,
+          UpdatedBy: userId,
+          ImageBase64String: base64Data,
+          HandpumpPhotoPath: ""
+        };
+
+        try {
+          const response = await fetch(
+            `${API_BASE}/HandpumpRequisition/InsertRequisitionDetails`,
+            {
+              method: 'POST',
+              headers: {
+                'accept': '*/*',
+                'Authorization': `Bearer ${AUTH_TOKEN}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(requestBody)
+            }
+          );
+
+          if (!response.ok) throw new Error('Failed to submit requisition');
+          const data = await response.json();
+
+          if (data.Status) {
+            setShowSuccessModal(true);
+            resetForm();
+            toast.success(data.Message || "Requisition raised successfully");
+          } else {
+            toast.error(data.Message || "Failed to raise requisition");
+          }
+        } catch (error) {
+          console.error('Error submitting requisition:', error);
+          toast.error("Failed to raise requisition. Please try again.");
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      reader.onerror = () => {
+        toast.error("Failed to process image");
+        setLoading(false);
+      };
       
     } catch (error) {
       toast.error("Failed to raise requisition. Please try again.");
-    } finally {
       setLoading(false);
     }
   };
 
   // Reset form
   const resetForm = () => {
+    setSelectedVillageId(null);
     setSelectedHandpumpId(null);
     setRequisitionMode("");
     setHandpumpImage(null);
     setImagePreview("");
     setErrors({
+      village: "",
       handpump: "",
       requisitionMode: "",
       image: ""
     });
   };
 
-  // Get selected handpump details
+  // Get selected village name
+  const getSelectedVillage = () => {
+    return villages.find(v => v.Id === selectedVillageId);
+  };
+
+  // Get selected handpump name
   const getSelectedHandpump = () => {
-    return handpumps.find(hp => hp.HandpumpId === selectedHandpumpId);
+    return handpumps.find(hp => hp.Id === selectedHandpumpId);
   };
 
   // Success Modal Component
@@ -224,7 +337,19 @@ const RaiseRequisition = () => {
           <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-blue-100 text-sm font-medium">Available Handpumps</p>
+                <p className="text-blue-100 text-sm font-medium">Total Villages</p>
+                <p className="text-2xl font-bold mt-1">{villages.length}</p>
+              </div>
+              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                <MapPin size={24} />
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-emerald-100 text-sm font-medium">Available Handpumps</p>
                 <p className="text-2xl font-bold mt-1">{handpumps.length}</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -233,23 +358,13 @@ const RaiseRequisition = () => {
             </div>
           </div>
           
-          <div className="bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Active Handpumps</p>
-                <p className="text-2xl font-bold mt-1">{handpumps.filter(hp => hp.Status === 'Active').length}</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <CheckCircle size={24} />
-              </div>
-            </div>
-          </div>
-          
           <div className="bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-amber-100 text-sm font-medium">Need Maintenance</p>
-                <p className="text-2xl font-bold mt-1">{handpumps.filter(hp => hp.Status !== 'Active').length}</p>
+                <p className="text-amber-100 text-sm font-medium">Pending Actions</p>
+                <p className="text-2xl font-bold mt-1">
+                  {isMandatoryFieldsFilled() ? 'Ready' : 'Fill Form'}
+                </p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <AlertCircle size={24} />
@@ -274,10 +389,44 @@ const RaiseRequisition = () => {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
               {/* Left Column */}
               <div className="space-y-6">
+                {/* Village Selection */}
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
+                  <label className="block text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                    <MapPin size={20} className="text-purple-600" />
+                    Select Village <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={selectedVillageId || ""}
+                    onChange={(e) => {
+                      setSelectedVillageId(Number(e.target.value));
+                      setSelectedHandpumpId(null);
+                      setErrors(prev => ({ ...prev, village: "" }));
+                    }}
+                    className={`w-full border-2 rounded-lg px-4 py-3 text-lg font-medium bg-white shadow-sm transition-all duration-300 ${
+                      errors.village 
+                        ? 'border-red-400 focus:border-red-500 focus:ring-red-200' 
+                        : 'border-gray-300 focus:border-purple-500 focus:ring-purple-200'
+                    } focus:outline-none focus:ring-4`}
+                  >
+                    <option value="" className="text-gray-500">Choose your village</option>
+                    {villages.map((village) => (
+                      <option key={village.Id} value={village.Id}>
+                        {village.VillageName}
+                      </option>
+                    ))}
+                  </select>
+                  {errors.village && (
+                    <div className="flex items-center gap-2 mt-2 text-red-600">
+                      <AlertCircle size={16} />
+                      <p className="text-sm font-medium">{errors.village}</p>
+                    </div>
+                  )}
+                </div>
+
                 {/* Handpump Selection */}
                 <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200">
                   <label className="block text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
-                    <MapPin size={20} className="text-blue-600" />
+                    <Settings size={20} className="text-blue-600" />
                     Select Handpump <span className="text-red-500">*</span>
                   </label>
                   <select
@@ -286,16 +435,19 @@ const RaiseRequisition = () => {
                       setSelectedHandpumpId(Number(e.target.value));
                       setErrors(prev => ({ ...prev, handpump: "" }));
                     }}
+                    disabled={!selectedVillageId}
                     className={`w-full border-2 rounded-lg px-4 py-3 text-lg font-medium bg-white shadow-sm transition-all duration-300 ${
                       errors.handpump 
                         ? 'border-red-400 focus:border-red-500 focus:ring-red-200' 
                         : 'border-gray-300 focus:border-blue-500 focus:ring-blue-200'
-                    } focus:outline-none focus:ring-4`}
+                    } focus:outline-none focus:ring-4 disabled:bg-gray-100 disabled:cursor-not-allowed`}
                   >
-                    <option value="" className="text-gray-500">Choose a handpump for maintenance</option>
+                    <option value="" className="text-gray-500">
+                      {!selectedVillageId ? 'Select village first' : 'Choose a handpump for maintenance'}
+                    </option>
                     {handpumps.map((hp) => (
-                      <option key={hp.HandpumpId} value={hp.HandpumpId}>
-                        {hp.HandpumpName} - {hp.VillageName} ({hp.Status})
+                      <option key={hp.Id} value={hp.Id}>
+                        {hp.HandpumpId}
                       </option>
                     ))}
                   </select>
@@ -441,41 +593,33 @@ const RaiseRequisition = () => {
                   </p>
                 </div>
 
-                {/* Selected Handpump Details */}
-                {selectedHandpumpId && (
+                {/* Selected Details */}
+                {(selectedVillageId || selectedHandpumpId) && (
                   <div className="bg-gradient-to-br from-teal-50 to-cyan-50 rounded-xl p-6 border border-teal-200 transform transition-all duration-500">
                     <h3 className="text-lg font-bold text-teal-800 mb-4 flex items-center gap-2">
                       <CheckCircle size={20} />
-                      Selected Handpump Details
+                      Selection Summary
                     </h3>
-                    {(() => {
-                      const hp = getSelectedHandpump();
-                      if (!hp) return null;
-                      return (
-                        <div className="space-y-3">
-                          <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
-                            <span className="font-medium text-gray-700">Handpump ID:</span>
-                            <span className="font-bold text-teal-700">{hp.HandpumpName}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
-                            <span className="font-medium text-gray-700">Village:</span>
-                            <span className="font-bold text-teal-700">{hp.VillageName}</span>
-                          </div>
-                          <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
-                            <span className="font-medium text-gray-700">Current Status:</span>
-                            <span className={`font-bold px-3 py-1 rounded-full text-sm ${
-                              hp.Status === 'Active' 
-                                ? 'bg-green-100 text-green-700'
-                                : hp.Status === 'Inactive'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-yellow-100 text-yellow-700'
-                            }`}>
-                              {hp.Status}
-                            </span>
-                          </div>
+                    <div className="space-y-3">
+                      {selectedVillageId && (
+                        <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
+                          <span className="font-medium text-gray-700">Village:</span>
+                          <span className="font-bold text-teal-700">{getSelectedVillage()?.VillageName}</span>
                         </div>
-                      );
-                    })()}
+                      )}
+                      {selectedHandpumpId && (
+                        <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
+                          <span className="font-medium text-gray-700">Handpump ID:</span>
+                          <span className="font-bold text-teal-700">{getSelectedHandpump()?.HandpumpId}</span>
+                        </div>
+                      )}
+                      {requisitionMode && (
+                        <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
+                          <span className="font-medium text-gray-700">Mode:</span>
+                          <span className="font-bold text-teal-700">{requisitionMode}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
