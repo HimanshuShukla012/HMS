@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import * as XLSX from 'xlsx';
 import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, ArrowLeft, MapPin, Phone, User, Droplets, Hammer, Shield } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
+
 
 // Define the API response structure
 interface HandpumpData {
@@ -40,95 +42,9 @@ interface ApiResponse {
   Errror: string | null;
 }
 
-// User info hook (same as GP Dashboard)
-const useUserInfo = () => {
-  const [userInfo, setUserInfo] = useState({
-    userId: null,
-    role: null,
-    isLoading: true
-  });
-
-  useEffect(() => {
-    const getUserInfo = () => {
-      try {
-        // Try to get from localStorage first
-        const storedUserId = localStorage.getItem('userId');
-        const storedRole = localStorage.getItem('userRole');
-        
-        if (storedUserId) {
-          setUserInfo({
-            userId: parseInt(storedUserId, 10),
-            role: storedRole,
-            isLoading: false
-          });
-          return;
-        }
-
-        // Try to get from JWT token
-        const token = localStorage.getItem('authToken') || sessionStorage.getItem('authToken');
-        if (token) {
-          try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            const userId = payload.UserID || payload.userId || payload.sub;
-            const role = payload.UserRoll || payload.role || payload['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'];
-            
-            if (userId) {
-              const numericUserId = parseInt(userId, 10);
-              setUserInfo({
-                userId: numericUserId,
-                role: role,
-                isLoading: false
-              });
-              
-              // Store for future use
-              localStorage.setItem('userId', numericUserId.toString());
-              if (role) localStorage.setItem('userRole', role);
-              return;
-            }
-          } catch (e) {
-            console.warn('Error parsing JWT token:', e);
-          }
-        }
-
-        // Fallback: try common storage keys
-        const fallbackKeys = ['user_id', 'currentUserId', 'loggedInUserId'];
-        for (const key of fallbackKeys) {
-          const value = localStorage.getItem(key) || sessionStorage.getItem(key);
-          if (value && !isNaN(Number(value))) {
-            setUserInfo({
-              userId: parseInt(value, 10),
-              role: storedRole,
-              isLoading: false
-            });
-            return;
-          }
-        }
-
-        // If no userId found, set loading to false but keep userId null
-        setUserInfo({
-          userId: null,
-          role: null,
-          isLoading: false
-        });
-
-      } catch (error) {
-        console.error('Error getting user info:', error);
-        setUserInfo({
-          userId: null,
-          role: null,
-          isLoading: false
-        });
-      }
-    };
-
-    getUserInfo();
-  }, []);
-
-  return userInfo;
-};
 
 const ManageHandpump = () => {
-  const { userId, role, isLoading: userLoading } = useUserInfo();
+    const { userId, role, loading: userLoading, error: userError } = useUserInfo();
   
   // API Data States
   const [handpumps, setHandpumps] = useState<HandpumpData[]>([]);
@@ -174,16 +90,8 @@ const ManageHandpump = () => {
       let requestBody: string | null = null;
 
       // Choose API endpoint based on user role
-      if (userRole === 'Admin') {
-        // Admin users get all handpumps using POST endpoint
-        apiUrl = 'https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListDetail';
-        requestMethod = 'POST';
-        requestBody = '';
-      } else {
-        // Non-admin users get filtered handpumps using GET endpoint
-        apiUrl = `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListByUserId?UserId=${currentUserId}`;
-        requestMethod = 'GET';
-      }
+      apiUrl = `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListByUserId?UserId=${currentUserId}`;
+      requestMethod = 'GET';
 
       const requestOptions: RequestInit = {
         method: requestMethod,

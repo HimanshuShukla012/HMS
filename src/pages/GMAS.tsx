@@ -5,14 +5,14 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useUserInfo } from '../utils/userInfo';
 
-
-
 const GMAS = () => {
-  const { userId} = useUserInfo();
+  const { userId, loading: userLoading, error: userError } = useUserInfo();
   const [handpumps, setHandpumps] = useState([]);
   const [requisitions, setRequisitions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [imagePopup, setImagePopup] = useState<string | null>(null);
+
   
   const [selectedDistrict, setSelectedDistrict] = useState('All');
   const [selectedBlock, setSelectedBlock] = useState('All');
@@ -26,7 +26,11 @@ const GMAS = () => {
   const modalMapRef = useRef(null);
 
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
-  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoicm9oaXRAZ21haWwuY29tIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiQWRtaW4iLCJVc2VySUQiOiIxIiwiVXNlck5hbWUiOiJyb2hpdEBnbWFpbC5jb20iLCJVc2VyUm9sbCI6IkFkbWluIiwianRpIjoiMzVhODU1NzEtMGU4Zi00ZTcwLThlZGYtNWI4OTFkNmFlYTFmIiwiZXhwIjoxNzU5ODE1NTUyLCJpc3MiOiJodHRwczovL2htc2FwaS5rZHNncm91cC5jby5pbiIsImF1ZCI6Imh0dHBzOi8vaG1zYXBpLmtkc2dyb3VwLmNvLmluIn0.7Xnn-bxnBhzeb6GPum-uholFQ-PoSa6ABOzORmPVf4c';
+
+  // Get token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
 
   const statusIcons = {
     functional: new L.Icon({
@@ -51,12 +55,24 @@ const GMAS = () => {
 
   // Fetch data from APIs
   useEffect(() => {
-    if (!userId) return;
+    if (userLoading) return; // Wait for user info to load
+    
+    if (!userId) {
+      setError('User ID not found. Please login again.');
+      setLoading(false);
+      return;
+    }
 
     const fetchData = async () => {
       try {
         setLoading(true);
         setError(null);
+
+        const authToken = getAuthToken();
+        
+        if (!authToken) {
+          throw new Error('Authentication token not found. Please login again.');
+        }
 
         // Fetch handpumps
         const handpumpsResponse = await fetch(
@@ -64,7 +80,7 @@ const GMAS = () => {
           {
             headers: {
               'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
+              'Authorization': `Bearer ${authToken}`
             }
           }
         );
@@ -78,7 +94,7 @@ const GMAS = () => {
           {
             headers: {
               'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
+              'Authorization': `Bearer ${authToken}`
             }
           }
         );
@@ -86,49 +102,66 @@ const GMAS = () => {
         if (!requisitionsResponse.ok) throw new Error('Failed to fetch requisitions');
         const requisitionsData = await requisitionsResponse.json();
 
+        // Validate data structure
+        if (!handpumpsData || !handpumpsData.Data || !Array.isArray(handpumpsData.Data)) {
+          console.warn('Invalid handpumps data structure:', handpumpsData);
+          setHandpumps([]);
+          setRequisitions([]);
+          setLoading(false);
+          return;
+        }
+
+        if (!requisitionsData || !requisitionsData.Data || !Array.isArray(requisitionsData.Data)) {
+          console.warn('Invalid requisitions data structure:', requisitionsData);
+          requisitionsData.Data = [];
+        }
+
         // Process handpumps data
-        const processedHandpumps = handpumpsData.Data.map(hp => {
+        const processedHandpumps = handpumpsData.Data
+          .filter(hp => hp.Latitude && hp.Longitude) // Filter out invalid coordinates
+          .map(hp => {
           // Map requisitions to this handpump using H_id = HPId
-          const hpRequisitions = requisitionsData.Data
+          const hpRequisitions = (requisitionsData.Data || [])
             .filter(req => req.HPId === hp.H_id)
             .map(req => ({
-              id: req.RequisitionId.toString(),
-              date: req.RequisitionDate,
-              mode: req.RequisitionType,
+              id: req.RequisitionId?.toString() || 'N/A',
+              date: req.RequisitionDate || new Date().toISOString(),
+              mode: req.RequisitionType || 'Unknown',
               status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Completed' : 'On-Hold',
               estimatedAmount: req.SubTotal || 0,
               actualAmount: req.GrandTotal || 0,
-              completionDate: req.CreatedDate,
-              description: req.RequisitionDesc
+              completionDate: req.CreatedDate || '',
+              description: req.RequisitionDesc || ''
             }));
 
           return {
-            id: hp.HandpumpId,
+            id: hp.HandpumpId || hp.H_id,
             h_id: hp.H_id,
-            name: `Handpump ${hp.HandpumpId}`,
-            coordinates: [hp.Latitude, hp.Longitude],
+            videoPath: hp.HandpumpVideoPath || null,
+            name: `Handpump ${hp.HandpumpId || hp.H_id}`,
+            coordinates: [parseFloat(hp.Latitude), parseFloat(hp.Longitude)],
             status: hp.HandpumpStatus === 'Active' ? 'active' : 'inactive',
             district: hp.DistrictName || 'Unknown',
             block: hp.BlockName || 'Unknown',
             gramPanchayat: hp.GrampanchayatName || 'Unknown',
             village: hp.VillegeName || 'Unknown',
             image: hp.HandpumpImage || 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop',
-            installationDate: hp.CreatedDate,
+            installationDate: hp.CreatedDate || new Date().toISOString(),
             waterQuality: hp.WaterQuality || 'Unknown',
             waterQualityRemarks: hp.WaterQualityRemarks || '',
-            nearByPerson: hp.NearByPersonName,
-            nearByContact: hp.NearByPersonContact,
+            nearByPerson: hp.NearByPersonName || 'N/A',
+            nearByContact: hp.NearByPersonContact || 'N/A',
             soakpitConnected: hp.SoakpitConnected === 1,
             drainageConnected: hp.DrainageConnected === 1,
             platformBuild: hp.PlateformBuild === 1,
-            lastRepairDate: hp.LastRepairDate,
-            lastReboreDate: hp.LastReboreDate,
+            lastRepairDate: hp.LastRepairDate || '',
+            lastReboreDate: hp.LastReboreDate || '',
             requisitions: hpRequisitions
           };
         });
 
         setHandpumps(processedHandpumps);
-        setRequisitions(requisitionsData.Data);
+        setRequisitions(requisitionsData.Data || []);
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
@@ -138,7 +171,7 @@ const GMAS = () => {
     };
 
     fetchData();
-  }, [userId]);
+  }, [userId, userLoading]);
 
   // Get unique districts, blocks, and gram panchayats from data
   const districts = ['All', ...new Set(handpumps.map(hp => hp.district))];
@@ -235,6 +268,36 @@ const GMAS = () => {
     }
   }, [filteredHandpumps]);
 
+  // Show loading state
+  if (userLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
+          <p className="text-gray-600 text-lg">Loading GMAS data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || userError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error || userError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
@@ -522,16 +585,64 @@ const GMAS = () => {
                   </div>
 
                   <div>
-                    <h4 className="text-lg font-bold text-gray-800 mb-4">Image</h4>
-                    <img
-                      src={selectedHandpump.image}
-                      alt={selectedHandpump.name}
-                      className="w-full h-48 object-cover rounded-lg shadow-md"
-                      onError={(e) => {
-                        e.target.src = 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop';
-                      }}
-                    />
-                  </div>
+  <h4 className="text-lg font-bold text-gray-800 mb-4">Image</h4>
+  <img
+    src={
+      selectedHandpump?.image ||
+      "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop"
+    }
+    alt={selectedHandpump?.name || "Handpump Image"}
+    className="w-full h-48 object-cover rounded-lg shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+    onClick={() =>
+      selectedHandpump?.image && setImagePopup(selectedHandpump.image)
+    }
+    onError={(e) => {
+      e.target.onerror = null;
+      e.target.src =
+        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop";
+    }}
+  />
+</div>
+
+{selectedHandpump?.videoPath && (
+  <div>
+    <h4 className="text-lg font-bold text-gray-800 mb-4">Video</h4>
+    <video
+      className="w-full h-48 object-cover rounded-lg shadow-md"
+      controls
+      poster={selectedHandpump?.image}
+    >
+      <source src={selectedHandpump.videoPath} type="video/mp4" />
+      Your browser does not support the video tag.
+    </video>
+  </div>
+)}
+
+{imagePopup && (
+  <div
+    className="fixed inset-0 bg-black/70 flex items-center justify-center z-[2000] p-4"
+    onClick={() => setImagePopup(null)}
+  >
+    <div
+      className="relative bg-white rounded-xl shadow-xl flex items-center justify-center max-w-5xl max-h-[90vh] w-auto h-auto overflow-hidden"
+      onClick={(e) => e.stopPropagation()} // prevent closing when clicking image
+    >
+      <img
+        src={imagePopup}
+        alt="Handpump"
+        className="max-w-[90vw] max-h-[85vh] w-auto h-auto rounded-lg object-contain"
+      />
+
+      <button
+        onClick={() => setImagePopup(null)}
+        className="absolute top-3 right-3 text-white bg-black/60 hover:bg-black/80 rounded-full p-2 transition"
+      >
+        <X size={22} />
+      </button>
+    </div>
+  </div>
+)}
+
 
                   <div>
                     <h4 className="text-lg font-bold text-gray-800 mb-4">Infrastructure</h4>
@@ -732,7 +843,7 @@ const GMAS = () => {
                         : 'text-green-600'
                     }`}>
                       <TrendingUp size={16} />
-                      {Math.abs(selectedRequisition.actualAmount - selectedRequisition.estimatedAmount).toLocaleString('en-IN')}
+                      ₹{Math.abs(selectedRequisition.actualAmount - selectedRequisition.estimatedAmount).toLocaleString('en-IN')}
                       ({((Math.abs(selectedRequisition.actualAmount - selectedRequisition.estimatedAmount) / selectedRequisition.estimatedAmount) * 100).toFixed(1)}%)
                     </span>
                   </div>
