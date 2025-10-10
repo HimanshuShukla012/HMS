@@ -34,7 +34,10 @@ const CreateEstimationScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
-  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiUHJha2FzaEBnbWFpbC5jb20iLCJodHRwOi8vc2NoZW1hcy5taWNyb3NvZnQuY29tL3dzLzIwMDgvMDYvaWRlbnRpdHkvY2xhaW1zL3JvbGUiOiJDb25zdWx0aW5nX0VuZ2luZWVyIiwiVXNlcklEIjoiMTIiLCJVc2VyTmFtZSI6IlByYWthc2hAZ21haWwuY29tIiwiVXNlclJvbGwiOiJDb25zdWx0aW5nX0VuZ2luZWVyIiwianRpIjoiNjY2YWEzNzMtNGRlYS00ZjFkLTk2MzAtMWE1M2ZjZWI1ODI3IiwiZXhwIjoxNzYwMDU3OTEzLCJpc3MiOiJodHRwczovL2htc2FwaS5rZHNncm91cC5jby5pbiIsImF1ZCI6Imh0dHBzOi8vaG1zYXBpLmtkc2dyb3VwLmNvLmluIn0.zOaaMBRZ2dw4BeIo9L-XH8s4aMSRK_cEY4hTrrypMDs';
+  // Get token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
 
   // Fetch all data on component mount
   useEffect(() => {
@@ -43,6 +46,11 @@ const CreateEstimationScreen = () => {
     const fetchData = async () => {
       try {
         setLoading(true);
+        const authToken = getAuthToken();
+        
+        if (!authToken) {
+          throw new Error('Authentication token not found. Please login again.');
+        }
 
         // Fetch requisitions
         const reqResponse = await fetch(
@@ -50,7 +58,7 @@ const CreateEstimationScreen = () => {
           {
             headers: {
               'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
+              'Authorization': `Bearer ${authToken}`
             }
           }
         );
@@ -62,7 +70,7 @@ const CreateEstimationScreen = () => {
           {
             headers: {
               'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
+              'Authorization': `Bearer ${authToken}`
             }
           }
         );
@@ -190,7 +198,7 @@ const CreateEstimationScreen = () => {
           method: 'POST',
           headers: {
             'accept': '*/*',
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
@@ -353,7 +361,7 @@ const CreateEstimationScreen = () => {
           method: 'POST',
           headers: {
             'accept': '*/*',
-            'Authorization': `Bearer ${AUTH_TOKEN}`,
+            'Authorization': `Bearer ${authToken}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(requestBody)
@@ -380,7 +388,7 @@ const CreateEstimationScreen = () => {
           {
             headers: {
               'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
+              'Authorization': `Bearer ${authToken}`
             }
           }
         );

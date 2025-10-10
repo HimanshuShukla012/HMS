@@ -28,6 +28,7 @@ const RaiseRequisition = () => {
   const [imagePreview, setImagePreview] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [authToken, setAuthToken] = useState<string | null>(null);
 
   // Validation errors
   const [errors, setErrors] = useState({
@@ -39,8 +40,23 @@ const RaiseRequisition = () => {
 
   const { userId } = useUserInfo();
 
+
+  // Get auth token from storage
+useEffect(() => {
+  const token = localStorage.getItem('authToken') || 
+                sessionStorage.getItem('authToken') ||
+                localStorage.getItem('token') ||
+                sessionStorage.getItem('token');
+  
+  if (token) {
+    setAuthToken(token);
+  } else {
+    toast.error("Authentication token not found. Please log in again.");
+  }
+}, []);
+
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
-  const AUTH_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYW5tb2xAZ21haWwuY29tIiwiaHR0cDovL3NjaGVtYXMubWljcm9zb2Z0LmNvbS93cy8yMDA4LzA2L2lkZW50aXR5L2NsYWltcy9yb2xlIjoiR3JhbV9QYW5jaGF5YXRfU2FjaGl2IiwiVXNlcklEIjoiNDciLCJVc2VyTmFtZSI6ImFubW9sQGdtYWlsLmNvbSIsIlVzZXJSb2xsIjoiR3JhbV9QYW5jaGF5YXRfU2FjaGl2IiwianRpIjoiNGU2NWE4NzMtNTJjZC00ODE0LWIwODctZTExNzdlYjNhOThkIiwiZXhwIjoxNzYwMDU2ODU3LCJpc3MiOiJodHRwczovL2htc2FwaS5rZHNncm91cC5jby5pbiIsImF1ZCI6Imh0dHBzOi8vaG1zYXBpLmtkc2dyb3VwLmNvLmluIn0.qlrJLYLLNWPmakTMeR1zg6xlNQ8cCagL81S2Q7VIIs8';
+  
 
   // Check if all mandatory fields are filled
   const isMandatoryFieldsFilled = () => {
@@ -54,19 +70,24 @@ const RaiseRequisition = () => {
 
   // Fetch villages on component mount
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !authToken) return;
 
     const fetchVillages = async () => {
+      if (!authToken) {
+    toast.error("Authentication token not available");
+    return;
+  }
+      
       try {
         const response = await fetch(
-          `${API_BASE}/Master/GetVillagesByUserId?UserId=${userId}`,
-          {
-            headers: {
-              'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
-            }
-          }
-        );
+      `${API_BASE}/Master/GetVillagesByUserId?UserId=${userId}`,
+      {
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        }
+      }
+    );
 
         if (!response.ok) throw new Error('Failed to fetch villages');
         const data = await response.json();
@@ -83,7 +104,7 @@ const RaiseRequisition = () => {
     };
 
     fetchVillages();
-  }, [userId]);
+  }, [userId, authToken]);
 
   // Fetch handpumps when village is selected
   useEffect(() => {
@@ -94,16 +115,21 @@ const RaiseRequisition = () => {
     }
 
     const fetchHandpumps = async () => {
-      try {
-        const response = await fetch(
-          `${API_BASE}/HandpumpRequisition/GetHandpumpListByVillege?villegeId=${selectedVillageId}`,
-          {
-            headers: {
-              'accept': '*/*',
-              'Authorization': `Bearer ${AUTH_TOKEN}`
-            }
-          }
-        );
+  if (!authToken) {
+    toast.error("Authentication token not available");
+    return;
+  }
+  
+  try {
+    const response = await fetch(
+      `${API_BASE}/HandpumpRequisition/GetHandpumpListByVillege?villegeId=${selectedVillageId}`,
+      {
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        }
+      }
+    );
 
         if (!response.ok) throw new Error('Failed to fetch handpumps');
         const data = await response.json();
@@ -208,18 +234,24 @@ const RaiseRequisition = () => {
         };
 
         try {
-          const response = await fetch(
-            `${API_BASE}/HandpumpRequisition/InsertRequisitionDetails`,
-            {
-              method: 'POST',
-              headers: {
-                'accept': '*/*',
-                'Authorization': `Bearer ${AUTH_TOKEN}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify(requestBody)
-            }
-          );
+          if (!authToken) {
+  toast.error("Authentication token not available");
+  setLoading(false);
+  return;
+}
+
+const response = await fetch(
+  `${API_BASE}/HandpumpRequisition/InsertRequisitionDetails`,
+  {
+    method: 'POST',
+    headers: {
+      'accept': '*/*',
+      'Authorization': `Bearer ${authToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(requestBody)
+  }
+);
 
           if (!response.ok) throw new Error('Failed to submit requisition');
           const data = await response.json();
