@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import BubblesBackground from "./BubblesBackground";
 import { Link, useLocation, Outlet, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -13,10 +12,8 @@ import {
   ClipboardList,
   CreditCard,
   FileText,
-  Building2 as Building2Icon,
   Droplet,
-  DropletIcon,
-  BookAIcon,
+  BookOpen,
   ChevronDown,
   ChevronRight,
   LogOut,
@@ -25,8 +22,14 @@ import {
   Eye,
   Settings,
   MapPin,
+  Menu,
+  X,
+  Bell,
+  Search,
+  User,
+  Home,
 } from "lucide-react";
-import { BiBuildingHouse, BiDroplet, BiMoney } from "react-icons/bi";
+import { BiDroplet, BiMoney } from "react-icons/bi";
 
 type Role = "admin" | "gp" | "consultingengineer" | "gram_panchayat_sachiv" | "assistant_development_officer" | "district_panchayati_raj_officer" | "consulting_engineer";
 
@@ -50,89 +53,53 @@ const roleLabels: Record<Role, string> = {
 const getMenuLinks = (role: Role): MenuItem[] => {
   if (role === "admin") {
     return [
-      { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "GMAS", to: "/admin/gmas", icon: <Satellite size={16} /> },
-      { name: "User Management", to: "/admin/user-management", icon: <Users size={18} /> },
-      { name: "Role Management", to: "/admin/role-management", icon: <Users size={18} /> },
-      { name: "Manage Handpump", to: "/admin/manage-handpump", icon: <Calendar size={16} /> },
-      { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={16} /> },
-      { name: "Finance Management", to: "/admin/fee-management", icon: <BiMoney size={18} /> },
+      { name: "Dashboard", to: "/admin/dashboard", icon: <LayoutDashboard size={20} /> },
+      { name: "GMAS", to: "/admin/gmas", icon: <Satellite size={20} /> },
+      // { name: "User Management", to: "/admin/user-management", icon: <Users size={20} /> },
+      { name: "View Estimation", to: "/admin/manage-beneficiary", icon: <Users2 size={20} /> },
+      { name: "View Closure Updates", to: "/admin/view-closure", icon: <Users2 size={20} /> },
+      { name: "Manage Handpump", to: "/admin/manage-handpump", icon: <Calendar size={20} /> },
+      { name: "Complaint Status", to: "/admin/manage-complaint", icon: <ClipboardList size={20} /> },
+      // { name: "Finance Management", to: "/admin/fee-management", icon: <BiMoney size={20} /> },
     ];
   } else if (role === "gp" || role === "gram_panchayat_sachiv") {
     return [
-      { name: "Dashboard", to: "/gp/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "Raise Requisition", to: "/gp/raise-requisition", icon: <UserPlus size={16} /> },
-      { name: "View Estimation", to: "/gp/manage-beneficiary", icon: <Users2 size={16} /> },
-      { name: "Attach Completion", to: "/gp/attach-completion", icon: <Users2 size={16} /> },
-      { name: "View Closure Updates", to: "/gp/view-closure", icon: <Users2 size={16} /> },
-      { name: "Manage Handpump", to: "/gp/manage-handpump", icon: <Calendar size={16} /> },
-      { name: "Manage Pump House", to: "/gp/gmas", icon: <Satellite size={16} /> },
-      { name: "Lodge Complaint", to: "/gp/lodge-complaint", icon: <Megaphone size={16} /> },
-      { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={16} /> },
-      { name: "User Manual", to: "/gp/user-manual", icon: <BookAIcon size={18} /> },
+      { name: "Dashboard", to: "/gp/dashboard", icon: <LayoutDashboard size={20} /> },
+      { name: "GMAS", to: "/gp/gmas", icon: <Satellite size={20} /> },
+      { name: "Raise Requisition", to: "/gp/raise-requisition", icon: <UserPlus size={20} /> },
+      { name: "View Estimation", to: "/gp/manage-beneficiary", icon: <Users2 size={20} /> },
+      { name: "Attach Completion", to: "/gp/attach-completion", icon: <Users2 size={20} /> },
+      { name: "View Closure Updates", to: "/gp/view-closure", icon: <Users2 size={20} /> },
+      { name: "Manage Handpump", to: "/gp/manage-handpump", icon: <Calendar size={20} /> },
+      { name: "Lodge Complaint", to: "/gp/lodge-complaint", icon: <Megaphone size={20} /> },
+      { name: "Complaint Status", to: "/gp/manage-complaint", icon: <ClipboardList size={20} /> },
+      { name: "User Manual", to: "/gp/user-manual", icon: <BookOpen size={20} /> },
     ];
   } else if (role === "assistant_development_officer") {
     return [
-      { name: "Dashboard", to: "/ado/dashboard", icon: <LayoutDashboard size={18} /> },
-      {
-        name: "Project Management",
-        icon: <Building2 size={18} />,
-        children: [
-          { name: "Review Requisitions", to: "/ado/review-requisitions", icon: <Eye size={16} /> },
-          { name: "Approve Estimates", to: "/ado/approve-estimates", icon: <CheckSquare size={16} /> },
-          { name: "Monitor Progress", to: "/ado/monitor-progress", icon: <BarChart3 size={16} /> },
-        ],
-      },
-      {
-        name: "Quality Control",
-        icon: <Settings size={18} />,
-        children: [
-          { name: "Water Quality Reports", to: "/ado/water-quality", icon: <BiDroplet size={16} /> },
-          { name: "Inspection Reports", to: "/ado/inspection-reports", icon: <ClipboardList size={16} /> },
-        ],
-      },
-      { name: "Area Management", to: "/ado/area-management", icon: <MapPin size={18} /> },
-      { name: "Reports", to: "/ado/reporting", icon: <FileText size={18} /> },
+      { name: "Dashboard", to: "/ado/dashboard", icon: <LayoutDashboard size={20} /> },
+      { name: "GMAS", to: "/ado/gmas", icon: <Satellite size={20} /> },
+      // { name: "User Management", to: "/admin/user-management", icon: <Users size={20} /> },
+      { name: "View Estimation", to: "/ado/manage-beneficiary", icon: <Users2 size={20} /> },
+      { name: "View Closure Updates", to: "/ado/view-closure", icon: <Users2 size={20} /> },
+      { name: "Manage Handpump", to: "/ado/manage-handpump", icon: <Calendar size={20} /> },
+      { name: "Complaint Status", to: "/ado/manage-complaint", icon: <ClipboardList size={20} /> },
     ];
   } else if (role === "district_panchayati_raj_officer") {
     return [
-      { name: "Dashboard", to: "/dpro/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "GMAS", to: "/dpro/gmas", icon: <Satellite size={16} /> },
-      {
-        name: "District Overview",
-        icon: <MapPin size={18} />,
-        children: [
-          { name: "Block Management", to: "/dpro/block-management", icon: <Building2 size={16} /> },
-          { name: "GP Performance", to: "/dpro/gp-performance", icon: <BarChart3 size={16} /> },
-          { name: "Resource Allocation", to: "/dpro/resource-allocation", icon: <CreditCard size={16} /> },
-        ],
-      },
-      {
-        name: "Approvals & Reviews",
-        icon: <CheckSquare size={18} />,
-        children: [
-          { name: "Project Approvals", to: "/dpro/project-approvals", icon: <CheckSquare size={16} /> },
-          { name: "Budget Reviews", to: "/dpro/budget-reviews", icon: <BiMoney size={16} /> },
-          { name: "Quality Audits", to: "/dpro/quality-audits", icon: <ClipboardList size={16} /> },
-        ],
-      },
-      {
-        name: "Monitoring",
-        icon: <Eye size={18} />,
-        children: [
-          { name: "Project Status", to: "/dpro/project-status", icon: <BarChart3 size={16} /> },
-          { name: "Complaint Overview", to: "/dpro/complaint-overview", icon: <Megaphone size={16} /> },
-          { name: "Performance Metrics", to: "/dpro/performance-metrics", icon: <BarChart3 size={16} /> },
-        ],
-      },
-      { name: "District Reports", to: "/dpro/reporting", icon: <FileText size={18} /> },
+      { name: "Dashboard", to: "/dpro/dashboard", icon: <LayoutDashboard size={20} /> },
+      { name: "GMAS", to: "/dpro/gmas", icon: <Satellite size={20} /> },
+      // { name: "User Management", to: "/admin/user-management", icon: <Users size={20} /> },
+      { name: "View Estimation", to: "/dpro/manage-beneficiary", icon: <Users2 size={20} /> },
+      { name: "View Closure Updates", to: "/dpro/view-closure", icon: <Users2 size={20} /> },
+      { name: "Manage Handpump", to: "/dpro/manage-handpump", icon: <Calendar size={20} /> },
+      { name: "Complaint Status", to: "/dpro/manage-complaint", icon: <ClipboardList size={20} /> },
     ];
   } else if (role === "consultingengineer" || role === "consulting_engineer") {
-    // Both consultingengineer and consulting_engineer use the same menu
     return [
-      { name: "Dashboard", to: "/consultingengineer/dashboard", icon: <LayoutDashboard size={18} /> },
-      { name: "Create Estimate", to: "/consultingengineer/create-estimate", icon: <Megaphone size={16} /> },
-      { name: "Raise MB & Visit Report", to: "/consultingengineer/mb-visit-report", icon: <ClipboardList size={16} /> },
+      { name: "Dashboard", to: "/consultingengineer/dashboard", icon: <LayoutDashboard size={20} /> },
+      { name: "Create Estimate", to: "/consultingengineer/create-estimate", icon: <Megaphone size={20} /> },
+      { name: "Raise MB & Visit Report", to: "/consultingengineer/mb-visit-report", icon: <ClipboardList size={20} /> },
     ];
   }
 };
@@ -140,11 +107,11 @@ const getMenuLinks = (role: Role): MenuItem[] => {
 const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
-  // Get the actual role from localStorage to determine correct menu
   const actualRole = localStorage.getItem("role");
   
-  // Determine which role to use for menu generation
   let menuRole: Role = role;
   if (actualRole === "Gram_Panchayat_Sachiv") {
     menuRole = "gram_panchayat_sachiv";
@@ -168,7 +135,6 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   };
 
   const handleLogout = () => {
-    // Clear localStorage and navigate to login
     localStorage.clear();
     navigate("/login");
   };
@@ -181,24 +147,24 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
           <div key={item.name} className="mb-1">
             <div
               onClick={() => toggleMenu(item.name)}
-              className={`group cursor-pointer flex items-center justify-between px-4 py-3 rounded-xl hover:bg-white hover:bg-opacity-15 transition-all duration-200 ${
-                level > 0 ? `ml-${level * 4}` : ""
-              } hover:shadow-lg backdrop-blur-sm`}
+              className={`group cursor-pointer flex items-center justify-between px-4 py-3 rounded-lg transition-all duration-200 ${
+                level > 0 ? "ml-4" : ""
+              } hover:bg-indigo-50`}
             >
               <div className="flex items-center gap-3 text-sm font-medium">
-                <div className="flex items-center justify-center w-6 h-6 text-white/80 group-hover:text-white transition-colors">
+                <div className="flex items-center justify-center text-gray-600 group-hover:text-indigo-600 transition-colors">
                   {item.icon}
                 </div>
-                <span className="text-white/90 group-hover:text-white transition-colors">
+                <span className="text-gray-700 group-hover:text-gray-900 transition-colors">
                   {item.name}
                 </span>
               </div>
-              <div className="transition-transform duration-200 text-white/60 group-hover:text-white">
-                {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+              <div className="transition-transform duration-200 text-gray-400 group-hover:text-indigo-600">
+                {isOpen ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
               </div>
             </div>
             {isOpen && (
-              <div className="mt-1 space-y-1 animate-in slide-in-from-top-2 duration-200">
+              <div className="mt-1 space-y-1 pl-2">
                 {renderMenuItems(item.children, level + 1)}
               </div>
             )}
@@ -210,25 +176,25 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
         <Link
           key={item.to}
           to={item.to!}
-          className={`group flex items-center gap-3 text-sm px-4 py-3 rounded-xl transition-all duration-200 mb-1 ${
-            level > 0 ? `ml-${level * 4}` : ""
+          className={`group flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 mb-1 ${
+            level > 0 ? "ml-4" : ""
           } ${
             location.pathname === item.to
-              ? "bg-white bg-opacity-25 font-semibold shadow-lg backdrop-blur-sm border border-white/20"
-              : "hover:bg-white hover:bg-opacity-15 hover:shadow-md"
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-200"
+              : "hover:bg-indigo-50 text-gray-700"
           }`}
         >
-          <div className={`flex items-center justify-center w-6 h-6 transition-colors ${
+          <div className={`flex items-center justify-center transition-colors ${
             location.pathname === item.to 
               ? "text-white" 
-              : "text-white/80 group-hover:text-white"
+              : "text-gray-600 group-hover:text-indigo-600"
           }`}>
             {item.icon}
           </div>
-          <span className={`transition-colors ${
+          <span className={`text-sm font-medium transition-colors ${
             location.pathname === item.to 
-              ? "text-white font-semibold" 
-              : "text-white/90 group-hover:text-white"
+              ? "text-white" 
+              : "group-hover:text-gray-900"
           }`}>
             {item.name}
           </span>
@@ -238,62 +204,161 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   };
 
   return (
-    <div className="relative h-screen overflow-visible">
-      <BubblesBackground />
-
-      {/* Main Layout */}
-      <div className="flex h-full bg-gradient-to-br from-blue-50 to-blue-100">
-        {/* Enhanced Sidebar */}
-        <div className="w-80 bg-gradient-to-b from-slate-800 via-gray-800 to-blue-900 text-white shadow-2xl flex flex-col relative overflow-hidden">
-          {/* Decorative overlay */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent to-black/10 pointer-events-none"></div>
-          <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-slate-400 via-gray-300 to-blue-400"></div>
-          
-          <div className="relative z-10 p-6 pb-4">
-            {/* Logo Section */}
-            <div className="flex flex-col items-center mb-8">
-              <div className="relative mb-4">
-                <div className="absolute inset-0 bg-white/20 rounded-2xl blur-md"></div>
-                <img 
-                  src="/logo.png" 
-                  alt="Logo" 
-                  className="relative h-20 w-28 rounded-2xl object-cover shadow-xl ring-2 ring-white/30" 
-                />
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar */}
+      <div className={`${isSidebarOpen ? 'w-72' : 'w-20'} bg-white border-r border-gray-200 transition-all duration-300 flex flex-col shadow-xl`}>
+        {/* Logo Section */}
+        <div className="p-6 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            {isSidebarOpen && (
+              <div className="flex items-center gap-4">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-indigo-400 to-purple-400 rounded-xl blur-md opacity-50"></div>
+                  <div className="relative w-12 h-12 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Droplet className="text-white" size={24} />
+                  </div>
+                </div>
+                <div>
+                  <h1 className="text-lg font-bold text-gray-800">Handpump</h1>
+                  <p className="text-xs text-gray-500">Management System</p>
+                </div>
               </div>
-              <div className="text-center">
-                <h1 className="text-3xl font-bold tracking-wider bg-gradient-to-r from-white to-slate-100 bg-clip-text text-transparent mb-1">
-                  Handpump Management System
-                </h1>
-                <div className="h-px w-16 bg-gradient-to-r from-transparent via-white/50 to-transparent mx-auto mb-2"></div>
-                <span className="text-sm text-slate-200 font-medium px-3 py-1 bg-white/10 rounded-full backdrop-blur-sm">
-                  {roleLabels[menuRole]}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Navigation Menu */}
-          <div className="relative z-10 flex-1 px-4 pb-4 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 scrollbar-track-transparent">
-            <nav className="space-y-2">
-              {renderMenuItems(links)}
-            </nav>
-          </div>
-
-          {/* Enhanced Logout Button */}
-          <div className="relative z-10 p-4 border-t border-white/10">
+            )}
             <button
-              onClick={handleLogout}
-              className="group w-full flex items-center justify-center gap-3 text-sm px-4 py-3 rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 transition-all duration-200 text-white font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 active:scale-95"
+              onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <LogOut size={18} className="group-hover:rotate-12 transition-transform duration-200" />
-              <span>Logout</span>
+              <Menu size={20} className="text-gray-600" />
             </button>
           </div>
         </div>
 
+        {/* Role Badge */}
+        {isSidebarOpen && (
+          <div className="px-6 py-4">
+            <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-100 rounded-lg px-4 py-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Active Role</span>
+              </div>
+              <p className="text-sm font-bold text-gray-800">{roleLabels[menuRole]}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Navigation */}
+        <div className="flex-1 overflow-y-auto px-4 py-2">
+          <nav className="space-y-1">
+            {isSidebarOpen ? (
+              renderMenuItems(links)
+            ) : (
+              links.map((item) => (
+                <Link
+                  key={item.to || item.name}
+                  to={item.to || "#"}
+                  className={`flex items-center justify-center p-3 rounded-lg transition-all duration-200 mb-1 ${
+                    location.pathname === item.to
+                      ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white"
+                      : "hover:bg-indigo-50 text-gray-600"
+                  }`}
+                  title={item.name}
+                >
+                  {item.icon}
+                </Link>
+              ))
+            )}
+          </nav>
+        </div>
+
+        {/* User Section & Logout */}
+        <div className="p-4 border-t border-gray-200">
+          {isSidebarOpen ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
+                <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
+                  <User size={20} className="text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-gray-800 truncate">Admin User</p>
+                  <p className="text-xs text-gray-500 truncate">admin@system.com</p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-200 font-medium shadow-lg shadow-red-200 hover:shadow-xl transform hover:scale-105 active:scale-95"
+              >
+                <LogOut size={18} />
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center p-3 bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 text-white rounded-lg transition-all duration-200 shadow-lg transform hover:scale-105 active:scale-95"
+              title="Logout"
+            >
+              <LogOut size={20} />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Navigation Bar */}
+        <div className="bg-white border-b border-gray-200 shadow-sm">
+          <div className="px-8 py-4">
+            <div className="flex items-center justify-between">
+              {/* Breadcrumb / Page Title */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <Home size={16} />
+                  <ChevronRight size={14} />
+                  <span className="text-gray-700 font-medium">
+                    {location.pathname.split('/').filter(Boolean).pop()?.replace(/-/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'Dashboard'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Right Side Actions */}
+              <div className="flex items-center gap-4">
+                {/* Search Bar */}
+                <div className="relative hidden md:block">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
+                  <input
+                    type="text"
+                    placeholder="Search..."
+                    className="pl-10 pr-4 py-2 w-64 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                  />
+                </div>
+
+                {/* Notifications */}
+                <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Bell size={20} className="text-gray-600" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+
+                {/* Settings */}
+                <button className="p-2 hover:bg-gray-100 rounded-lg transition-colors">
+                  <Settings size={20} className="text-gray-600" />
+                </button>
+
+                {/* Profile */}
+                <div className="flex items-center gap-3 pl-4 border-l border-gray-200">
+                  <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-full flex items-center justify-center shadow-lg">
+                    <User size={20} className="text-white" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* Main Content */}
-        <div className="flex-1 overflow-y-auto p-6">
-          <Outlet />
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+          <div className="p-8">
+            <Outlet />
+          </div>
         </div>
       </div>
     </div>

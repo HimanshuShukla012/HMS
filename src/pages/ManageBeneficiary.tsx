@@ -1,114 +1,611 @@
-import React, { useState } from 'react';
-import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, ArrowLeft, TrendingUp } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, ArrowLeft, TrendingUp, Loader, AlertCircle } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
 
 const ViewEstimationScreen = () => {
+  const { userId, loading: userLoading, error: userError } = useUserInfo();
   const [filterMode, setFilterMode] = useState('All');
   const [selectedEstimation, setSelectedEstimation] = useState(null);
-  
-  // Sample data for requisitions
-  const requisitions = [
-    {
-      id: 'REQ001',
-      handpumpId: 'HP001',
-      mode: 'Repair',
-      date: '2024-03-15',
-      sanctionedTotal: '₹5,140',
-      status: 'Approved'
-    },
-    {
-      id: 'REQ002',
-      handpumpId: 'HP002',
-      mode: 'Rebore',
-      date: '2024-03-16',
-      sanctionedTotal: '₹21,947.73',
-      status: 'Pending'
-    },
-    {
-      id: 'REQ003',
-      handpumpId: 'HP003',
-      mode: 'Repair',
-      date: '2024-03-17',
-      sanctionedTotal: '₹4,890',
-      status: 'Approved'
-    },
-    {
-      id: 'REQ004',
-      handpumpId: 'HP004',
-      mode: 'Rebore',
-      date: '2024-03-18',
-      sanctionedTotal: '₹19,875.50',
-      status: 'In Progress'
+  const [requisitions, setRequisitions] = useState([]);
+  const [requisitionItems, setRequisitionItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [masterRepairItems, setMasterRepairItems] = useState([]);
+  const [masterReboreItems, setMasterReboreItems] = useState([]);
+  const [consultingEngineer, setConsultingEngineer] = useState('');
+
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Get token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
+
+  // Fetch master repair items
+  useEffect(() => {
+    const fetchMasterRepairItems = async () => {
+      try {
+        const authToken = getAuthToken();
+        const response = await fetch(
+          `${API_BASE}/Master/GetRepairEstimation`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch repair items');
+        const data = await response.json();
+
+        if (data && data.Data && Array.isArray(data.Data)) {
+          setMasterRepairItems(data.Data);
+        }
+      } catch (err) {
+        console.error('Error fetching master repair items:', err);
+      }
+    };
+
+    fetchMasterRepairItems();
+  }, []);
+
+  // Fetch master rebore items
+  useEffect(() => {
+    const fetchMasterReboreItems = async () => {
+      try {
+        const authToken = getAuthToken();
+        const response = await fetch(
+          `${API_BASE}/Master/GetReboreEstimation`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch rebore items');
+        const data = await response.json();
+
+        if (data && data.Data && Array.isArray(data.Data)) {
+          setMasterReboreItems(data.Data);
+        }
+      } catch (err) {
+        console.error('Error fetching master rebore items:', err);
+      }
+    };
+
+    fetchMasterReboreItems();
+  }, []);
+
+  // Fetch requisitions data
+  useEffect(() => {
+    if (userLoading) return;
+    
+    if (!userId) {
+      setError('User ID not found. Please login again.');
+      setLoading(false);
+      return;
     }
-  ];
 
-  const repairItems = [
-    { sno: 1, item: 'Chain(25.4mm pitch roller chain with 7links)', unit: 'Nos', rate: 120, qty: 1, amount: 120 },
-    { sno: 2, item: 'Axle', unit: 'Nos', rate: 80, qty: 1, amount: 80 },
-    { sno: 3, item: 'Plunger', unit: 'Nos', rate: 250, qty: 1, amount: 250 },
-    { sno: 4, item: 'Check Valve', unit: 'Nos', rate: 125, qty: 1, amount: 125 },
-    { sno: 5, item: 'Cylinder Casing', unit: 'Nos', rate: 220, qty: 1, amount: 220 },
-    { sno: 6, item: 'Nutbolt', unit: 'Nos', rate: 15, qty: 1, amount: 15 },
-    { sno: 7, item: 'Handle Complete Set', unit: 'Nos', rate: 2200, qty: 1, amount: 2200 },
-    { sno: 8, item: 'Pipe', unit: 'Nos', rate: 750, qty: 1, amount: 750 },
-    { sno: 9, item: 'Bearing', unit: 'Nos', rate: 60, qty: 1, amount: 60 },
-    { sno: 10, item: 'Plunger Rod', unit: 'Nos', rate: 220, qty: 1, amount: 220 },
-    { sno: 11, item: 'Socket(same as number of pipes)', unit: 'Nos', rate: 50, qty: 1, amount: 50 },
-    { sno: 12, item: 'Thread', unit: 'Nos', rate: 25, qty: 1, amount: 25 },
-    { sno: 13, item: 'Washer set', unit: 'Nos', rate: 80, qty: 1, amount: 80 },
-    { sno: 14, item: 'Cylinder', unit: 'Nos', rate: 925, qty: 1, amount: 925 }
-  ];
+    const fetchRequisitions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-  const reboreItems = [
-    { sno: 1, item: 'Transportation of handpump material and T&P etc From market to the work site Including loading unloading and proper stacking at site work also including return cartage of unused material and T&P complete.', unit: 'Job', rate: 1706.46, ref: '', l: '', b: '', h: '', qty: 1, amount: 1706.46 },
-    { sno: 2, item: 'Dismantling of old PCC Platform Handpump machine GI pipe, Connecting rod and cylinder Including all labour T & P Complete', unit: 'Job', rate: 1984.15, ref: '', l: '', b: '', h: '', qty: 1, amount: 1984.15 },
-    { sno: 3, item: 'Cost of essential material for INDIA MARK- II handpump installation work', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00 },
-    { sno: '3.1', item: 'A. P.V.C PIPE(6KG/SQCM) 110 mm dia', unit: 'Rm', rate: 328.88, ref: '', l: '', b: '', h: '', qty: 1, amount: 328.88 },
-    { sno: '3.2', item: 'B. P.V.C PIPE(6KG/SQCM) 63 mm dia', unit: 'Rm', rate: 124.11, ref: '', l: '', b: '', h: '', qty: 1, amount: 124.11 },
-    { sno: '3.3', item: 'C. 63 mm nominal dia strainer or blind pipe', unit: 'Rm', rate: 651.56, ref: '', l: '', b: '', h: '', qty: 1, amount: 651.56 },
-    { sno: '3.4', item: 'D.REDUCER (110 TO 63 MM)', unit: 'set', rate: 183.06, ref: '', l: '', b: '', h: '', qty: 1, amount: 183.06 },
-    { sno: '3.5', item: 'E. G.I.PIPE 32 MM dia medium quality(riser)', unit: 'Rm', rate: 341.29, ref: '', l: '', b: '', h: '', qty: 1, amount: 341.29 },
-    { sno: '3.6', item: 'F. Spare parts', unit: 'Job', rate: 2714.82, ref: '', l: '', b: '', h: '', qty: 1, amount: 2714.82 },
-    { sno: 4, item: 'Rent of equipment/plant and work of digging pit, erecting tripod etc. for drilling work by casing method or pump and pressure method', unit: 'Job', rate: 798.93, ref: '', l: '', b: '', h: '', qty: 1, amount: 798.93 },
-    { sno: 5, item: 'Drilling work 150 mm dia in hard and conker mix soil by (pump and pressure method OR casing while drilling method)', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00 },
-    { sno: '5A', item: 'A. 0 -15m', unit: 'Rm', rate: 511.94, ref: '', l: '', b: '', h: '', qty: 1, amount: 511.94 },
-    { sno: '5B', item: 'B. 15-30m', unit: 'Rm', rate: 511.94, ref: '', l: '', b: '', h: '', qty: 1, amount: 511.94 },
-    { sno: '5C', item: 'C. 30-45m', unit: 'Rm', rate: 589.50, ref: '', l: '', b: '', h: '', qty: 1, amount: 589.50 },
-    { sno: '5D', item: 'D. 45-65m', unit: 'Rm', rate: 899.77, ref: '', l: '', b: '', h: '', qty: 1, amount: 899.77 }
-  ];
+        const authToken = getAuthToken();
+        
+        if (!authToken) {
+          throw new Error('Authentication token not found. Please login again.');
+        }
 
-  const filteredRequisitions = filterMode === 'All' ? requisitions : requisitions.filter(req => req.mode === filterMode);
+        const response = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch requisitions');
+        const data = await response.json();
+
+        if (data && data.Data && Array.isArray(data.Data)) {
+          // Transform API data to match component structure
+          const transformedData = data.Data.map(req => ({
+            id: req.RequisitionId?.toString() || 'N/A',
+            handpumpId: req.HandpumpId || 'N/A',
+            mode: req.RequisitionType || 'Unknown',
+            date: req.RequisitionDate || new Date().toISOString(),
+            sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
+            status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
+            orderId: req.OrderId,
+            requisitionTypeId: req.RequisitionTypeId,
+            image: req.HandpumpImage,
+            sanctionAmount: req.SanctionAmount || 0
+          })).filter(req => req.orderId); // Only show requisitions with OrderId (sanctioned)
+
+          setRequisitions(transformedData);
+        } else {
+          setRequisitions([]);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching requisitions:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchRequisitions();
+  }, [userId, userLoading]);
+
+  // Fetch requisition items when estimation is selected
+  useEffect(() => {
+    if (!selectedEstimation) return;
+
+    const fetchRequisitionItems = async () => {
+      try {
+        const authToken = getAuthToken();
+        
+        const response = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionItemList?RequisitionId=${selectedEstimation.id}&OrderID=${selectedEstimation.orderId}&TypeId=${selectedEstimation.requisitionTypeId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch requisition items');
+        const data = await response.json();
+
+        if (data && data.Data && Array.isArray(data.Data)) {
+          // Extract consulting engineer name from first item
+          if (data.Data.length > 0 && data.Data[0].UserName) {
+            setConsultingEngineer(data.Data[0].UserName);
+          }
+
+          // Transform items to match the structure
+          const transformedItems = data.Data.map((item, index) => ({
+            sno: index + 1,
+            item: item.ItemName || 'Unknown Item',
+            unit: 'Nos',
+            rate: item.Quantity > 0 ? item.Amount / item.Quantity : item.Amount,
+            qty: item.Quantity || 1,
+            amount: item.Amount || 0
+          }));
+          
+          setRequisitionItems(transformedItems);
+        } else {
+          setRequisitionItems([]);
+        }
+      } catch (err) {
+        console.error('Error fetching requisition items:', err);
+        setRequisitionItems([]);
+      }
+    };
+
+    fetchRequisitionItems();
+  }, [selectedEstimation]);
+
+  const calculateTotal = () => {
+    const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
+    const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
+    const gst = total * 0.18;
+    const totalWithGST = total + gst;
+    const consultingFee = totalWithGST * 0.01;
+    const grandTotal = totalWithGST + consultingFee;
+    return { total, gst, totalWithGST, consultingFee, grandTotal };
+  };
+
+  const getMasterItems = () => {
+    if (!selectedEstimation) return [];
+    
+    const isRepair = selectedEstimation.mode === 'REPAIR';
+    const masterItems = isRepair ? masterRepairItems : masterReboreItems;
+    
+    return masterItems.map((item, index) => ({
+      sno: index + 1,
+      item: item.ItemName || 'Unknown Item',
+      unit: item.Unit || '',
+      rate: item.Rate || 0,
+      qty: item.Quantity || 0,
+      amount: item.Amount || 0,
+      ref: item.Source || '',
+      l: item.Length || '',
+      b: item.Width || '',
+      h: item.Height || ''
+    }));
+  };
+
+  const filteredRequisitions = requisitions.filter(req => {
+    const modeMatch = filterMode === 'All' || req.mode === filterMode;
+    const searchMatch = searchQuery === '' || 
+      req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      req.handpumpId.toLowerCase().includes(searchQuery.toLowerCase());
+    return modeMatch && searchMatch;
+  });
 
   const handleViewEstimation = (requisition) => {
     setSelectedEstimation(requisition);
+    setConsultingEngineer(''); // Reset consulting engineer name
   };
 
   const handleDownloadPDF = () => {
-    // PDF download logic would go here
-    alert('PDF download functionality would be implemented here');
+    const isRepair = selectedEstimation.mode === 'REPAIR';
+    const calculations = calculateTotal();
+    const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
+
+    // Create a hidden div for PDF generation
+    const printContent = document.createElement('div');
+    printContent.style.padding = '40px';
+    printContent.style.fontFamily = 'Arial, sans-serif';
+    printContent.style.backgroundColor = '#ffffff';
+
+    printContent.innerHTML = `
+      <style>
+        @media print {
+          body { margin: 0; padding: 0; }
+          .no-print { display: none; }
+          table { page-break-inside: auto; }
+          tr { page-break-inside: avoid; page-break-after: auto; }
+        }
+        .pdf-header {
+          background: linear-gradient(to right, #0f766e, #0891b2, #2563eb);
+          color: white;
+          padding: 30px;
+          border-radius: 10px;
+          margin-bottom: 30px;
+        }
+        .pdf-engineer-card {
+          background: linear-gradient(to right, #0d9488, #06b6d4, #3b82f6);
+          color: white;
+          padding: 25px;
+          border-radius: 10px;
+          margin-bottom: 30px;
+        }
+        .pdf-info-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 20px;
+          margin-top: 20px;
+        }
+        .pdf-info-box {
+          background: rgba(255, 255, 255, 0.2);
+          padding: 15px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .pdf-info-label {
+          font-size: 12px;
+          opacity: 0.9;
+          margin-bottom: 5px;
+        }
+        .pdf-info-value {
+          font-size: 18px;
+          font-weight: bold;
+        }
+        .pdf-mode-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          padding: 8px 15px;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 14px;
+          margin-top: 10px;
+        }
+        .pdf-mode-repair {
+          background: #3b82f6;
+          color: white;
+        }
+        .pdf-mode-rebore {
+          background: #10b981;
+          color: white;
+        }
+        .pdf-table-container {
+          background: white;
+          border-radius: 10px;
+          overflow: hidden;
+          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          border: 1px solid #e5e7eb;
+        }
+        .pdf-table-header {
+          background: linear-gradient(to right, #374151, #475569);
+          color: white;
+          padding: 20px 25px;
+        }
+        .pdf-table {
+          width: 100%;
+          border-collapse: collapse;
+        }
+        .pdf-table thead {
+          background: #f9fafb;
+        }
+        .pdf-table th {
+          padding: 12px;
+          text-align: left;
+          font-size: 11px;
+          font-weight: 600;
+          color: #374151;
+          text-transform: uppercase;
+          border-bottom: 2px solid #93c5fd;
+        }
+        .pdf-table tbody tr:nth-child(even) {
+          background: #f9fafb;
+        }
+        .pdf-table tbody tr:nth-child(odd) {
+          background: white;
+        }
+        .pdf-table td {
+          padding: 12px;
+          font-size: 12px;
+          color: #1f2937;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .row-add-items {
+          background: #fef3c7 !important;
+        }
+        .row-add-items td {
+          color: #92400e;
+          font-weight: 600;
+        }
+        .row-total {
+          background: #dbeafe !important;
+        }
+        .row-total td {
+          color: #1e40af;
+          font-weight: 600;
+        }
+        .row-gst {
+          background: #e0e7ff !important;
+        }
+        .row-gst td {
+          color: #3730a3;
+          font-weight: 600;
+        }
+        .row-total-with-gst {
+          background: #ccfbf1 !important;
+        }
+        .row-total-with-gst td {
+          color: #115e59;
+          font-weight: 600;
+        }
+        .row-consulting-fee {
+          background: #cffafe !important;
+        }
+        .row-consulting-fee td {
+          color: #155e75;
+          font-weight: 600;
+        }
+        .row-consulting-fee-mb {
+          background: #d1fae5 !important;
+        }
+        .row-consulting-fee-mb td {
+          color: #065f46;
+          font-weight: 600;
+        }
+        .row-grand-total {
+          background: #dcfce7 !important;
+          border-top: 2px solid #86efac;
+        }
+        .row-grand-total td {
+          color: #166534;
+          font-weight: bold;
+          font-size: 14px;
+          padding: 15px 12px;
+        }
+        .sno-cell {
+          color: #2563eb;
+          font-weight: 600;
+        }
+        .rate-cell {
+          color: #059669;
+          font-weight: 600;
+        }
+        .amount-cell {
+          color: #475569;
+          font-weight: 600;
+        }
+      </style>
+
+      <div class="pdf-header">
+        <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">View Estimation - Gram Panchayat</h1>
+        <p style="font-size: 14px; opacity: 0.95; margin: 0;">${selectedEstimation.mode} Estimation Report</p>
+      </div>
+
+      <div class="pdf-engineer-card">
+        <h2 style="font-size: 22px; font-weight: bold; margin: 0 0 20px 0;">
+          Consulting Engineer: ${consultingEngineer || 'N/A'}
+        </h2>
+        <div class="pdf-info-grid">
+          <div class="pdf-info-box">
+            <div class="pdf-info-label">Requisition ID</div>
+            <div class="pdf-info-value">${selectedEstimation.id}</div>
+          </div>
+          <div class="pdf-info-box">
+            <div class="pdf-info-label">Handpump ID</div>
+            <div class="pdf-info-value">${selectedEstimation.handpumpId}</div>
+          </div>
+          <div class="pdf-info-box">
+            <div class="pdf-info-label">Mode</div>
+            <div class="pdf-mode-badge ${isRepair ? 'pdf-mode-repair' : 'pdf-mode-rebore'}">
+              ${selectedEstimation.mode}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="pdf-table-container">
+        <div class="pdf-table-header">
+          <h3 style="font-size: 20px; font-weight: bold; margin: 0;">
+            ${selectedEstimation.mode} Estimation Details
+          </h3>
+        </div>
+        
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Item</th>
+              <th>Unit</th>
+              <th>Rate (Rs.)</th>
+              ${!isRepair ? '<th>Reference/Source</th>' : ''}
+              ${!isRepair ? '<th>L</th>' : ''}
+              ${!isRepair ? '<th>B</th>' : ''}
+              ${!isRepair ? '<th>H</th>' : ''}
+              <th>Qty.</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map((item, index) => `
+              <tr>
+                <td class="sno-cell">${item.sno}</td>
+                <td style="max-width: 400px;">${item.item}</td>
+                <td>${item.unit}</td>
+                <td class="rate-cell">${item.rate ? '₹' + item.rate.toLocaleString() : ''}</td>
+                ${!isRepair ? `<td>${item.ref || ''}</td>` : ''}
+                ${!isRepair ? `<td>${item.l || ''}</td>` : ''}
+                ${!isRepair ? `<td>${item.b || ''}</td>` : ''}
+                ${!isRepair ? `<td>${item.h || ''}</td>` : ''}
+                <td>${item.qty}</td>
+                <td class="amount-cell">${item.amount ? '₹' + item.amount.toLocaleString() : ''}</td>
+              </tr>
+            `).join('')}
+            
+            <tr class="row-add-items">
+              <td class="sno-cell">${items.length + 1}</td>
+              <td><strong>Add Items</strong></td>
+              <td></td>
+              <td></td>
+              ${!isRepair ? '<td></td>' : ''}
+              ${!isRepair ? '<td>1</td>' : ''}
+              ${!isRepair ? '<td>1</td>' : ''}
+              ${!isRepair ? '<td>1</td>' : ''}
+              <td></td>
+              <td></td>
+            </tr>
+            
+            <tr class="row-total">
+              <td class="sno-cell">${items.length + 2}</td>
+              <td><strong>Total</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong>₹${calculations.total.toLocaleString()}</strong></td>
+            </tr>
+            
+            <tr class="row-gst">
+              <td class="sno-cell">${items.length + 3}</td>
+              <td><strong>GST (18%)</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong>₹${calculations.gst.toLocaleString()}</strong></td>
+            </tr>
+            
+            <tr class="row-total-with-gst">
+              <td class="sno-cell">${items.length + 4}</td>
+              <td><strong>Total (including GST)</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong>₹${calculations.totalWithGST.toLocaleString()}</strong></td>
+            </tr>
+            
+            <tr class="row-consulting-fee">
+              <td class="sno-cell">${items.length + 5}</td>
+              <td><strong>1% Consulting Engineer Fee for Estimation</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+            </tr>
+            
+            <tr class="row-consulting-fee-mb">
+              <td class="sno-cell">${items.length + 6}</td>
+              <td><strong>1% Consulting Engineer Fee for MB</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+            </tr>
+            
+            <tr class="row-grand-total">
+              <td class="sno-cell">${items.length + 7}</td>
+              <td><strong>Grand Total</strong></td>
+              <td colspan="${isRepair ? 3 : 6}"></td>
+              <td><strong style="font-size: 16px;">₹${(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    // Create a new window for printing
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Estimation Report - ${selectedEstimation.id}</title>
+          <style>
+            body {
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+            }
+            @page {
+              margin: 20mm;
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    
+    // Wait for content to load then print
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
   };
 
-  const calculateRepairTotal = () => {
-    const total = repairItems.reduce((sum, item) => sum + item.amount, 0);
-    const gst = total * 0.18;
-    const totalWithGST = total + gst;
-    const consultingFee = totalWithGST * 0.01;
-    const grandTotal = totalWithGST + consultingFee;
-    return { total, gst, totalWithGST, consultingFee, grandTotal };
-  };
+  // Show loading state
+  if (userLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
+          <p className="text-gray-600 text-lg">Loading estimations...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const calculateReboreTotal = () => {
-    const total = reboreItems.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const gst = total * 0.18;
-    const totalWithGST = total + gst;
-    const consultingFee = totalWithGST * 0.01;
-    const grandTotal = totalWithGST + consultingFee;
-    return { total, gst, totalWithGST, consultingFee, grandTotal };
-  };
+  // Show error state
+  if (error || userError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error || userError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (selectedEstimation) {
-    const isRepair = selectedEstimation.mode === 'Repair';
-    const calculations = isRepair ? calculateRepairTotal() : calculateReboreTotal();
-    const items = isRepair ? repairItems : reboreItems;
+    const isRepair = selectedEstimation.mode === 'REPAIR';
+    const calculations = calculateTotal();
+    const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-6">
@@ -146,7 +643,7 @@ const ViewEstimationScreen = () => {
                 <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
                   <FileText size={20} />
                 </div>
-                Consulting Engineer: Er. Rajesh Kumar
+                Consulting Engineer: {consultingEngineer || 'Loading...'}
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="bg-white/15 backdrop-blur-sm rounded-lg p-4 border border-white/20">
@@ -160,11 +657,11 @@ const ViewEstimationScreen = () => {
                 <div className="bg-white/15 backdrop-blur-sm rounded-lg p-4 border border-white/20">
                   <span className="text-white/80 text-sm">Mode</span>
                   <div className={`inline-flex items-center gap-2 mt-2 px-3 py-1 rounded-md font-semibold text-sm ${
-                    selectedEstimation.mode === 'Repair' 
+                    selectedEstimation.mode === 'REPAIR' 
                       ? 'bg-blue-500 text-white' 
                       : 'bg-emerald-500 text-white'
                   }`}>
-                    {selectedEstimation.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                    {selectedEstimation.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
                     {selectedEstimation.mode}
                   </div>
                 </div>
@@ -177,9 +674,9 @@ const ViewEstimationScreen = () => {
             <div className="bg-gradient-to-r from-gray-700 to-slate-700 p-6 text-white">
               <h3 className="text-xl font-bold flex items-center gap-3">
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                  selectedEstimation.mode === 'Repair' ? 'bg-blue-500' : 'bg-emerald-500'
+                  selectedEstimation.mode === 'REPAIR' ? 'bg-blue-500' : 'bg-emerald-500'
                 }`}>
-                  {selectedEstimation.mode === 'Repair' ? <Wrench size={16} /> : <Drill size={16} />}
+                  {selectedEstimation.mode === 'REPAIR' ? <Wrench size={16} /> : <Drill size={16} />}
                 </div>
                 {selectedEstimation.mode} Estimation Details
               </h3>
@@ -212,10 +709,10 @@ const ViewEstimationScreen = () => {
                       <td className="px-4 py-3 text-sm text-emerald-600 font-semibold">
                         {item.rate ? `₹${item.rate.toLocaleString()}` : ''}
                       </td>
-                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.ref}</td>}
-                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.l}</td>}
-                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.b}</td>}
-                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.h}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.ref || ''}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.l || ''}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.b || ''}</td>}
+                      {!isRepair && <td className="px-4 py-3 text-sm text-gray-700">{item.h || ''}</td>}
                       <td className="px-4 py-3 text-sm text-gray-700">{item.qty}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 font-semibold">
                         {item.amount ? `₹${item.amount.toLocaleString()}` : ''}
@@ -225,7 +722,7 @@ const ViewEstimationScreen = () => {
                   
                   {/* Add Items Row */}
                   <tr className="bg-amber-50">
-                    <td className="px-4 py-3 text-sm font-semibold text-amber-700">{isRepair ? '15' : '16'}</td>
+                    <td className="px-4 py-3 text-sm font-semibold text-amber-700">{items.length + 1}</td>
                     <td className="px-4 py-3 text-sm font-semibold text-amber-800">Add Items</td>
                     <td className="px-4 py-3"></td>
                     <td className="px-4 py-3"></td>
@@ -239,42 +736,42 @@ const ViewEstimationScreen = () => {
                   
                   {/* Total Calculations */}
                   <tr className="bg-blue-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-blue-700">{isRepair ? '16' : '17'}</td>
+                    <td className="px-4 py-3 text-sm text-blue-700">{items.length + 2}</td>
                     <td className="px-4 py-3 text-sm text-blue-800">Total</td>
                     <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-base text-blue-700">₹{calculations.total.toLocaleString()}</td>
                   </tr>
                   
                   <tr className="bg-indigo-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-indigo-700">{isRepair ? '17' : '18'}</td>
+                    <td className="px-4 py-3 text-sm text-indigo-700">{items.length + 3}</td>
                     <td className="px-4 py-3 text-sm text-indigo-800">GST (18%)</td>
                     <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-base text-indigo-700">₹{calculations.gst.toLocaleString()}</td>
                   </tr>
                   
                   <tr className="bg-teal-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-teal-700">{isRepair ? '18' : '19'}</td>
+                    <td className="px-4 py-3 text-sm text-teal-700">{items.length + 4}</td>
                     <td className="px-4 py-3 text-sm text-teal-800">Total (including GST)</td>
                     <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-base text-teal-700">₹{calculations.totalWithGST.toLocaleString()}</td>
                   </tr>
                   
                   <tr className="bg-cyan-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-cyan-700">{isRepair ? '19' : '20'}</td>
+                    <td className="px-4 py-3 text-sm text-cyan-700">{items.length + 5}</td>
                     <td className="px-4 py-3 text-sm text-cyan-800">1% Consulting Engineer Fee for Estimation</td>
                     <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-base text-cyan-700">₹{calculations.consultingFee.toLocaleString()}</td>
                   </tr>
                   
                   <tr className="bg-emerald-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-emerald-700">{isRepair ? '20' : '21'}</td>
+                    <td className="px-4 py-3 text-sm text-emerald-700">{items.length + 6}</td>
                     <td className="px-4 py-3 text-sm text-emerald-800">1% Consulting Engineer Fee for MB</td>
                     <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
                     <td className="px-4 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
                   </tr>
                   
                   <tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
-                    <td className="px-4 py-4 text-green-700">{isRepair ? '21' : '22'}</td>
+                    <td className="px-4 py-4 text-green-700">{items.length + 7}</td>
                     <td className="px-4 py-4 text-green-800 flex items-center gap-2">
                       <TrendingUp size={20} />
                       Grand Total
@@ -316,8 +813,8 @@ const ViewEstimationScreen = () => {
                   className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
                 >
                   <option value="All" className="text-gray-800">All Modes</option>
-                  <option value="Repair" className="text-gray-800">Repair</option>
-                  <option value="Rebore" className="text-gray-800">Rebore</option>
+                  <option value="REPAIR" className="text-gray-800">Repair</option>
+                  <option value="REBORE" className="text-gray-800">Rebore</option>
                 </select>
               </div>
               
@@ -326,6 +823,8 @@ const ViewEstimationScreen = () => {
                 <input
                   type="text"
                   placeholder="Search by Requisition ID or Handpump ID"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="bg-transparent text-white placeholder-white/70 focus:outline-none w-64"
                 />
               </div>
@@ -339,8 +838,8 @@ const ViewEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm font-medium">Total Requisitions</p>
-                <p className="text-2xl font-bold mt-1">24</p>
-                <p className="text-blue-200 text-xs mt-1">↑ 12% this month</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.length}</p>
+                <p className="text-blue-200 text-xs mt-1">With Sanctioned Amount</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <FileText size={24} />
@@ -352,8 +851,8 @@ const ViewEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-teal-100 text-sm font-medium">Repair Estimations</p>
-                <p className="text-2xl font-bold mt-1">15</p>
-                <p className="text-teal-200 text-xs mt-1">↑ 8% this month</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => r.mode === 'REPAIR').length}</p>
+                <p className="text-teal-200 text-xs mt-1">Active Repairs</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <Wrench size={24} />
@@ -365,8 +864,8 @@ const ViewEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium">Rebore Estimations</p>
-                <p className="text-2xl font-bold mt-1">9</p>
-                <p className="text-emerald-200 text-xs mt-1">↑ 15% this month</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => r.mode === 'REBORE').length}</p>
+                <p className="text-emerald-200 text-xs mt-1">Active Rebores</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <Drill size={24} />
@@ -378,8 +877,10 @@ const ViewEstimationScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-amber-100 text-sm font-medium">Total Amount</p>
-                <p className="text-2xl font-bold mt-1">₹3.2L</p>
-                <p className="text-amber-200 text-xs mt-1">↑ 22% this month</p>
+                <p className="text-2xl font-bold mt-1">
+                  ₹{(requisitions.reduce((sum, r) => sum + r.sanctionAmount, 0) / 100000).toFixed(2)}L
+                </p>
+                <p className="text-amber-200 text-xs mt-1">Sanctioned Total</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <TrendingUp size={24} />
@@ -440,11 +941,11 @@ const ViewEstimationScreen = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
-                        requisition.mode === 'Repair' 
+                        requisition.mode === 'REPAIR' 
                           ? 'bg-blue-100 text-blue-800 border border-blue-200' 
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}>
-                        {requisition.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                        {requisition.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
                         {requisition.mode}
                       </span>
                     </td>

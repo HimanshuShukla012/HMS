@@ -52,37 +52,52 @@ const ToastContainer = ({ toasts }: { toasts: Array<{id: number, message: string
   </div>
 );
 
+// API Response Interface
+interface ApiComplaint {
+  ComplaintId: number;
+  H_Id: number;
+  HandpumpId: string;
+  DistrictName: string;
+  BlockName: string;
+  GpName: string;
+  VillageName: string;
+  ComplainantName: string;
+  ContactNumber: string;
+  Landmark: string;
+  IssueCategory: string;
+  UrgencyLevel: string;
+  ResolutionTimelineDays: number;
+  IssueDescription: string;
+  Status: string;
+  CreatedBy: number;
+  CreateddateStr: string;
+}
+
 type HandpumpComplaint = {
   id: number;
   complaintId: string;
   handpumpId: number;
   handpumpCode: string;
   district: string;
-  districtId: number;
   block: string;
-  blockId: number;
   gramPanchayat: string;
-  gramPanchayatId: number;
   village: string;
-  villageId: number;
   handpumpLocation: string;
   complainantName: string;
   complainantContact: string;
   landmark: string;
   category: string;
-  categoryId: number;
   otherCategory: string;
   description: string;
-  urgency: string; // Low, Medium, High, Critical
-  complaintStatus: string; // "Pending", "In Progress", "Resolved", "Closed"
+  urgency: string;
+  complaintStatus: string;
   resolutionDays: number;
   createdDate: string;
   updatedDate: string;
   createdBy: string;
-  handpumpStatus: string; // Working, Not Working, Under Maintenance
+  handpumpStatus: string;
 };
 
-// API response interfaces
 interface DistrictApi {
   DistrictId: number;
   DistrictName: string;
@@ -110,204 +125,22 @@ interface VillageApi {
   VillageName: string;
 }
 
-// Static handpump complaint data
-const STATIC_HANDPUMP_COMPLAINTS: HandpumpComplaint[] = [
-  {
-    id: 1,
-    complaintId: "HP2025001",
-    handpumpId: 101,
-    handpumpCode: "HP001001",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Sarojini Nagar",
-    blockId: 101,
-    gramPanchayat: "Sarojini Nagar",
-    gramPanchayatId: 1001,
-    village: "Rampur",
-    villageId: 10001,
-    handpumpLocation: "Near School",
-    complainantName: "Rajesh Kumar",
-    complainantContact: "9876543210",
-    landmark: "Government Primary School",
-    category: "Handpump Not Working",
-    categoryId: 101,
-    otherCategory: "",
-    description: "Handpump is completely non-functional since last 3 days. No water is coming out despite multiple attempts.",
-    urgency: "Critical",
-    complaintStatus: "Pending",
-    resolutionDays: 1,
-    createdDate: "2025-01-15T09:30:00Z",
-    updatedDate: "2025-01-15T09:30:00Z",
-    createdBy: "Rajesh Kumar",
-    handpumpStatus: "Not Working"
-  },
-  {
-    id: 2,
-    complaintId: "HP2025002",
-    handpumpId: 102,
-    handpumpCode: "HP001002",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Sarojini Nagar",
-    blockId: 101,
-    gramPanchayat: "Sarojini Nagar",
-    gramPanchayatId: 1001,
-    village: "Rampur",
-    villageId: 10001,
-    handpumpLocation: "Village Center",
-    complainantName: "Sunita Devi",
-    complainantContact: "8765432109",
-    landmark: "Community Center",
-    category: "Water Quality Issues",
-    categoryId: 102,
-    otherCategory: "",
-    description: "Water coming from handpump has bad smell and taste. Children are getting sick after drinking this water.",
-    urgency: "High",
-    complaintStatus: "In Progress",
-    resolutionDays: 2,
-    createdDate: "2025-01-14T14:15:00Z",
-    updatedDate: "2025-01-15T10:00:00Z",
-    createdBy: "Sunita Devi",
-    handpumpStatus: "Working"
-  },
-  {
-    id: 3,
-    complaintId: "HP2025003",
-    handpumpId: 103,
-    handpumpCode: "HP001003",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Chinhat",
-    blockId: 102,
-    gramPanchayat: "Chinhat",
-    gramPanchayatId: 1002,
-    village: "Sultanpur",
-    villageId: 10002,
-    handpumpLocation: "Near Temple",
-    complainantName: "Mohan Lal",
-    complainantContact: "7654321098",
-    landmark: "Shiv Temple",
-    category: "Handle/Lever Problems",
-    categoryId: 103,
-    otherCategory: "",
-    description: "Handle of the handpump is broken. It's very difficult to operate and requires excessive force.",
-    urgency: "Medium",
-    complaintStatus: "Pending",
-    resolutionDays: 1,
-    createdDate: "2025-01-13T16:45:00Z",
-    updatedDate: "2025-01-13T16:45:00Z",
-    createdBy: "Mohan Lal",
-    handpumpStatus: "Working"
-  },
-  {
-    id: 4,
-    complaintId: "HP2025004",
-    handpumpId: 104,
-    handpumpCode: "HP002001",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Chinhat",
-    blockId: 102,
-    gramPanchayat: "Chinhat",
-    gramPanchayatId: 1002,
-    village: "Kadipur",
-    villageId: 10003,
-    handpumpLocation: "Main Road",
-    complainantName: "Priya Sharma",
-    complainantContact: "6543210987",
-    landmark: "Bus Stop",
-    category: "Water Flow Issues - Low Pressure",
-    categoryId: 104,
-    otherCategory: "",
-    description: "Water pressure is very low. Takes a long time to fill even a small bucket. This has been happening for the past week.",
-    urgency: "Medium",
-    complaintStatus: "Resolved",
-    resolutionDays: 2,
-    createdDate: "2025-01-12T11:20:00Z",
-    updatedDate: "2025-01-14T15:30:00Z",
-    createdBy: "Priya Sharma",
-    handpumpStatus: "Working"
-  },
-  {
-    id: 5,
-    complaintId: "HP2025005",
-    handpumpId: 105,
-    handpumpCode: "HP002002",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Mohanlalganj",
-    blockId: 103,
-    gramPanchayat: "Mohanlalganj",
-    gramPanchayatId: 1003,
-    village: "Bharosa",
-    villageId: 10004,
-    handpumpLocation: "Near Anganwadi",
-    complainantName: "Ramesh Singh",
-    complainantContact: "5432109876",
-    landmark: "Anganwadi Center",
-    category: "Platform Damage/Missing",
-    categoryId: 106,
-    otherCategory: "",
-    description: "Platform around the handpump is damaged and broken. Water is not draining properly and creating muddy area.",
-    urgency: "Low",
-    complaintStatus: "Pending",
-    resolutionDays: 5,
-    createdDate: "2025-01-11T08:00:00Z",
-    updatedDate: "2025-01-11T08:00:00Z",
-    createdBy: "Ramesh Singh",
-    handpumpStatus: "Working"
-  },
-  {
-    id: 6,
-    complaintId: "HP2025006",
-    handpumpId: 106,
-    handpumpCode: "HP003001",
-    district: "Lucknow",
-    districtId: 1,
-    block: "Mohanlalganj",
-    blockId: 103,
-    gramPanchayat: "Mohanlalganj",
-    gramPanchayatId: 1003,
-    village: "Bharosa",
-    villageId: 10004,
-    handpumpLocation: "Market Area",
-    complainantName: "Kavita Singh",
-    complainantContact: "4321098765",
-    landmark: "Weekly Market",
-    category: "Other",
-    categoryId: 0,
-    otherCategory: "Strange noise while pumping",
-    description: "Handpump makes very loud screeching noise when operated. The noise can be heard from far distance.",
-    urgency: "Low",
-    complaintStatus: "Closed",
-    resolutionDays: 7,
-    createdDate: "2025-01-10T12:30:00Z",
-    updatedDate: "2025-01-12T14:00:00Z",
-    createdBy: "Kavita Singh",
-    handpumpStatus: "Working"
-  }
-];
-
 const ManageHandpumpComplaints = () => {
-  // Use the same user info hook as AddBeneficiary
   const { userId, role } = useUserInfo();
-  const navigate = useNavigate(); // Add this line
+  const navigate = useNavigate();
   
   const toast = useToast();
   const modalRef = useRef<HTMLDivElement>(null);
   
-  // State management
   const [search, setSearch] = useState("");
   const [complaints, setComplaints] = useState<HandpumpComplaint[]>([]);
   const [loading, setLoading] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<HandpumpComplaint | null>(null);
   
-  // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
   const [rowsPerPage, setRowsPerPage] = useState(25);
   
-  // Location hierarchy
   const [districts, setDistricts] = useState<DistrictApi[]>([]);
   const [selectedDistrictId, setSelectedDistrictId] = useState<number | null>(null);
   const [blocks, setBlocks] = useState<BlockApi[]>([]);
@@ -317,62 +150,30 @@ const ManageHandpumpComplaints = () => {
   const [villages, setVillages] = useState<VillageApi[]>([]);
   const [selectedVillageId, setSelectedVillageId] = useState<number | null>(null);
   
-  // Filter states
   const [filterStatus, setFilterStatus] = useState("");
   const [filterUrgency, setFilterUrgency] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
 
-  // Auth state for user info
   const [authToken, setAuthToken] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [userBlockId, setUserBlockId] = useState<number | null>(null);
-  const [userGramPanchayatId, setUserGramPanchayatId] = useState<number | null>(null);
 
-  // Initialize auth data from localStorage (one-time on mount)
+  // Initialize auth data
   useEffect(() => {
     const token = localStorage.getItem("authToken") || null;
-    const role = localStorage.getItem("role") || null;
-    const blockId = localStorage.getItem("blockId");
-    const gramPanchayatId = localStorage.getItem("gramPanchayatId");
-    
     setAuthToken(token);
-    setUserRole(role);
-    setUserBlockId(blockId ? Number(blockId) : null);
-    setUserGramPanchayatId(gramPanchayatId ? Number(gramPanchayatId) : null);
   }, []);
 
-  // Load static data when component mounts
+  // Load data when component mounts
   useEffect(() => {
-    if (userId) {
+    if (userId && authToken) {
       fetchDistricts();
-      loadStaticComplaints();
+      fetchComplaints();
     }
-  }, [userId]);
+  }, [userId, authToken]);
 
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [search, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, filterStatus, filterUrgency, filterCategory]);
-
-  const loadStaticComplaints = () => {
-    setLoading(true);
-    
-    // Simulate API loading delay
-    setTimeout(() => {
-      let filteredComplaints = [...STATIC_HANDPUMP_COMPLAINTS];
-      
-      // Apply role-based filtering
-      if (userRole?.toLowerCase() === "block officer" && userBlockId !== null) {
-        filteredComplaints = filteredComplaints.filter((c) => c.blockId === userBlockId);
-      } else if (userRole?.toLowerCase() === "gram panchayat" && userGramPanchayatId !== null) {
-        filteredComplaints = filteredComplaints.filter((c) => c.gramPanchayatId === userGramPanchayatId);
-      }
-      
-      setComplaints(filteredComplaints);
-      setLoading(false);
-      toast.success(`Loaded ${filteredComplaints.length} handpump complaint records`);
-    }, 1000);
-  };
 
   useEffect(() => {
     if (selectedDistrictId && userId) {
@@ -401,7 +202,6 @@ const ManageHandpumpComplaints = () => {
     }
   }, [selectedBlockId, selectedGramPanchayatId]);
 
-  // Handle modal clicks
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       if (showViewModal && modalRef.current && !modalRef.current.contains(e.target as Node)) {
@@ -413,17 +213,95 @@ const ManageHandpumpComplaints = () => {
     return () => document.removeEventListener("mousedown", handleOutsideClick);
   }, [showViewModal]);
 
-  // Fetch districts (mock function)
+  // Transform API data to internal format
+  const transformApiData = (apiData: ApiComplaint[]): HandpumpComplaint[] => {
+    return apiData.map((item) => ({
+      id: item.ComplaintId,
+      complaintId: item.ComplaintId.toString(),
+      handpumpId: item.H_Id,
+      handpumpCode: item.HandpumpId,
+      district: item.DistrictName,
+      block: item.BlockName,
+      gramPanchayat: item.GpName,
+      village: item.VillageName,
+      handpumpLocation: item.Landmark,
+      complainantName: item.ComplainantName,
+      complainantContact: item.ContactNumber,
+      landmark: item.Landmark,
+      category: item.IssueCategory,
+      otherCategory: "",
+      description: item.IssueDescription,
+      urgency: item.UrgencyLevel || "Medium",
+      complaintStatus: item.Status === "Open" ? "Pending" : item.Status,
+      resolutionDays: item.ResolutionTimelineDays,
+      createdDate: parseDateString(item.CreateddateStr),
+      updatedDate: parseDateString(item.CreateddateStr),
+      createdBy: item.ComplainantName,
+      handpumpStatus: "Working"
+    }));
+  };
+
+  // Parse date string from DD-MM-YYYY to ISO format
+  const parseDateString = (dateStr: string): string => {
+    if (!dateStr) return new Date().toISOString();
+    
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [day, month, year] = parts;
+      return new Date(`${year}-${month}-${day}`).toISOString();
+    }
+    return new Date().toISOString();
+  };
+
+  // Fetch complaints from API
+  const fetchComplaints = async () => {
+    if (!userId || !authToken) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpComplaintsList?UserId=${userId}`,
+        {
+          method: 'GET',
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      
+      if (data.Status && data.Data) {
+        const transformedData = transformApiData(data.Data);
+        setComplaints(transformedData);
+        toast.success(`Loaded ${transformedData.length} handpump complaint records`);
+      } else {
+        toast.error(data.Message || 'Failed to fetch complaints');
+        setComplaints([]);
+      }
+    } catch (error) {
+      console.error('Error fetching complaints:', error);
+      toast.error('Failed to load complaints. Please try again.');
+      setComplaints([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Fetch districts (mock - replace with actual API)
   const fetchDistricts = async () => {
     if (!userId) return;
-    // Mock data - replace with actual API call
     setDistricts([{ DistrictId: 1, DistrictName: "Lucknow" }]);
   };
 
-  // Fetch blocks (mock function)
+  // Fetch blocks (mock - replace with actual API)
   const fetchBlocks = async (districtId: number) => {
     if (!userId) return;
-    // Mock data - replace with actual API call
     setBlocks([
       { BlockId: 101, DistrictId: 1, BlockName: "Sarojini Nagar" },
       { BlockId: 102, DistrictId: 1, BlockName: "Chinhat" },
@@ -431,10 +309,9 @@ const ManageHandpumpComplaints = () => {
     ]);
   };
 
-  // Fetch gram panchayats (mock function)
+  // Fetch gram panchayats (mock - replace with actual API)
   const fetchGramPanchayats = async (blockId: number) => {
     if (!userId) return;
-    // Mock data - replace with actual API call
     const mockData = [
       { Id: 1001, BlockId: 101, GramPanchayatName: "Sarojini Nagar" },
       { Id: 1002, BlockId: 102, GramPanchayatName: "Chinhat" },
@@ -443,9 +320,8 @@ const ManageHandpumpComplaints = () => {
     setGramPanchayats(mockData.filter(gp => gp.BlockId === blockId));
   };
 
-  // Fetch villages (mock function)
+  // Fetch villages (mock - replace with actual API)
   const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    // Mock data - replace with actual API call
     const mockData = [
       { Id: 10001, VillageName: "Rampur" },
       { Id: 10002, VillageName: "Sultanpur" },
@@ -461,18 +337,16 @@ const ManageHandpumpComplaints = () => {
   };
 
   const handleTakeAction = (complaint: HandpumpComplaint) => {
-    // Use React Router navigation instead of window.location.href
     const params = new URLSearchParams({
       complaintId: complaint.complaintId,
       handpumpCode: complaint.handpumpCode,
       handpumpId: complaint.handpumpId.toString(),
-      villageId: complaint.villageId.toString(),
+      village: complaint.village,
       category: complaint.category,
       urgency: complaint.urgency
     });
     
     navigate(`/gp/raise-requisition?${params.toString()}`);
-    
     toast.info(`Redirecting to Raise Requisition for Complaint #${complaint.complaintId}`);
   };
 
@@ -574,12 +448,10 @@ const ManageHandpumpComplaints = () => {
     const matchesStatus = !filterStatus || c.complaintStatus === filterStatus;
     const matchesUrgency = !filterUrgency || c.urgency === filterUrgency;
     const matchesCategory = !filterCategory || c.category === filterCategory;
-    const matchesLocation = !selectedVillageId || c.villageId === selectedVillageId;
     
-    return matchesSearch && matchesStatus && matchesUrgency && matchesCategory && matchesLocation;
+    return matchesSearch && matchesStatus && matchesUrgency && matchesCategory;
   });
 
-  // Pagination calculations
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
   const endIndex = startIndex + rowsPerPage;
@@ -639,10 +511,8 @@ const ManageHandpumpComplaints = () => {
   const getUrgencyBadge = (urgency: string) => {
     const baseClasses = "inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md border";
     switch (urgency) {
-      case "Critical":
-        return `${baseClasses} text-red-700 bg-red-100 border-red-200`;
       case "High":
-        return `${baseClasses} text-orange-700 bg-orange-100 border-orange-200`;
+        return `${baseClasses} text-red-700 bg-red-100 border-red-200`;
       case "Medium":
         return `${baseClasses} text-yellow-700 bg-yellow-100 border-yellow-200`;
       case "Low":
@@ -664,15 +534,14 @@ const ManageHandpumpComplaints = () => {
 
   const getUrgencyIcon = (urgency: string) => {
     switch (urgency) {
-      case "Critical": return <AlertTriangle size={14} />;
-      case "High": return <AlertCircle size={14} />;
+      case "High": return <AlertTriangle size={14} />;
       case "Medium": return <Clock size={14} />;
       case "Low": return <CheckCircle size={14} />;
       default: return <AlertCircle size={14} />;
     }
   };
 
-  const uniqueCategories = [...new Set(STATIC_HANDPUMP_COMPLAINTS.map(c => c.category))];
+  const uniqueCategories = [...new Set(complaints.map(c => c.category))];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
@@ -810,7 +679,6 @@ const ManageHandpumpComplaints = () => {
                   disabled={loading}
                 >
                   <option value="" className="text-gray-800">All Urgency Levels</option>
-                  <option value="Critical" className="text-gray-800">Critical</option>
                   <option value="High" className="text-gray-800">High</option>
                   <option value="Medium" className="text-gray-800">Medium</option>
                   <option value="Low" className="text-gray-800">Low</option>
@@ -894,7 +762,7 @@ const ManageHandpumpComplaints = () => {
 
         {/* Stats Cards */}
         {complaints.length > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
             <div className="group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
@@ -923,21 +791,6 @@ const ManageHandpumpComplaints = () => {
               </div>
             </div>
 
-            <div className="group bg-gradient-to-br from-blue-500 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium">In Progress</p>
-                  <p className="text-2xl font-bold mt-1">
-                    {filteredData.filter(c => c.complaintStatus === "In Progress").length}
-                  </p>
-                  <p className="text-blue-200 text-xs mt-1">Being resolved</p>
-                </div>
-                <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Settings size={24} />
-                </div>
-              </div>
-            </div>
-
             <div className="group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
@@ -956,9 +809,9 @@ const ManageHandpumpComplaints = () => {
             <div className="group bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-red-100 text-sm font-medium">Critical</p>
+                  <p className="text-red-100 text-sm font-medium">High Priority</p>
                   <p className="text-2xl font-bold mt-1">
-                    {filteredData.filter(c => c.urgency === "Critical").length}
+                    {filteredData.filter(c => c.urgency === "High").length}
                   </p>
                   <p className="text-red-200 text-xs mt-1">Urgent action</p>
                 </div>

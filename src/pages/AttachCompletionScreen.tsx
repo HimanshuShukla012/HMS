@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Filter, Search, Upload, FileText, Calendar, Eye, Wrench, Drill, TrendingUp, CheckCircle, X, Edit, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Filter, Search, Upload, FileText, Calendar, Eye, Wrench, Drill, TrendingUp, CheckCircle, X, Edit, AlertCircle, Loader } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
 
 const AttachCompletionScreen = () => {
+  const { userId, loading: userLoading, error: userError } = useUserInfo();
   const [filterVillage, setFilterVillage] = useState('All');
   const [filterHandpumpId, setFilterHandpumpId] = useState('');
   const [filterRequisitionId, setFilterRequisitionId] = useState('');
@@ -11,62 +13,106 @@ const AttachCompletionScreen = () => {
   const [showPreview, setShowPreview] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [completionId, setCompletionId] = useState('');
+  const [completedRequisitions, setCompletedRequisitions] = useState([]);
   
   // Form states
   const [materialBill, setMaterialBill] = useState(null);
+  const [materialBillBase64, setMaterialBillBase64] = useState('');
   const [totalMaterialCost, setTotalMaterialCost] = useState('');
   const [totalLabourCost, setTotalLabourCost] = useState('');
   const [dailyWageRate, setDailyWageRate] = useState('');
   const [noOfMandays, setNoOfMandays] = useState('');
 
-  // Sample data for requisitions
-  const requisitions = [
-    {
-      id: 'REQ001',
-      handpumpId: 'HP001',
-      village: 'Rampur',
-      mode: 'Repair',
-      requisitionDate: '2024-03-15',
-      sanctionDate: '2024-03-18',
-      sanctionAmount: '₹5,140',
-      status: 'Sanctioned'
-    },
-    {
-      id: 'REQ002',
-      handpumpId: 'HP002',
-      village: 'Shyampur',
-      mode: 'Rebore',
-      requisitionDate: '2024-03-16',
-      sanctionDate: '2024-03-20',
-      sanctionAmount: '₹21,947.73',
-      status: 'Sanctioned'
-    },
-    {
-      id: 'REQ003',
-      handpumpId: 'HP003',
-      village: 'Govindpur',
-      mode: 'Repair',
-      requisitionDate: '2024-03-17',
-      sanctionDate: '2024-03-21',
-      sanctionAmount: '₹4,890',
-      status: 'Sanctioned'
-    },
-    {
-      id: 'REQ004',
-      handpumpId: 'HP004',
-      village: 'Krishnapur',
-      mode: 'Rebore',
-      requisitionDate: '2024-03-18',
-      sanctionDate: '2024-03-22',
-      sanctionAmount: '₹19,875.50',
-      status: 'Sanctioned'
-    }
-  ];
+  // API states
+  const [requisitions, setRequisitions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [villages, setVillages] = useState(['All']);
 
-  const villages = ['All', 'Rampur', 'Shyampur', 'Govindpur', 'Krishnapur'];
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Get token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
+
+  // Fetch requisitions data
+  useEffect(() => {
+    if (userLoading) return;
+    
+    if (!userId) {
+      setError('User ID not found. Please login again.');
+      setLoading(false);
+      return;
+    }
+    
+    const fetchRequisitions = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+
+        const authToken = getAuthToken();
+        
+        if (!authToken) {
+          throw new Error('Authentication token not found. Please login again.');
+        }
+
+        const response = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        if (!response.ok) throw new Error('Failed to fetch requisitions');
+        const data = await response.json();
+
+        if (data && data.Data && Array.isArray(data.Data)) {
+          // Transform API data - only show sanctioned requisitions without completion
+          // A requisition is considered completed if it has TotalMBAmount (Material Book submitted)
+          const transformedData = data.Data
+            .filter(req => req.OrderId && !req.TotalMBAmount)
+            .map(req => ({
+              id: req.RequisitionId?.toString() || 'N/A',
+              handpumpId: req.HandpumpId || 'N/A',
+              hpId: req.HPId, // Add HPId field
+              village: req.Village || 'Unknown',
+              mode: req.RequisitionType || 'Unknown',
+              requisitionDate: req.RequisitionDate || new Date().toISOString(),
+              sanctionDate: req.SanctionDate || req.RequisitionDate || new Date().toISOString(),
+              sanctionAmount: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
+              status: 'Sanctioned',
+              orderId: req.OrderId,
+              requisitionTypeId: req.RequisitionTypeId,
+              sanctionAmountRaw: req.SanctionAmount || 0
+            }));
+
+          setRequisitions(transformedData);
+
+          // Extract unique villages
+          const uniqueVillages = ['All', ...new Set(transformedData.map(r => r.village).filter(v => v !== 'Unknown'))];
+          setVillages(uniqueVillages);
+        } else {
+          setRequisitions([]);
+        }
+        
+        setLoading(false);
+      } catch (err) {
+        console.error('Error fetching requisitions:', err);
+        setError(err.message);
+        setLoading(false);
+      }
+    };
+
+    fetchRequisitions();
+  }, [userId, userLoading]);
 
   // Calculate number of mandays
-  React.useEffect(() => {
+  useEffect(() => {
     if (totalLabourCost && dailyWageRate) {
       const labour = parseFloat(totalLabourCost);
       const wage = parseFloat(dailyWageRate);
@@ -95,6 +141,7 @@ const AttachCompletionScreen = () => {
     setShowCompletionModal(true);
     // Reset form
     setMaterialBill(null);
+    setMaterialBillBase64('');
     setTotalMaterialCost('');
     setTotalLabourCost('');
     setDailyWageRate('');
@@ -103,21 +150,280 @@ const AttachCompletionScreen = () => {
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
-    setMaterialBill(file);
-  };
-
-  const handleSubmit = () => {
-    if (materialBill && totalMaterialCost && totalLabourCost && dailyWageRate) {
-      setShowPreview(true);
+    if (file) {
+      console.log('=== FILE UPLOAD STARTED ===');
+      console.log('File Name:', file.name);
+      console.log('File Type:', file.type);
+      console.log('File Size:', file.size, 'bytes');
+      
+      setMaterialBill(file);
+      
+      // Convert file to base64 with proper prefix based on file type
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        console.log('=== FILE CONVERSION COMPLETE ===');
+        // Get the base64 result from FileReader
+        const base64Result = reader.result;
+        console.log('FileReader Result Length:', base64Result.length);
+        
+        // Extract just the base64 data (remove the data:*/*;base64, prefix)
+        const base64Data = base64Result.split(',')[1];
+        console.log('Base64 Data Length (without prefix):', base64Data.length);
+        console.log('Base64 Data Size (KB):', (base64Data.length / 1024).toFixed(2));
+        console.log('Base64 Data Size (MB):', (base64Data.length / 1024 / 1024).toFixed(2));
+        
+        // Check file size (warn if > 5MB base64)
+        if (base64Data.length > 5 * 1024 * 1024) {
+          console.warn('⚠️ WARNING: File is large and may cause API issues');
+          alert('Warning: This file is quite large. If submission fails, try using a smaller file.');
+        }
+        
+        // Determine the prefix based on file type
+        let prefixedBase64 = '';
+        const fileType = file.type.toLowerCase();
+        
+        if (fileType.startsWith('image/')) {
+          // For images - use proper data URI format
+          prefixedBase64 = `data:${fileType};base64,${base64Data}`;
+          console.log('File identified as IMAGE:', fileType);
+        } else if (fileType === 'application/pdf') {
+          // For PDF files - use proper data URI format
+          prefixedBase64 = `data:application/pdf;base64,${base64Data}`;
+          console.log('File identified as PDF');
+        } else if (fileType.startsWith('video/')) {
+          // For videos
+          prefixedBase64 = `data:${fileType};base64,${base64Data}`;
+          console.log('File identified as VIDEO:', fileType);
+        } else {
+          // Default: treat as PDF with proper data URI
+          prefixedBase64 = `data:application/pdf;base64,${base64Data}`;
+          console.log('File identified as UNKNOWN - treating as PDF');
+        }
+        
+        console.log('File type:', fileType);
+        console.log('Prefix format:', prefixedBase64.substring(0, 50));
+        console.log('Final Base64 length:', prefixedBase64.length);
+        console.log('First 100 chars:', prefixedBase64.substring(0, 100));
+        console.log('Last 50 chars:', prefixedBase64.substring(prefixedBase64.length - 50));
+        
+        setMaterialBillBase64(prefixedBase64);
+        console.log('=== FILE CONVERSION SAVED TO STATE ===');
+      };
+      
+      reader.onerror = (error) => {
+        console.error('=== FILE READER ERROR ===');
+        console.error('Error:', error);
+      };
+      
+      reader.readAsDataURL(file);
     }
   };
 
-  const handleConfirm = () => {
-    const randomId = 'COMP' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    setCompletionId(randomId);
-    setShowPreview(false);
-    setShowCompletionModal(false);
-    setShowSuccessModal(true);
+  const handleSubmit = () => {
+    console.log('=== SUBMIT BUTTON CLICKED ===');
+    console.log('Material Bill:', materialBill?.name);
+    console.log('Total Material Cost:', totalMaterialCost);
+    console.log('Total Labour Cost:', totalLabourCost);
+    console.log('Daily Wage Rate:', dailyWageRate);
+    console.log('No of Mandays:', noOfMandays);
+    
+    if (materialBill && totalMaterialCost && totalLabourCost && dailyWageRate) {
+      console.log('All fields valid - showing preview');
+      setShowPreview(true);
+    } else {
+      console.warn('Some fields are missing:', {
+        hasMaterialBill: !!materialBill,
+        hasTotalMaterialCost: !!totalMaterialCost,
+        hasTotalLabourCost: !!totalLabourCost,
+        hasDailyWageRate: !!dailyWageRate
+      });
+    }
+  };
+
+  const handleConfirm = async () => {
+    try {
+      setSubmitting(true);
+      console.log('=== STARTING SUBMISSION PROCESS ===');
+      
+      const authToken = getAuthToken();
+      console.log('Auth Token present:', !!authToken);
+      console.log('Auth Token length:', authToken ? authToken.length : 0);
+      
+      if (!authToken) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
+      // Prepare the request body
+      const requestBody = {
+        RequisitionId: parseInt(selectedRequisition.id),
+        Handpump_Id: selectedRequisition.hpId || 0,
+        SanctionAmount: selectedRequisition.sanctionAmountRaw || 0,
+        TotalMaterialCost: parseFloat(totalMaterialCost),
+        TotalLabourCost: parseFloat(totalLabourCost),
+        DailyWageRate: parseFloat(dailyWageRate),
+        UpdatedBy: userId,
+        MaterialBillfileBase64String: materialBillBase64,
+        MaterialBillfilePath: materialBill.name
+      };
+
+      console.log('=== REQUEST BODY DETAILS ===');
+      console.log('Full Request Body:', {
+        ...requestBody,
+        MaterialBillfileBase64String: requestBody.MaterialBillfileBase64String.substring(0, 100) + '...(truncated)'
+      });
+      console.log('RequisitionId:', requestBody.RequisitionId, '(Type:', typeof requestBody.RequisitionId + ')');
+      console.log('Handpump_Id:', requestBody.Handpump_Id, '(Type:', typeof requestBody.Handpump_Id + ')');
+      console.log('SanctionAmount:', requestBody.SanctionAmount, '(Type:', typeof requestBody.SanctionAmount + ')');
+      console.log('UpdatedBy:', requestBody.UpdatedBy, '(Type:', typeof requestBody.UpdatedBy + ')');
+      console.log('Base64 String Length:', requestBody.MaterialBillfileBase64String.length);
+      console.log('Base64 String Prefix:', requestBody.MaterialBillfileBase64String.substring(0, 50));
+
+      console.log('=== MAKING API REQUEST ===');
+      console.log('API Endpoint:', `${API_BASE}/HandpumpRequisition/InsertMatrialBookDetails`);
+      console.log('Request Headers:', {
+        'accept': '*/*',
+        'Authorization': 'Bearer ' + authToken.substring(0, 20) + '...',
+        'Content-Type': 'application/json'
+      });
+
+      const response = await fetch(
+        `${API_BASE}/HandpumpRequisition/InsertMatrialBookDetails`,
+        {
+          method: 'POST',
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody)
+        }
+      );
+
+      console.log('=== RESPONSE RECEIVED ===');
+      console.log('Response Status:', response.status);
+      console.log('Response Status Text:', response.statusText);
+      console.log('Response OK:', response.ok);
+      console.log('Response Headers:', {
+        'content-type': response.headers.get('content-type'),
+        'content-length': response.headers.get('content-length')
+      });
+
+      const responseText = await response.text();
+      console.log('=== RESPONSE BODY ===');
+      console.log('Response Text Length:', responseText.length);
+      console.log('Response Text:', responseText);
+
+      if (!response.ok) {
+        console.error('=== API ERROR RESPONSE ===');
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+          console.error('Parsed Error Data:', errorData);
+        } catch (e) {
+          console.error('Could not parse error response as JSON');
+          errorData = { Message: responseText };
+        }
+        throw new Error(errorData.Message || errorData.title || 'Failed to submit completion details');
+      }
+
+      console.log('=== PARSING SUCCESS RESPONSE ===');
+      const data = JSON.parse(responseText);
+      console.log('Parsed Response Data:', data);
+      console.log('Response Data Structure:', Object.keys(data));
+      console.log('Response Data.Data:', data.Data);
+      
+      // Set completion ID from response or generate one
+      const newCompletionId = data.Data?.CompletionId || 'COMP' + Math.random().toString(36).substr(2, 6).toUpperCase();
+      console.log('Generated/Received Completion ID:', newCompletionId);
+      setCompletionId(newCompletionId);
+      
+      console.log('=== CLOSING MODALS ===');
+      setShowPreview(false);
+      setShowCompletionModal(false);
+      setShowSuccessModal(true);
+      
+      console.log('=== REFRESHING REQUISITIONS LIST ===');
+      console.log('Using userId from hook:', userId);
+      
+      if (userId) {
+        // Wait a bit for the API to finish processing
+        console.log('Waiting 1 second for API processing...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Re-fetch requisitions using userId from hook
+        console.log('Fetching updated requisitions...');
+        const reqResponse = await fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
+          }
+        );
+
+        console.log('Refresh Response Status:', reqResponse.status);
+        console.log('Refresh Response OK:', reqResponse.ok);
+
+        if (reqResponse.ok) {
+          const reqData = await reqResponse.json();
+          console.log('Refreshed Data:', reqData);
+          console.log('Refreshed Data.Data length:', reqData?.Data?.length);
+          
+          if (reqData && reqData.Data && Array.isArray(reqData.Data)) {
+            console.log('Raw API Data (first 3 items):', reqData.Data.slice(0, 3));
+            
+            const transformedData = reqData.Data
+              .filter(req => {
+                const isFiltered = req.OrderId && !req.TotalMBAmount;
+                console.log(`Requisition ${req.RequisitionId}: OrderId=${req.OrderId}, TotalMBAmount=${req.TotalMBAmount}, Filtered=${isFiltered}`);
+                return isFiltered;
+              })
+              .map(req => ({
+                id: req.RequisitionId?.toString() || 'N/A',
+                handpumpId: req.HandpumpId || 'N/A',
+                village: req.Village || 'Unknown',
+                mode: req.RequisitionType || 'Unknown',
+                requisitionDate: req.RequisitionDate || new Date().toISOString(),
+                sanctionDate: req.SanctionDate || req.RequisitionDate || new Date().toISOString(),
+                sanctionAmount: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
+                status: 'Sanctioned',
+                orderId: req.OrderId,
+                requisitionTypeId: req.RequisitionTypeId,
+                sanctionAmountRaw: req.SanctionAmount || 0
+              }));
+            console.log('Transformed Data Count:', transformedData.length);
+            console.log('Transformed Data:', transformedData);
+            console.log('Previous requisitions count:', requisitions.length);
+            console.log('New requisitions count:', transformedData.length);
+            
+            if (requisitions.length !== transformedData.length) {
+              console.log('✅ List updated! Requisition removed from list.');
+            } else {
+              console.log('⚠️ List count unchanged. The requisition might still be pending API update.');
+            }
+            
+            setRequisitions(transformedData);
+          }
+        } else {
+          console.error('Failed to refresh requisitions:', reqResponse.status);
+          const errorText = await reqResponse.text();
+          console.error('Refresh Error Response:', errorText);
+        }
+      } else {
+        console.error('UserId not available for refresh');
+      }
+      
+      console.log('=== SUBMISSION COMPLETE ===');
+      setSubmitting(false);
+    } catch (err) {
+      console.error('=== SUBMISSION ERROR ===');
+      console.error('Error Type:', err.name);
+      console.error('Error Message:', err.message);
+      console.error('Error Stack:', err.stack);
+      alert(`Error: ${err.message}`);
+      setSubmitting(false);
+    }
   };
 
   const handleEdit = () => {
@@ -134,6 +440,43 @@ const AttachCompletionScreen = () => {
     setShowSuccessModal(false);
     setCompletionId('');
   };
+
+  // Calculate stats
+  const stats = {
+    totalSanctioned: requisitions.length,
+    totalAmount: requisitions.reduce((sum, r) => sum + r.sanctionAmountRaw, 0)
+  };
+
+  // Show loading state
+  if (userLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
+          <p className="text-gray-600 text-lg">Loading requisitions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || userError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error || userError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
@@ -201,13 +544,13 @@ const AttachCompletionScreen = () => {
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           <div className="group bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm font-medium">Total Sanctioned</p>
-                <p className="text-2xl font-bold mt-1">16</p>
-                <p className="text-blue-200 text-xs mt-1">↑ 8% this month</p>
+                <p className="text-2xl font-bold mt-1">{stats.totalSanctioned}</p>
+                <p className="text-blue-200 text-xs mt-1">Pending Completion</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <CheckCircle size={24} />
@@ -215,38 +558,13 @@ const AttachCompletionScreen = () => {
             </div>
           </div>
           
-          <div className="group bg-gradient-to-br from-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-100 text-sm font-medium">Completed</p>
-                <p className="text-2xl font-bold mt-1">8</p>
-                <p className="text-teal-200 text-xs mt-1">↑ 12% this month</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <FileText size={24} />
-              </div>
-            </div>
-          </div>
-          
-          <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-100 text-sm font-medium">Pending</p>
-                <p className="text-2xl font-bold mt-1">8</p>
-                <p className="text-amber-200 text-xs mt-1">↓ 5% this month</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <AlertCircle size={24} />
-              </div>
-            </div>
-          </div>
           
           <div className="group bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium">Total Amount</p>
-                <p className="text-2xl font-bold mt-1">₹2.8L</p>
-                <p className="text-emerald-200 text-xs mt-1">↑ 15% this month</p>
+                <p className="text-2xl font-bold mt-1">₹{(stats.totalAmount / 100000).toFixed(2)}L</p>
+                <p className="text-emerald-200 text-xs mt-1">Sanctioned total</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <TrendingUp size={24} />
@@ -276,6 +594,9 @@ const AttachCompletionScreen = () => {
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
                     Handpump ID
+                  </th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    Village
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
                     Requisition Mode
@@ -309,12 +630,15 @@ const AttachCompletionScreen = () => {
                       <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-sm font-medium text-gray-700">{requisition.village}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
-                        requisition.mode === 'Repair' 
+                        requisition.mode === 'REPAIR' 
                           ? 'bg-blue-100 text-blue-800 border border-blue-200' 
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}>
-                        {requisition.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                        {requisition.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
                         {requisition.mode}
                       </span>
                     </td>
@@ -431,7 +755,7 @@ const AttachCompletionScreen = () => {
                   />
                   <label 
                     htmlFor="material-bill" 
-                    className="cursor-pointer bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors"
+                    className="cursor-pointer bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors inline-block"
                   >
                     Choose File
                   </label>
@@ -590,17 +914,28 @@ const AttachCompletionScreen = () => {
               <div className="flex justify-between pt-4 border-t">
                 <button
                   onClick={handleEdit}
-                  className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 transition-all duration-300 shadow-lg"
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-6 py-3 bg-gray-500 text-white font-semibold rounded-lg hover:bg-gray-600 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit size={16} />
                   Edit Details
                 </button>
                 <button
                   onClick={handleConfirm}
-                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg"
+                  disabled={submitting}
+                  className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <CheckCircle size={16} />
-                  Confirm Submission
+                  {submitting ? (
+                    <>
+                      <Loader size={16} className="animate-spin" />
+                      Submitting...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Confirm Submission
+                    </>
+                  )}
                 </button>
               </div>
             </div>

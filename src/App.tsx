@@ -61,13 +61,17 @@ function App() {
               <Route path="manage-handpump" element={<ManageHandpump />} />
               <Route path="gmas" element={<GMAS />} />
               <Route path="reporting" element={<MISReportingPage />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="view-closure" element={<ViewClosureUpdatesScreen />} />
+              <Route path="manage-handpump" element={<ManageHandpump />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
             </Route>
           </Route>
 
           {/* Gram Panchayat protected routes - Updated to include new role */}
           <Route element={<PrivateRoute allowedRoles={["gram panchayat", "Gram_Panchayat_Sachiv"]} />}>
             <Route path="/gp/*" element={<DashboardLayout role="gp" />}>
-              <Route path="dashboard" element={<GPDashboard />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="raise-requisition" element={<RaiseRequisition />} />
               <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
               <Route path="pump-house-master" element={<PumpHouseMaster />} />
@@ -91,7 +95,7 @@ function App() {
           {/* Assistant Development Officer protected routes */}
           <Route element={<PrivateRoute allowedRoles={["Assistant_Development_Officer"]} />}>
             <Route path="/ado/*" element={<DashboardLayout role="assistant_development_officer" />}>
-              <Route path="dashboard" element={<div>ADO Dashboard - Coming Soon</div>} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="review-requisitions" element={<div>Review Requisitions - Coming Soon</div>} />
               <Route path="approve-estimates" element={<div>Approve Estimates - Coming Soon</div>} />
               <Route path="monitor-progress" element={<div>Monitor Progress - Coming Soon</div>} />
@@ -99,13 +103,17 @@ function App() {
               <Route path="inspection-reports" element={<div>Inspection Reports - Coming Soon</div>} />
               <Route path="area-management" element={<div>Area Management - Coming Soon</div>} />
               <Route path="reporting" element={<div>ADO Reports - Coming Soon</div>} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="view-closure" element={<ViewClosureUpdatesScreen />} />
+              <Route path="manage-handpump" element={<ManageHandpump />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
             </Route>
           </Route>
 
           {/* District Panchayati Raj Officer protected routes */}
           <Route element={<PrivateRoute allowedRoles={["District_Panchayati_Raj_Officer"]} />}>
             <Route path="/dpro/*" element={<DashboardLayout role="district_panchayati_raj_officer" />}>
-              <Route path="dashboard" element={<div>DPRO Dashboard - Coming Soon</div>} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="block-management" element={<div>Block Management - Coming Soon</div>} />
               <Route path="gp-performance" element={<div>GP Performance - Coming Soon</div>} />
               <Route path="resource-allocation" element={<div>Resource Allocation - Coming Soon</div>} />
@@ -117,6 +125,10 @@ function App() {
               <Route path="performance-metrics" element={<div>Performance Metrics - Coming Soon</div>} />
               <Route path="reporting" element={<div>DPRO Reports - Coming Soon</div>} />
               <Route path="gmas" element={<GMAS />} />
+              <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
+              <Route path="view-closure" element={<ViewClosureUpdatesScreen />} />
+              <Route path="manage-handpump" element={<ManageHandpump />} />
+              <Route path="manage-complaint" element={<ManageComplaint />} />
             </Route>
           </Route>
 
@@ -126,7 +138,7 @@ function App() {
               path="/consultingengineer/*"
               element={<DashboardLayout role="consultingengineer" />}
             >
-              <Route path="dashboard" element={<consultingengineerDashboard />} />
+              <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="mb-visit-report" element={<MBVisitReportScreen />} />
               <Route path="create-estimate" element={<CreateEstimationScreen />} />
             </Route>

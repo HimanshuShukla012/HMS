@@ -1,4 +1,3 @@
-// src/components/LodgeHandpumpComplaint.tsx
 import React, { useState, useEffect } from "react";
 import clsx from "clsx";
 import { useUserInfo } from '../utils/userInfo';
@@ -31,25 +30,30 @@ const HANDPUMP_COMPLAINT_CATEGORIES: { label: string; days: number }[] = [
 ];
 
 interface District {
-  DistrictId: number;
+  Id: number;
   DistrictName: string;
+  Code: string;
 }
 
 interface Block {
-  BlockId: number;
+  Id: number;
+  DistrictId: number;
   BlockName: string;
+  Code: string;
 }
 
 interface GramPanchayat {
-  Id?: number;
-  GramPanchayatId?: number;
+  Id: number;
+  BlockId: number;
   GramPanchayatName: string;
+  Code: string;
 }
 
 interface Village {
-  Id?: number;
-  VillageId?: number;
+  Id: number;
+  GramPanchayatId: number;
   VillageName: string;
+  Code: string;
 }
 
 interface Handpump {
@@ -60,7 +64,7 @@ interface Handpump {
 }
 
 const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false, onClose }) => {
-  const { userId } = useUserInfo();
+  const { userId, loading: userLoading, error: userError } = useUserInfo();
   
   // State for dropdowns
   const [districts, setDistricts] = useState<District[]>([]);
@@ -94,6 +98,14 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
   const [message, setMessage] = useState("");
   const [role, setRole] = useState<string>("");
 
+  // API base URL
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Get auth token
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
+
   // Validation function to check if all mandatory fields are filled
   const areAllMandatoryFieldsFilled = (): boolean => {
     const mandatoryFields = [
@@ -120,70 +132,103 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
   // Get role from token
   useEffect(() => {
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
       if (!token) return;
       const payload = JSON.parse(atob(token.split(".")[1]));
-      setRole(payload?.Role || "");
+      setRole(payload?.Role || payload?.UserRoll || "");
     } catch (e) {
       console.error("Failed to decode token", e);
     }
   }, []);
 
-  // Fetch districts when userId is available
+  // Fetch districts when component loads
   useEffect(() => {
-    if (!userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetDistrict?UserId=${userId}`, {
+    if (userLoading || !userId) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) {
+      toast.error('Authentication token not found. Please login again.');
+      return;
+    }
+
+    fetch(`${API_BASE}/Master/GetDistrictByUserId?UserId=${userId}`, {
       method: "POST",
-      headers: { accept: "*/*" },
+      headers: { 
+        accept: "*/*",
+        Authorization: `Bearer ${authToken}`
+      },
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.Status && data.Data.length) {
+        console.log('Districts API response:', data);
+        if (data.Status && data.Data && data.Data.length) {
           setDistricts(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
-            setSelectedDistrictId(data.Data[0].DistrictId);
+          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
+            setSelectedDistrictId(data.Data[0].Id);
           }
         }
       })
-      .catch(() => toast.error("Failed to fetch districts"));
-  }, [userId, role]);
+      .catch((err) => {
+        console.error('Error fetching districts:', err);
+        toast.error("Failed to fetch districts");
+      });
+  }, [userLoading, userId, role]);
 
   // Fetch blocks when district changes
   useEffect(() => {
-    if (!selectedDistrictId || !userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict`, {
+    if (!selectedDistrictId) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) return;
+
+    fetch(`${API_BASE}/Master/GetBlockListByDistrict`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, DistrictId: selectedDistrictId }),
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ Id: selectedDistrictId }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.Status && data.Data.length) {
+        console.log('Blocks API response:', data);
+        if (data.Status && data.Data && data.Data.length) {
           setBlocks(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
-            setSelectedBlockId(data.Data[0]?.BlockId || null);
+          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
+            setSelectedBlockId(data.Data[0]?.Id || null);
           }
         } else {
           setBlocks([]);
           setSelectedBlockId(null);
         }
       })
-      .catch(() => toast.error("Failed to fetch blocks"));
-  }, [selectedDistrictId, userId, role]);
+      .catch((err) => {
+        console.error('Error fetching blocks:', err);
+        toast.error("Failed to fetch blocks");
+      });
+  }, [selectedDistrictId, role]);
 
   // Fetch gram panchayats when block changes
   useEffect(() => {
-    if (!selectedBlockId || !userId) return;
-    fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock`, {
+    if (!selectedBlockId) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) return;
+
+    fetch(`${API_BASE}/Master/GetGramPanchayatByBlock`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ UserId: userId, BlockId: selectedBlockId }),
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ Id: selectedBlockId }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.Status && data.Data.length) {
+        console.log('Gram Panchayats API response:', data);
+        if (data.Status && data.Data && data.Data.length) {
           setGramPanchayats(data.Data);
-          if (role.toLowerCase() === "grampanchayat") {
+          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
             setSelectedGramPanchayatId(data.Data[0]?.Id || null);
           }
         } else {
@@ -191,23 +236,31 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           setSelectedGramPanchayatId(null);
         }
       })
-      .catch(() => toast.error("Failed to fetch gram panchayats"));
-  }, [selectedBlockId, userId, role]);
+      .catch((err) => {
+        console.error('Error fetching gram panchayats:', err);
+        toast.error("Failed to fetch gram panchayats");
+      });
+  }, [selectedBlockId, role]);
 
   // Fetch villages when gram panchayat changes
   useEffect(() => {
-    if (!selectedBlockId || !selectedGramPanchayatId) return;
-    fetch("https://wmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat", {
+    if (!selectedGramPanchayatId) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) return;
+
+    fetch(`${API_BASE}/Master/GetVillegeByGramPanchayat`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        BlockId: selectedBlockId,
-        GramPanchayatId: selectedGramPanchayatId,
-      }),
+      headers: { 
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`
+      },
+      body: JSON.stringify({ Id: selectedGramPanchayatId }),
     })
       .then((res) => res.json())
       .then((data) => {
-        if (data.Status && data.Data.length) {
+        console.log('Villages API response:', data);
+        if (data.Status && data.Data && data.Data.length) {
           setVillages(data.Data);
           setSelectedVillage(data.Data[0]);
         } else {
@@ -215,8 +268,11 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           setSelectedVillage(null);
         }
       })
-      .catch(() => toast.error("Failed to fetch villages"));
-  }, [selectedBlockId, selectedGramPanchayatId]);
+      .catch((err) => {
+        console.error('Error fetching villages:', err);
+        toast.error("Failed to fetch villages");
+      });
+  }, [selectedGramPanchayatId]);
 
   // Fetch handpumps when village changes
   useEffect(() => {
@@ -228,12 +284,17 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
 
     const fetchHandpumps = async () => {
       try {
-        const villageId = selectedVillage.Id || selectedVillage.VillageId || 0;
+        const villageId = selectedVillage.Id;
         console.log("Fetching handpumps for VillageId:", villageId);
-        const token = localStorage.getItem("authToken");
+        const token = getAuthToken();
         
-        // This is a mock API call - you'll need to replace with actual API endpoint
-        const res = await fetch(`https://wmsapi.kdsgroup.co.in/api/Master/GetHandpumpsByVillage?VillageId=${villageId}`, {
+        if (!token) {
+          toast.error('Authentication token not found');
+          return;
+        }
+        
+        // Try to fetch from API - replace with actual endpoint when available
+        const res = await fetch(`${API_BASE}/Master/GetHandpumpsByVillage?VillageId=${villageId}`, {
           headers: {
             "Content-Type": "application/json",
             accept: "*/*",
@@ -244,7 +305,7 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         const json = await res.json();
         console.log("Handpump API response:", json);
         
-        if (json.Status && Array.isArray(json.Data)) {
+        if (json.Status && Array.isArray(json.Data) && json.Data.length > 0) {
           setHandpumps(json.Data);
         } else {
           // Mock data for demonstration - remove when real API is available
@@ -254,17 +315,19 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
             { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
           ];
           setHandpumps(mockHandpumps);
+          console.log('Using mock handpump data');
         }
       } catch (err) {
         console.error("Error fetching handpumps:", err);
         // Mock data fallback
-        const villageId = selectedVillage.Id || selectedVillage.VillageId || 0;
+        const villageId = selectedVillage.Id;
         const mockHandpumps = [
           { HandpumpId: 1, HandpumpCode: `HP${villageId}001`, Location: "Near School", Status: "Working" },
           { HandpumpId: 2, HandpumpCode: `HP${villageId}002`, Location: "Village Center", Status: "Not Working" },
           { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
         ];
         setHandpumps(mockHandpumps);
+        console.log('Using mock handpump data due to error');
       }
     };
 
@@ -316,9 +379,16 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
     setLoading(true);
 
     try {
-      const token = localStorage.getItem("authToken");
+      const token = getAuthToken();
+      
       if (!token) {
-        setMessage("User is not logged in.");
+        toast.error("Authentication token not found. Please login again.");
+        setLoading(false);
+        return;
+      }
+
+      if (!userId) {
+        toast.error("User ID not found. Please login again.");
         setLoading(false);
         return;
       }
@@ -341,57 +411,29 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         return;
       }
 
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const createdBy = payload?.UserID || payload?.UserId || 0;
-
-      const villageId = selectedVillage.VillageId ?? selectedVillage.Id ?? 0;
-
-      // Modified category mapping for handpump complaints
-      const categoryMapping: Record<string, number> = {
-        "Handpump Not Working": 101,
-        "Water Quality Issues": 102,
-        "Handle/Lever Problems": 103,
-        "Water Flow Issues - Low Pressure": 104,
-        "Water Flow Issues - No Water": 105,
-        "Platform Damage/Missing": 106,
-        "Drainage Problems": 107,
-        "Soak Pit Issues": 108,
-        "Pipe Leakage/Burst": 109,
-        "Handpump Body Damage": 110,
-        "Rod/Cylinder Problems": 111,
-        "Water Contamination": 112,
-        "Maintenance Required": 113,
-        "Handpump Needs Repair": 114,
-        "Other": 0,
-      };
-      const categoryId = categoryMapping[form.category] || 0;
-
+      // Prepare request body according to API specification
       const bodyData = {
-        VillageId: villageId,
         HandpumpId: selectedHandpump.HandpumpId,
-        HandpumpCode: selectedHandpump.HandpumpCode,
+        DistrictId: selectedDistrictId || 0,
+        BlockId: selectedBlockId || 0,
+        GpId: selectedGramPanchayatId || 0,
+        VillageId: selectedVillage.Id,
         ComplainantName: form.complainantName,
-        Contact: form.complainantContact,
+        ContactNumber: form.complainantContact,
         Landmark: form.landmark,
-        Categoryid: categoryId,
-        Description: form.description,
-        Status: 1,
-        Urgency: form.urgency,
+        IssueCategory: form.category === "Other" ? form.otherCategory : form.category,
+        UrgencyLevel: form.urgency,
         ResolutionTimelineDays: Number(form.resolutionDays),
-        CreatedBy: createdBy,
-        UpdatedBy: createdBy,
-        CreatedDate: new Date().toISOString(),
-        UpdatedDate: new Date().toISOString(),
-        DeviceToken: "",
-        IPAddress: "",
-        OtherCategory: form.category === "Other" ? form.otherCategory : "",
-        ComplaintType: "Handpump",
-        uparm: localStorage.getItem("uparm") || "",
+        IssueDescription: form.description,
+        CreatedBy: userId
       };
 
-      // You'll need to update this API endpoint for handpump complaints
+      console.log('=== SUBMITTING HANDPUMP COMPLAINT ===');
+      console.log('Request Body:', bodyData);
+      console.log('Auth Token Length:', token.length);
+
       const res = await fetch(
-        "https://wmsapi.kdsgroup.co.in/api/Complain/InsertHandpumpComplaint",
+        `${API_BASE}/HandpumpRegistration/InsertHandpumpComplaint`,
         {
           method: "POST",
           headers: {
@@ -403,9 +445,14 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         }
       );
 
+      console.log('Response Status:', res.status);
       const data = await res.json();
+      console.log('Response Data:', data);
+
       if (data?.Status) {
         toast.success(data.Message || "Handpump complaint lodged successfully.");
+        
+        // Reset form
         setForm({
           complainantName: "",
           complainantContact: "",
@@ -425,6 +472,10 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         setGramPanchayats([]);
         setVillages([]);
         setHandpumps([]);
+        
+        if (onClose) {
+          onClose();
+        }
       } else {
         toast.error(data?.Message || "Failed to lodge handpump complaint.");
       }
@@ -435,6 +486,29 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
 
     setLoading(false);
   };
+
+  // Show loading state
+  if (userLoading) {
+    return (
+      <div className={clsx("p-6 rounded-xl bg-white shadow-lg", isModal ? "w-full max-w-3xl mx-auto" : "")}>
+        <div className="text-center py-8">
+          <p className="text-gray-600">Loading user information...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (userError) {
+    return (
+      <div className={clsx("p-6 rounded-xl bg-white shadow-lg", isModal ? "w-full max-w-3xl mx-auto" : "")}>
+        <div className="text-center py-8">
+          <p className="text-red-600">Error: {userError}</p>
+          <p className="text-gray-600 mt-2">Please try logging in again.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={clsx("p-6 rounded-xl bg-white shadow-lg", isModal ? "w-full max-w-3xl mx-auto" : "")}>
@@ -459,7 +533,7 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           >
             <option value="">Select District</option>
             {districts.map((d) => (
-              <option key={d.DistrictId} value={d.DistrictId}>
+              <option key={d.Id} value={d.Id}>
                 {d.DistrictName}
               </option>
             ))}
@@ -479,7 +553,7 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           >
             <option value="">Select Block</option>
             {blocks.map((b) => (
-              <option key={b.BlockId} value={b.BlockId}>
+              <option key={b.Id} value={b.Id}>
                 {b.BlockName}
               </option>
             ))}

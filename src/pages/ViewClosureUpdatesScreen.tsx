@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Filter, Search, Download, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, Loader } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
 
 const ViewClosureUpdatesScreen = () => {
+  const { userId, loading: userLoading, error: userError } = useUserInfo();
   const [filterClosureStatus, setFilterClosureStatus] = useState('All');
   const [filterVerificationResult, setFilterVerificationResult] = useState('All');
   const [filterVillage, setFilterVillage] = useState('All');
@@ -10,68 +12,147 @@ const ViewClosureUpdatesScreen = () => {
   const [showMaterialBookModal, setShowMaterialBookModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState(null);
+  const [closureUpdates, setClosureUpdates] = useState([]);
+  const [materialBookData, setMaterialBookData] = useState(null);
+  const [visitMonitoringData, setVisitMonitoringData] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [villages, setVillages] = useState(['All']);
 
-  // Sample data for closure updates
-  const closureUpdates = [
-    {
-      id: 'REQ001',
-      handpumpId: 'HP001',
-      village: 'Rampur',
-      requisitionDate: '2024-03-15',
-      mode: 'Repair',
-      completionDate: '2024-04-05',
-      mbStatus: 'Complete',
-      verificationResult: 'Not Satisfactory',
-      escalation: 'Recovery Escalated',
-      closureStatus: 'On-Hold',
-      estimatedAmount: 5140,
-      actualAmount: 5890
-    },
-    {
-      id: 'REQ002',
-      handpumpId: 'HP002',
-      village: 'Shyampur',
-      requisitionDate: '2024-03-16',
-      mode: 'Rebore',
-      completionDate: '2024-04-10',
-      mbStatus: 'Complete',
-      verificationResult: 'Satisfactory',
-      escalation: 'No Escalation',
-      closureStatus: 'Completed',
-      estimatedAmount: 21947.73,
-      actualAmount: 21500
-    },
-    {
-      id: 'REQ003',
-      handpumpId: 'HP003',
-      village: 'Govindpur',
-      requisitionDate: '2024-03-17',
-      mode: 'Repair',
-      completionDate: '2024-04-12',
-      mbStatus: 'Pending',
-      verificationResult: 'Pending',
-      escalation: 'Pending',
-      closureStatus: 'Pending at CE Level',
-      estimatedAmount: 4890,
-      actualAmount: 0
-    },
-    {
-      id: 'REQ004',
-      handpumpId: 'HP004',
-      village: 'Krishnapur',
-      requisitionDate: '2024-03-18',
-      mode: 'Rebore',
-      completionDate: '2024-04-15',
-      mbStatus: 'Complete',
-      verificationResult: 'Not Satisfactory',
-      escalation: 'Enquiry Escalated',
-      closureStatus: 'On-Hold',
-      estimatedAmount: 19875.50,
-      actualAmount: 22100
+  const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Get token from localStorage
+  const getAuthToken = () => {
+    return localStorage.getItem('authToken') || '';
+  };
+
+  // Fetch requisition list on component mount
+  useEffect(() => {
+    if (userLoading) return;
+    
+    if (!userId) {
+      setError('User ID not found. Please login again.');
+      setLoading(false);
+      return;
     }
-  ];
 
-  // Material Book items for verification form
+    fetchRequisitionList();
+  }, [userId, userLoading]);
+
+  const fetchRequisitionList = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const authToken = getAuthToken();
+      
+      if (!authToken) {
+        throw new Error('Authentication token not found. Please login again.');
+      }
+
+      const response = await fetch(
+        `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+        {
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+      
+      if (!response.ok) throw new Error('Failed to fetch requisitions');
+      const result = await response.json();
+      
+      if (result.Status && result.Data) {
+        // Extract unique villages
+        const uniqueVillages = ['All', ...new Set(result.Data.map(item => item.VillageName).filter(Boolean))];
+        setVillages(uniqueVillages);
+
+        // Transform API data to match component structure
+        const transformedData = result.Data
+          .filter(item => item.OrderId && item.CompletionDateStr) // Only completed with order
+          .map(item => {
+            const hasMaterialBook = item.TotalMBAmount && item.TotalMBAmount > 0;
+            const isVerified = hasMaterialBook; // Can be enhanced based on actual verification data
+            
+            return {
+              id: `REQ${item.RequisitionId.toString().padStart(3, '0')}`,
+              requisitionId: item.RequisitionId,
+              handpumpId: item.HandpumpId,
+              hpId: item.HPId,
+              village: item.VillageName,
+              requisitionDate: item.RequisitionDate,
+              mode: item.RequisitionType,
+              completionDate: item.CompletionDateStr,
+              mbStatus: hasMaterialBook ? 'Complete' : 'Pending',
+              verificationResult: hasMaterialBook ? 'Satisfactory' : 'Pending',
+              escalation: hasMaterialBook ? 'No Escalation' : 'Pending',
+              closureStatus: hasMaterialBook ? 'Completed' : 'Pending at CE Level',
+              estimatedAmount: item.SanctionAmount || 0,
+              actualAmount: item.TotalMBAmount || 0,
+              orderId: item.OrderId
+            };
+          });
+        
+        setClosureUpdates(transformedData);
+      }
+      setLoading(false);
+    } catch (err) {
+      console.error('Error fetching requisition list:', err);
+      setError(err.message || 'Failed to fetch closure updates');
+      setLoading(false);
+    }
+  };
+
+  const fetchMaterialBook = async (requisitionId) => {
+    try {
+      const authToken = getAuthToken();
+      const response = await fetch(
+        `${API_BASE}/HandpumpRequisition/GetMaterialBookByUserId?userId=${userId}`,
+        {
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch material book');
+      const result = await response.json();
+
+      if (result.Status && result.Data) {
+        setMaterialBookData(result.Data);
+      }
+    } catch (err) {
+      console.error('Error fetching material book:', err);
+    }
+  };
+
+  const fetchVisitMonitoring = async (requisitionId) => {
+    try {
+      const authToken = getAuthToken();
+      const response = await fetch(
+        `${API_BASE}/HandpumpRequisition/GetVisitMonitoringListByUserId?requisitionId=${requisitionId}&userId=${userId}`,
+        {
+          headers: {
+            'accept': '*/*',
+            'Authorization': `Bearer ${authToken}`
+          }
+        }
+      );
+
+      if (!response.ok) throw new Error('Failed to fetch visit monitoring');
+      const result = await response.json();
+
+      if (result.Status && result.Data) {
+        setVisitMonitoringData(result.Data);
+      }
+    } catch (err) {
+      console.error('Error fetching visit monitoring:', err);
+    }
+  };
+
+  // Material Book items for display
   const materialBookItems = [
     { sno: 1, item: 'Transportation of handpump material and T&P etc From market to the work site Including loading unloading and proper stacking at site work also including return cartage of unused material and T&P complete.', unit: 'Job', rate: 1706.46, ref: '', l: '', b: '', h: '', qty: 1, amount: 1706.46, remark: 'Transportation cost verified' },
     { sno: 2, item: 'Dismantling of old PCC Platform Handpump machine GI pipe, Connecting rod and cylinder Including all labour T & P Complete', unit: 'Job', rate: 1984.15, ref: '', l: '', b: '', h: '', qty: 1, amount: 1984.15, remark: 'Work completed as per specification' },
@@ -90,7 +171,6 @@ const ViewClosureUpdatesScreen = () => {
     { sno: 'D', item: 'D. 45-65m', unit: 'Rm', rate: 899.77, ref: '', l: 1, b: '', h: '', qty: 1, amount: 899.77, remark: 'Deep bore drilling' }
   ];
 
-  const villages = ['All', 'Rampur', 'Shyampur', 'Govindpur', 'Krishnapur'];
   const closureStatusOptions = ['All', 'Pending at CE Level', 'Completed', 'On-Hold'];
   const verificationOptions = ['All', 'Satisfactory', 'Not Satisfactory', 'Pending'];
 
@@ -134,13 +214,15 @@ const ViewClosureUpdatesScreen = () => {
     }
   };
 
-  const handleViewMaterialBook = (record) => {
+  const handleViewMaterialBook = async (record) => {
     setSelectedRecord(record);
+    await fetchMaterialBook(record.requisitionId);
     setShowMaterialBookModal(true);
   };
 
-  const handleViewVerificationForm = (record) => {
+  const handleViewVerificationForm = async (record) => {
     setSelectedRecord(record);
+    await fetchVisitMonitoring(record.requisitionId);
     setShowVerificationModal(true);
   };
 
@@ -158,6 +240,45 @@ const ViewClosureUpdatesScreen = () => {
   };
 
   const calculations = calculateMaterialBookTotal();
+
+  // Calculate stats
+  const stats = {
+    completed: closureUpdates.filter(u => u.closureStatus === 'Completed').length,
+    pendingCE: closureUpdates.filter(u => u.closureStatus === 'Pending at CE Level').length,
+    onHold: closureUpdates.filter(u => u.closureStatus === 'On-Hold').length,
+    total: closureUpdates.length
+  };
+
+  // Show loading state
+  if (userLoading || loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
+        <div className="text-center">
+          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
+          <p className="text-gray-600 text-lg">Loading closure updates...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error || userError) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+          <p className="text-gray-600 mb-4">{error || userError}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
@@ -210,7 +331,7 @@ const ViewClosureUpdatesScreen = () => {
                   className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1"
                 >
                   {villages.map(village => (
-                    <option key={village} value={village} className="text-gray-800">{village} Village</option>
+                    <option key={village} value={village} className="text-gray-800">{village} {village !== 'All' && 'Village'}</option>
                   ))}
                 </select>
               </div>
@@ -246,8 +367,8 @@ const ViewClosureUpdatesScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-green-100 text-sm font-medium">Completed</p>
-                <p className="text-2xl font-bold mt-1">12</p>
-                <p className="text-green-200 text-xs mt-1">↑ 8% this month</p>
+                <p className="text-2xl font-bold mt-1">{stats.completed}</p>
+                <p className="text-green-200 text-xs mt-1">Closures finalized</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <CheckCircle size={24} />
@@ -259,8 +380,8 @@ const ViewClosureUpdatesScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-amber-100 text-sm font-medium">Pending at CE Level</p>
-                <p className="text-2xl font-bold mt-1">8</p>
-                <p className="text-amber-200 text-xs mt-1">↓ 5% this month</p>
+                <p className="text-2xl font-bold mt-1">{stats.pendingCE}</p>
+                <p className="text-amber-200 text-xs mt-1">Awaiting verification</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <Clock size={24} />
@@ -272,8 +393,8 @@ const ViewClosureUpdatesScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-red-100 text-sm font-medium">On-Hold</p>
-                <p className="text-2xl font-bold mt-1">4</p>
-                <p className="text-red-200 text-xs mt-1">↑ 2% this month</p>
+                <p className="text-2xl font-bold mt-1">{stats.onHold}</p>
+                <p className="text-red-200 text-xs mt-1">Issues identified</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <AlertCircle size={24} />
@@ -285,8 +406,8 @@ const ViewClosureUpdatesScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-blue-100 text-sm font-medium">Total Closures</p>
-                <p className="text-2xl font-bold mt-1">24</p>
-                <p className="text-blue-200 text-xs mt-1">↑ 15% this month</p>
+                <p className="text-2xl font-bold mt-1">{stats.total}</p>
+                <p className="text-blue-200 text-xs mt-1">All requisitions</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
                 <TrendingUp size={24} />
@@ -373,11 +494,11 @@ const ViewClosureUpdatesScreen = () => {
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
-                        update.mode === 'Repair' 
+                        update.mode === 'REPAIR' 
                           ? 'bg-blue-100 text-blue-800 border border-blue-200' 
                           : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                       }`}>
-                        {update.mode === 'Repair' ? <Wrench size={14} /> : <Drill size={14} />}
+                        {update.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
                         {update.mode}
                       </span>
                     </td>
@@ -489,6 +610,40 @@ const ViewClosureUpdatesScreen = () => {
             </div>
             
             <div className="p-6 space-y-6">
+              {/* Material Book Data Display */}
+              {materialBookData && (
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                  <h4 className="text-lg font-bold text-blue-800 mb-4">Material Book Summary</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <span className="text-blue-600 text-sm font-medium">Total Material Cost</span>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalMaterialCost?.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <span className="text-blue-600 text-sm font-medium">Total Labour Cost</span>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalLabourCost?.toLocaleString()}</p>
+                    </div>
+                    <div className="bg-white rounded-lg p-4 border border-blue-200">
+                      <span className="text-blue-600 text-sm font-medium">Total Project Cost</span>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalProjectCost?.toLocaleString()}</p>
+                    </div>
+                  </div>
+                  {materialBookData.MaterialImgFile && (
+                    <div className="mt-4">
+                      <a 
+                        href={materialBookData.MaterialImgFile}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <FileText size={16} />
+                        View Material Book PDF
+                      </a>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* Material Book Table */}
               <div className="overflow-x-auto">
                 <table className="w-full">
@@ -658,68 +813,20 @@ const ViewClosureUpdatesScreen = () => {
                 </div>
               </div>
 
-              {/* Material Book Verification Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Item</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Unit</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Rate (Rs.)</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Reference/Source</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">L</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">B</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">H</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Qty.</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Amount</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-red-200">Remark</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {materialBookItems.map((item, index) => (
-                      <tr key={index} className={`${
-                        index % 2 === 0 ? 'bg-white' : 'bg-red-50'
-                      } hover:bg-red-100 transition-colors duration-200`}>
-                        <td className="px-3 py-3 text-sm font-semibold text-red-600">{item.sno}</td>
-                        <td className="px-3 py-3 text-sm text-gray-800 max-w-xs">{item.item}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.unit}</td>
-                        <td className="px-3 py-3 text-sm text-emerald-600 font-semibold">
-                          {item.rate ? `₹${item.rate.toLocaleString()}` : ''}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.ref}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.l}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.b}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.h}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.qty}</td>
-                        <td className="px-3 py-3 text-sm text-slate-700 font-semibold">
-                          {item.amount ? `₹${item.amount.toLocaleString()}` : ''}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-red-600 max-w-xs font-medium">{item.remark}</td>
-                      </tr>
+              {/* Visit Monitoring Data */}
+              {visitMonitoringData && visitMonitoringData.length > 0 && (
+                <div className="bg-blue-50 rounded-lg p-6 border border-blue-200">
+                  <h4 className="text-lg font-bold text-blue-800 mb-4">Visit Monitoring Records</h4>
+                  <div className="space-y-3">
+                    {visitMonitoringData.map((visit, idx) => (
+                      <div key={idx} className="bg-white rounded-lg p-4 border border-blue-200">
+                        <p className="font-semibold text-gray-800">Visit {idx + 1}</p>
+                        <p className="text-sm text-gray-600 mt-1">{visit.Remarks || 'No remarks available'}</p>
+                      </div>
                     ))}
-                    
-                    {/* Amount Comparison Rows */}
-                    <tr className="bg-amber-100 font-semibold border-t-2 border-amber-300">
-                      <td className="px-3 py-4 text-amber-700">22</td>
-                      <td className="px-3 py-4 text-amber-800">Amount as per Estimation</td>
-                      <td colSpan={7} className="px-3 py-4"></td>
-                      <td className="px-3 py-4 text-lg text-amber-700">₹{selectedRecord?.estimatedAmount?.toLocaleString()}</td>
-                      <td className="px-3 py-4 text-sm text-amber-700">Original estimation</td>
-                    </tr>
-                    
-                    <tr className="bg-orange-100 font-semibold">
-                      <td className="px-3 py-4 text-orange-700">23</td>
-                      <td className="px-3 py-4 text-orange-800">Actual Amount</td>
-                      <td colSpan={7} className="px-3 py-4"></td>
-                      <td className="px-3 py-4 text-lg text-orange-700">₹{selectedRecord?.actualAmount?.toLocaleString()}</td>
-                      <td className="px-3 py-4 text-sm text-orange-700">
-                        {selectedRecord?.actualAmount > selectedRecord?.estimatedAmount ? 'Overrun detected' : 'Within budget'}
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                  </div>
+                </div>
+              )}
 
               {/* Verification Issues */}
               <div className="bg-red-50 rounded-lg p-6 border border-red-200">
