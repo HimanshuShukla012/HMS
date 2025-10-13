@@ -30,6 +30,7 @@ import {
   Home,
 } from "lucide-react";
 import { BiDroplet, BiMoney } from "react-icons/bi";
+import { useUserInfo } from '../utils/userInfo';
 
 type Role = "admin" | "gp" | "consultingengineer" | "gram_panchayat_sachiv" | "assistant_development_officer" | "district_panchayati_raj_officer" | "consulting_engineer";
 
@@ -110,6 +111,9 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   
+  // Fetch user info from token
+  const { userId, role: userRole, loading, error } = useUserInfo();
+  
   const actualRole = localStorage.getItem("role");
   
   let menuRole: Role = role;
@@ -137,6 +141,22 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
   const handleLogout = () => {
     localStorage.clear();
     navigate("/login");
+  };
+
+  // Helper function to format role for display
+  const formatRoleForDisplay = (role: string) => {
+    if (!role) return "User";
+    return role
+      .split('_')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+      .join(' ');
+  };
+
+  // Helper function to generate email from role
+  const generateEmailFromRole = (role: string, userId: number | null) => {
+    if (!role) return "user@system.com";
+    const rolePrefix = role.toLowerCase().replace(/_/g, '');
+    return userId ? `${rolePrefix}${userId}@system.com` : `${rolePrefix}@system.com`;
   };
 
   const renderMenuItems = (items: MenuItem[], level: number = 0) => {
@@ -279,8 +299,26 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
                   <User size={20} className="text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">Admin User</p>
-                  <p className="text-xs text-gray-500 truncate">admin@system.com</p>
+                  {loading ? (
+                    <>
+                      <div className="h-4 bg-gray-200 rounded animate-pulse mb-1"></div>
+                      <div className="h-3 bg-gray-200 rounded animate-pulse w-3/4"></div>
+                    </>
+                  ) : error ? (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800 truncate">User</p>
+                      <p className="text-xs text-red-500 truncate">Error loading info</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-sm font-semibold text-gray-800 truncate">
+                        {formatRoleForDisplay(userRole || actualRole || "User")}
+                      </p>
+                      <p className="text-xs text-gray-500 truncate">
+                        {generateEmailFromRole(userRole || actualRole || "", userId)}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
               <button
