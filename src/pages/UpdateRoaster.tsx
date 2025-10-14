@@ -536,7 +536,7 @@ const ManageHandpump = () => {
                 >
                   <option value="" className="text-gray-800">All Quality</option>
                   <option value="Good" className="text-gray-800">Good</option>
-                  <option value="Bad" className="text-gray-800">Fair</option>
+                  <option value="Bad" className="text-gray-800">Bad</option>
                 </select>
               </div>
             </div>
