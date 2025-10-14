@@ -313,6 +313,13 @@ const CreateEstimationScreen = () => {
 
   const handleSaveEstimation = async () => {
     try {
+      const authToken = getAuthToken();
+      
+      if (!authToken) {
+        alert('Authentication token not found. Please login again.');
+        return;
+      }
+      
       const calculations = calculateTotal();
       
       // Prepare items array
