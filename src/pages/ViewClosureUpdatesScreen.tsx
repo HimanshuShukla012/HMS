@@ -106,9 +106,10 @@ const ViewClosureUpdatesScreen = () => {
 
   const fetchMaterialBook = async (requisitionId) => {
     try {
+      setMaterialBookData(null); // Reset before fetching new data
       const authToken = getAuthToken();
       const response = await fetch(
-        `${API_BASE}/HandpumpRequisition/GetMaterialBookByUserId?userId=${userId}`,
+        `${API_BASE}/HandpumpRequisition/GetMaterialBookByRequisitionId?requisitionId=${requisitionId}&userId=${userId}`,
         {
           headers: {
             'accept': '*/*',
@@ -122,9 +123,12 @@ const ViewClosureUpdatesScreen = () => {
 
       if (result.Status && result.Data) {
         setMaterialBookData(result.Data);
+      } else {
+        setMaterialBookData(null);
       }
     } catch (err) {
       console.error('Error fetching material book:', err);
+      setMaterialBookData(null);
     }
   };
 
@@ -152,24 +156,31 @@ const ViewClosureUpdatesScreen = () => {
     }
   };
 
-  // Material Book items for display
-  const materialBookItems = [
-    { sno: 1, item: 'Transportation of handpump material and T&P etc From market to the work site Including loading unloading and proper stacking at site work also including return cartage of unused material and T&P complete.', unit: 'Job', rate: 1706.46, ref: '', l: '', b: '', h: '', qty: 1, amount: 1706.46, remark: 'Transportation cost verified' },
-    { sno: 2, item: 'Dismantling of old PCC Platform Handpump machine GI pipe, Connecting rod and cylinder Including all labour T & P Complete', unit: 'Job', rate: 1984.15, ref: '', l: '', b: '', h: '', qty: 1, amount: 1984.15, remark: 'Work completed as per specification' },
-    { sno: 3, item: 'Cost of essential material for INDIA MARK- II handpump installation work', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00, remark: 'Header item' },
-    { sno: '3.1', item: 'A. P.V.C PIPE(6KG/SQCM) 110 mm dia', unit: 'Rm', rate: 328.88, ref: '', l: 1, b: '', h: '', qty: 1, amount: 328.88, remark: 'Quality as per specifications' },
-    { sno: '3.2', item: 'B. P.V.C PIPE(6KG/SQCM) 63 mm dia', unit: 'Rm', rate: 124.11, ref: '', l: 1, b: '', h: '', qty: 1, amount: 124.11, remark: 'Standard quality pipe used' },
-    { sno: '3.3', item: 'C. 63 mm nominal dia strainer or blind pipe', unit: 'Rm', rate: 651.56, ref: '', l: 1, b: '', h: '', qty: 1, amount: 651.56, remark: 'Proper installation done' },
-    { sno: '3.4', item: 'D.REDUCER (110 TO 63 MM)', unit: 'set', rate: 183.06, ref: '', l: '', b: '', h: '', qty: 1, amount: 183.06, remark: 'Good quality reducer' },
-    { sno: '3.5', item: 'E. G.I.PIPE 32 MM dia medium quality(riser)', unit: 'Rm', rate: 341.29, ref: '', l: 1, b: '', h: '', qty: 1, amount: 341.29, remark: 'Medium quality as specified' },
-    { sno: '3.6', item: 'F. Spare parts', unit: 'Job', rate: 2714.82, ref: '', l: '', b: '', h: '', qty: 1, amount: 2714.82, remark: 'All spare parts provided' },
-    { sno: 4, item: 'Rent of equipment/plant and work of digging pit, erecting tripod etc. for drilling work by casing method or pump and pressure method', unit: 'Job', rate: 798.93, ref: '', l: '', b: '', h: '', qty: 1, amount: 798.93, remark: 'Equipment rent as per market rate' },
-    { sno: 5, item: 'Drilling work 150 mm dia in hard and conker mix soil by (pump and pressure method OR casing while drilling method)', unit: '', rate: 0.00, ref: '', l: '', b: '', h: '', qty: '', amount: 0.00, remark: 'Header item' },
-    { sno: 'A', item: 'A. 0 -15m', unit: 'Rm', rate: 511.94, ref: '', l: 1, b: '', h: '', qty: 1, amount: 511.94, remark: 'Drilling completed successfully' },
-    { sno: 'B', item: 'B. 15-30m', unit: 'Rm', rate: 511.94, ref: '', l: 1, b: '', h: '', qty: 1, amount: 511.94, remark: 'Standard drilling rate' },
-    { sno: 'C', item: 'C. 30-45m', unit: 'Rm', rate: 589.50, ref: '', l: 1, b: '', h: '', qty: 1, amount: 589.50, remark: 'Deeper drilling charges' },
-    { sno: 'D', item: 'D. 45-65m', unit: 'Rm', rate: 899.77, ref: '', l: 1, b: '', h: '', qty: 1, amount: 899.77, remark: 'Deep bore drilling' }
-  ];
+  // Get material book items from API data or empty array
+  const getMaterialBookItems = () => {
+    if (!materialBookData) return [];
+    
+    // If API returns items in a specific structure, map them
+    // Adjust this based on your actual API response structure
+    if (materialBookData.Items && Array.isArray(materialBookData.Items)) {
+      return materialBookData.Items.map((item, index) => ({
+        sno: item.SerialNo || index + 1,
+        item: item.ItemDescription || item.Description || '',
+        unit: item.Unit || '',
+        rate: item.Rate || 0,
+        ref: item.Reference || '',
+        l: item.Length || '',
+        b: item.Breadth || '',
+        h: item.Height || '',
+        qty: item.Quantity || '',
+        amount: item.Amount || 0,
+        remark: item.Remark || ''
+      }));
+    }
+    
+    // If API returns a different structure, handle it here
+    return [];
+  };
 
   const closureStatusOptions = ['All', 'Pending at CE Level', 'Completed', 'On-Hold'];
   const verificationOptions = ['All', 'Satisfactory', 'Not Satisfactory', 'Pending'];
@@ -231,15 +242,30 @@ const ViewClosureUpdatesScreen = () => {
   };
 
   const calculateMaterialBookTotal = () => {
-    const total = materialBookItems.reduce((sum, item) => sum + (item.amount || 0), 0);
+    // If API provides totals directly, use those
+    if (materialBookData) {
+      const total = materialBookData.SubTotal || materialBookData.TotalAmount || 0;
+      const gst = materialBookData.GST || (total * 0.18);
+      const totalWithGST = materialBookData.TotalWithGST || (total + gst);
+      const consultingFee = materialBookData.ConsultingFee || (totalWithGST * 0.01);
+      const grandTotal = materialBookData.GrandTotal || materialBookData.TotalProjectCost || (totalWithGST + consultingFee);
+      
+      return { total, gst, totalWithGST, consultingFee, grandTotal };
+    }
+    
+    // Fallback: calculate from items if API doesn't provide totals
+    const items = getMaterialBookItems();
+    const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
     const gst = total * 0.18;
     const totalWithGST = total + gst;
     const consultingFee = totalWithGST * 0.01;
     const grandTotal = totalWithGST + consultingFee;
+    
     return { total, gst, totalWithGST, consultingFee, grandTotal };
   };
 
-  const calculations = calculateMaterialBookTotal();
+  // Calculate only when materialBookData is available
+  const calculations = materialBookData ? calculateMaterialBookTotal() : { total: 0, gst: 0, totalWithGST: 0, consultingFee: 0, grandTotal: 0 };
 
   // Calculate stats
   const stats = {
@@ -617,15 +643,15 @@ const ViewClosureUpdatesScreen = () => {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div className="bg-white rounded-lg p-4 border border-blue-200">
                       <span className="text-blue-600 text-sm font-medium">Total Material Cost</span>
-                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalMaterialCost?.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalMaterialCost?.toLocaleString() || '0'}</p>
                     </div>
                     <div className="bg-white rounded-lg p-4 border border-blue-200">
                       <span className="text-blue-600 text-sm font-medium">Total Labour Cost</span>
-                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalLabourCost?.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalLabourCost?.toLocaleString() || '0'}</p>
                     </div>
                     <div className="bg-white rounded-lg p-4 border border-blue-200">
                       <span className="text-blue-600 text-sm font-medium">Total Project Cost</span>
-                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalProjectCost?.toLocaleString()}</p>
+                      <p className="text-2xl font-bold text-blue-700">₹{materialBookData.TotalProjectCost?.toLocaleString() || '0'}</p>
                     </div>
                   </div>
                   {materialBookData.MaterialImgFile && (
@@ -645,99 +671,97 @@ const ViewClosureUpdatesScreen = () => {
               )}
 
               {/* Material Book Table */}
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">S.No</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Item</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Unit</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Rate (Rs.)</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Reference/Source</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">L</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">B</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">H</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Qty.</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Amount</th>
-                      <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Remark</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {materialBookItems.map((item, index) => (
-                      <tr key={index} className={`${
-                        index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                      } hover:bg-blue-50 transition-colors duration-200`}>
-                        <td className="px-3 py-3 text-sm font-semibold text-blue-600">{item.sno}</td>
-                        <td className="px-3 py-3 text-sm text-gray-800 max-w-xs">{item.item}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.unit}</td>
-                        <td className="px-3 py-3 text-sm text-emerald-600 font-semibold">
-                          {item.rate ? `₹${item.rate.toLocaleString()}` : ''}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.ref}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.l}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.b}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.h}</td>
-                        <td className="px-3 py-3 text-sm text-gray-700">{item.qty}</td>
-                        <td className="px-3 py-3 text-sm text-slate-700 font-semibold">
-                          {item.amount ? `₹${item.amount.toLocaleString()}` : ''}
-                        </td>
-                        <td className="px-3 py-3 text-sm text-gray-600 max-w-xs">{item.remark}</td>
+              {getMaterialBookItems().length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">S.No</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Item</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Unit</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Rate (Rs.)</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Reference/Source</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">L</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">B</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">H</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Qty.</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Amount</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Remark</th>
                       </tr>
-                    ))}
-                    
-                    {/* Total Calculations */}
-                    <tr className="bg-blue-50 font-semibold">
-                      <td className="px-3 py-3 text-sm text-blue-700">16</td>
-                      <td className="px-3 py-3 text-sm text-blue-800">Add Items</td>
-                      <td colSpan={8} className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-sm text-blue-700">-</td>
-                    </tr>
-                    
-                    <tr className="bg-indigo-50 font-semibold">
-                      <td className="px-3 py-3 text-sm text-indigo-700">17</td>
-                      <td className="px-3 py-3 text-sm text-indigo-800">Total</td>
-                      <td colSpan={7} className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-base text-indigo-700">₹{calculations.total.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-sm text-indigo-700">Sum of all items</td>
-                    </tr>
-                    
-                    <tr className="bg-teal-50 font-semibold">
-                      <td className="px-3 py-3 text-sm text-teal-700">18</td>
-                      <td className="px-3 py-3 text-sm text-teal-800">GST (18%)</td>
-                      <td colSpan={7} className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-base text-teal-700">₹{calculations.gst.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-sm text-teal-700">As per GST rules</td>
-                    </tr>
-                    
-                    <tr className="bg-cyan-50 font-semibold">
-                      <td className="px-3 py-3 text-sm text-cyan-700">19</td>
-                      <td className="px-3 py-3 text-sm text-cyan-800">Total (including GST)</td>
-                      <td colSpan={7} className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-base text-cyan-700">₹{calculations.totalWithGST.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-sm text-cyan-700">Total with GST</td>
-                    </tr>
-                    
-                    <tr className="bg-emerald-50 font-semibold">
-                      <td className="px-3 py-3 text-sm text-emerald-700">20</td>
-                      <td className="px-3 py-3 text-sm text-emerald-800">1% Consulting Engineer Fee for MB</td>
-                      <td colSpan={7} className="px-3 py-3"></td>
-                      <td className="px-3 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
-                      <td className="px-3 py-3 text-sm text-emerald-700">CE fee for MB preparation</td>
-                    </tr>
-                    
-                    <tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
-                      <td className="px-3 py-4 text-green-700">21</td>
-                      <td className="px-3 py-4 text-green-800 flex items-center gap-2">
-                        <TrendingUp size={16} />
-                        Grand Total
-                      </td>
-                      <td colSpan={7} className="px-3 py-4"></td>
-                      <td className="px-3 py-4 text-xl text-green-700">₹{(calculations.grandTotal).toLocaleString()}</td>
-                      <td className="px-3 py-4 text-sm text-green-700 font-normal">Final amount</td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {getMaterialBookItems().map((item, index) => (
+                        <tr key={index} className={`${
+                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                        } hover:bg-blue-50 transition-colors duration-200`}>
+                          <td className="px-3 py-3 text-sm font-semibold text-blue-600">{item.sno}</td>
+                          <td className="px-3 py-3 text-sm text-gray-800 max-w-xs">{item.item}</td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.unit}</td>
+                          <td className="px-3 py-3 text-sm text-emerald-600 font-semibold">
+                            {item.rate ? `₹${item.rate.toLocaleString()}` : ''}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.ref}</td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.l}</td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.b}</td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.h}</td>
+                          <td className="px-3 py-3 text-sm text-gray-700">{item.qty}</td>
+                          <td className="px-3 py-3 text-sm text-slate-700 font-semibold">
+                            {item.amount ? `₹${item.amount.toLocaleString()}` : ''}
+                          </td>
+                          <td className="px-3 py-3 text-sm text-gray-600 max-w-xs">{item.remark}</td>
+                        </tr>
+                      ))}
+                      
+                      {/* Total Calculations */}
+                      <tr className="bg-indigo-50 font-semibold">
+                        <td className="px-3 py-3 text-sm text-indigo-700" colSpan="2">Subtotal</td>
+                        <td colSpan="7" className="px-3 py-3"></td>
+                        <td className="px-3 py-3 text-base text-indigo-700">₹{calculations.total.toLocaleString()}</td>
+                        <td className="px-3 py-3 text-sm text-indigo-700">Sum of all items</td>
+                      </tr>
+                      
+                      <tr className="bg-teal-50 font-semibold">
+                        <td className="px-3 py-3 text-sm text-teal-700" colSpan="2">GST (18%)</td>
+                        <td colSpan="7" className="px-3 py-3"></td>
+                        <td className="px-3 py-3 text-base text-teal-700">₹{calculations.gst.toLocaleString()}</td>
+                        <td className="px-3 py-3 text-sm text-teal-700">As per GST rules</td>
+                      </tr>
+                      
+                      <tr className="bg-cyan-50 font-semibold">
+                        <td className="px-3 py-3 text-sm text-cyan-700" colSpan="2">Total (including GST)</td>
+                        <td colSpan="7" className="px-3 py-3"></td>
+                        <td className="px-3 py-3 text-base text-cyan-700">₹{calculations.totalWithGST.toLocaleString()}</td>
+                        <td className="px-3 py-3 text-sm text-cyan-700">Total with GST</td>
+                      </tr>
+                      
+                      <tr className="bg-emerald-50 font-semibold">
+                        <td className="px-3 py-3 text-sm text-emerald-700" colSpan="2">1% Consulting Engineer Fee</td>
+                        <td colSpan="7" className="px-3 py-3"></td>
+                        <td className="px-3 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
+                        <td className="px-3 py-3 text-sm text-emerald-700">CE fee for MB preparation</td>
+                      </tr>
+                      
+                      <tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
+                        <td className="px-3 py-4 text-green-700" colSpan="2">
+                          <div className="flex items-center gap-2">
+                            <TrendingUp size={16} />
+                            Grand Total
+                          </div>
+                        </td>
+                        <td colSpan="7" className="px-3 py-4"></td>
+                        <td className="px-3 py-4 text-xl text-green-700">₹{calculations.grandTotal.toLocaleString()}</td>
+                        <td className="px-3 py-4 text-sm text-green-700 font-normal">Final amount</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center p-8 bg-gray-50 rounded-lg">
+                  <AlertCircle className="mx-auto mb-3 text-gray-400" size={40} />
+                  <p className="text-gray-600 font-medium">No detailed material book items available</p>
+                  <p className="text-gray-500 text-sm mt-1">Summary information is shown above</p>
+                </div>
+              )}
 
               {/* Amount Comparison */}
               <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-lg p-6 border border-amber-200">
