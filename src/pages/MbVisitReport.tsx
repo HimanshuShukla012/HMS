@@ -1,38 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Filter, Search, Calendar, FileText, ClipboardCheck, Eye, Wrench, Drill, MapPin, X, Check, Edit3, Save, AlertCircle, Loader2, ExternalLink } from 'lucide-react';
+import { useUserInfo } from '../utils/userInfo';
 
-// Replace this with your actual import: import { useUserInfo } from '../utils/userInfo';
-const useUserInfo = () => {
-  const [userId, setUserId] = useState(null);
-  const [role, setRole] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    try {
-      const token = localStorage.getItem('authToken');
-      if (!token) {
-        setError('No auth token found');
-        setLoading(false);
-        return;
-      }
-
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      const id = payload?.UserID || payload?.UserId || null;
-      const userRole = payload?.Role || payload?.role || payload?.UserRole || payload?.UserRoll || '';
-
-      setUserId(Number(id));
-      setRole(userRole);
-    } catch (err) {
-      console.error('Error decoding token:', err);
-      setError('Error retrieving user information');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  return { userId, role, loading, error };
-};
 
 const MBVisitReportScreen = () => {
   const { userId, role, loading: userLoading, error: userError } = useUserInfo();

@@ -1,8 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import * as XLSX from 'xlsx';
-import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, ArrowLeft, MapPin, Phone, User, Droplets, Hammer, Shield } from 'lucide-react';
-import { useUserInfo } from '../utils/userInfo';
+import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, AlertCircle, CheckCircle, Clock, TrendingUp, ArrowLeft, MapPin, Phone, User, Droplets, Hammer, Shield, Navigation } from 'lucide-react';
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 
+// Mock user info hook (replace with actual implementation)
+const useUserInfo = () => ({
+  userId: 1,
+  role: 'Admin',
+  loading: false,
+  error: null
+});
 
 // Define the API response structure
 interface HandpumpData {
@@ -42,9 +51,31 @@ interface ApiResponse {
   Errror: string | null;
 }
 
+interface TransformedHandpump {
+  id: number;
+  handpumpId: string;
+  districtName: string;
+  blockName: string;
+  villageName: string;
+  status: string;
+  hasImage: string;
+  hasVideo: string;
+  navigate: string;
+  geotagDate: string;
+  nearbyPerson: string;
+  contact: string;
+  soakPit: string;
+  drainage: string;
+  platform: string;
+  lastRepairDate: string;
+  lastReboreDate: string;
+  waterQuality: string;
+  remark: string;
+  originalData: HandpumpData;
+}
 
 const ManageHandpump = () => {
-    const { userId, role, loading: userLoading, error: userError } = useUserInfo();
+  const { userId, role, loading: userLoading, error: userError } = useUserInfo();
   
   // API Data States
   const [handpumps, setHandpumps] = useState<HandpumpData[]>([]);
@@ -66,8 +97,31 @@ const ManageHandpump = () => {
   const [filterStatus, setFilterStatus] = useState("");
   const [filterWaterQuality, setFilterWaterQuality] = useState("");
 
+  // Modal states
+  const [selectedHandpump, setSelectedHandpump] = useState<TransformedHandpump | null>(null);
+  const [imagePopup, setImagePopup] = useState<string | null>(null);
+  const [isSatelliteView, setIsSatelliteView] = useState(false);
+
+  const modalMapRef = useRef(null);
+
   // Check if user is Admin
   const isAdmin = role === 'Admin';
+
+  // Leaflet icons
+  const statusIcons = {
+    functional: new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }),
+    nonfunctional: new L.Icon({
+      iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+      iconSize: [25, 41],
+      iconAnchor: [12, 41],
+      popupAnchor: [1, -34],
+    }),
+  };
 
   // Fetch handpumps from API
   const fetchHandpumps = async (currentUserId: number, userRole: string) => {
@@ -75,7 +129,6 @@ const ManageHandpump = () => {
     setError(null);
     
     try {
-      // Get the auth token from storage (same as GP Dashboard approach)
       const authToken = localStorage.getItem('authToken') || 
                        sessionStorage.getItem('authToken') ||
                        localStorage.getItem('token') ||
@@ -85,26 +138,16 @@ const ManageHandpump = () => {
         throw new Error('Authentication token not found. Please log in again.');
       }
 
-      let apiUrl: string;
-      let requestMethod: string;
-      let requestBody: string | null = null;
-
-      // Choose API endpoint based on user role
-      apiUrl = `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListByUserId?UserId=${currentUserId}`;
-      requestMethod = 'GET';
+      const apiUrl = `https://hmsapi.kdsgroup.co.in/api/HandpumpRegistration/GetHandpumpListByUserId?UserId=${currentUserId}`;
 
       const requestOptions: RequestInit = {
-        method: requestMethod,
+        method: 'GET',
         headers: {
           'accept': '*/*',
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json'
         }
       };
-
-      if (requestBody !== null) {
-        requestOptions.body = requestBody;
-      }
 
       const response = await fetch(apiUrl, requestOptions);
       
@@ -183,7 +226,7 @@ const ManageHandpump = () => {
   };
 
   // Transform API data for filtering
-  const transformHandpumpForFiltering = (h: HandpumpData) => ({
+  const transformHandpumpForFiltering = (h: HandpumpData): TransformedHandpump => ({
     id: h.H_id,
     handpumpId: h.HandpumpId,
     districtName: h.DistrictName,
@@ -319,9 +362,7 @@ const ManageHandpump = () => {
   const getWaterQualityColor = (quality: string) => {
     switch (quality) {
       case 'Good': return 'text-green-700 bg-green-100 border-green-200';
-      case 'Fair': return 'text-yellow-700 bg-yellow-100 border-yellow-200';
-      case 'Poor': return 'text-orange-700 bg-orange-100 border-orange-200';
-      case 'Contaminated': return 'text-red-700 bg-red-100 border-red-200';
+      case 'Bad': return 'text-yellow-700 bg-yellow-100 border-yellow-200';
       default: return 'text-gray-700 bg-gray-100 border-gray-200';
     }
   };
@@ -332,6 +373,10 @@ const ManageHandpump = () => {
       case 'Inactive': return <X size={14} />;
       default: return <Clock size={14} />;
     }
+  };
+
+  const handleDetailsClick = (handpump: TransformedHandpump) => {
+    setSelectedHandpump(handpump);
   };
 
   // Loading state while user info is being fetched
@@ -385,11 +430,6 @@ const ManageHandpump = () => {
                 : "Monitor and manage handpump installations across districts. Track status, maintenance, and water quality."
               }
             </p>
-            {userId && (
-              <p className="text-slate-300 text-sm">
-                User ID: {userId} {role && `• Role: ${role}`} {isAdmin && `• API: GetHandpumpListDetail (All Data)`}
-              </p>
-            )}
 
             {/* Error Display */}
             {error && (
@@ -496,9 +536,7 @@ const ManageHandpump = () => {
                 >
                   <option value="" className="text-gray-800">All Quality</option>
                   <option value="Good" className="text-gray-800">Good</option>
-                  <option value="Fair" className="text-gray-800">Fair</option>
-                  <option value="Poor" className="text-gray-800">Poor</option>
-                  <option value="Contaminated" className="text-gray-800">Contaminated</option>
+                  <option value="Bad" className="text-gray-800">Fair</option>
                 </select>
               </div>
             </div>
@@ -876,7 +914,10 @@ const ManageHandpump = () => {
                           <Eye size={12} />
                           View
                         </button>
-                        <button className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium">
+                        <button 
+                          onClick={() => handleDetailsClick(h)}
+                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium"
+                        >
                           <FileText size={12} />
                           Details
                         </button>
@@ -1006,6 +1047,329 @@ const ManageHandpump = () => {
           </div>
         </div>
       </div>
+
+      {/* Handpump Details Modal */}
+      {selectedHandpump && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[1000] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto z-[1001]">
+            <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-white rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div
+                    className={`w-12 h-12 rounded-full border-2 border-white flex items-center justify-center ${
+                      selectedHandpump.status === 'Active' ? 'bg-green-500' : 'bg-red-500'
+                    }`}
+                  >
+                    <MapPin size={20} className="text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-2xl font-bold">Handpump {selectedHandpump.handpumpId}</h3>
+                    <p className="text-blue-100">ID: {selectedHandpump.id}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setSelectedHandpump(null)}
+                  className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Left Side: Details */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Handpump Details</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-semibold capitalize ${
+                            selectedHandpump.status === 'Active'
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {selectedHandpump.status}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">District:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.districtName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Block:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.blockName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Gram Panchayat:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.originalData.GrampanchayatName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Village:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.villageName}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Installation Date:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.geotagDate}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Water Quality:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.waterQuality}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Nearby Person:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.nearbyPerson}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Contact:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.contact}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Image</h4>
+                    <img
+                      src={
+                        selectedHandpump.originalData.HandpumpImage ||
+                        "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop"
+                      }
+                      alt={`Handpump ${selectedHandpump.handpumpId}`}
+                      className="w-full h-48 object-cover rounded-lg shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                      onClick={() =>
+                        selectedHandpump.originalData.HandpumpImage && setImagePopup(selectedHandpump.originalData.HandpumpImage)
+                      }
+                      onError={(e) => {
+                        e.target.onerror = null;
+                        e.target.src =
+                          "https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=300&h=200&fit=crop";
+                      }}
+                    />
+                  </div>
+
+                  {selectedHandpump.originalData.HandpumpVideoPath && (
+                    <div>
+                      <h4 className="text-lg font-bold text-gray-800 mb-4">Video</h4>
+                      <video
+                        className="w-full h-48 object-cover rounded-lg shadow-md"
+                        controls
+                        poster={selectedHandpump.originalData.HandpumpImage}
+                      >
+                        <source src={selectedHandpump.originalData.HandpumpVideoPath} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </video>
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Infrastructure</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Soakpit Connected:</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          selectedHandpump.soakPit === 'Yes'
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedHandpump.soakPit}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Drainage Connected:</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          selectedHandpump.drainage === 'Yes'
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedHandpump.drainage}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Platform Build:</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                          selectedHandpump.platform === 'Yes'
+                            ? 'bg-green-100 text-green-800' 
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {selectedHandpump.platform}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side: Map and Additional Info */}
+                <div className="space-y-6">
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Location Map</h4>
+                    <div className="h-64 rounded-lg overflow-hidden shadow-md border border-gray-200">
+                      {selectedHandpump.originalData.Latitude && selectedHandpump.originalData.Longitude && (
+                        <MapContainer
+                          center={[selectedHandpump.originalData.Latitude, selectedHandpump.originalData.Longitude]}
+                          zoom={15}
+                          style={{ height: '100%', width: '100%' }}
+                          ref={modalMapRef}
+                        >
+                          <TileLayer
+                            url={isSatelliteView
+                              ? 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+                              : 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'}
+                          />
+                          <Marker
+                            position={[selectedHandpump.originalData.Latitude, selectedHandpump.originalData.Longitude]}
+                            icon={selectedHandpump.status === 'Active' ? statusIcons.functional : statusIcons.nonfunctional}
+                          />
+                        </MapContainer>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 mt-2">
+                      📍 {selectedHandpump.originalData.Latitude?.toFixed(6)}°N, {selectedHandpump.originalData.Longitude?.toFixed(6)}°E
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Maintenance Records</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Hammer size={16} className="text-orange-500" />
+                          <span className="text-gray-600">Last Repair Date:</span>
+                        </div>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.lastRepairDate}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <Drill size={16} className="text-cyan-500" />
+                          <span className="text-gray-600">Last Rebore Date:</span>
+                        </div>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.lastReboreDate}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Water Quality Assessment</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600">Quality Status:</span>
+                        <span className={`px-3 py-1 rounded-full text-sm font-semibold ${getWaterQualityColor(selectedHandpump.waterQuality)}`}>
+                          {selectedHandpump.waterQuality}
+                        </span>
+                      </div>
+                      {selectedHandpump.remark && (
+                        <div>
+                          <span className="text-gray-600 block mb-2">Remarks:</span>
+                          <p className="text-sm text-gray-800 bg-white p-3 rounded border border-gray-200">
+                            {selectedHandpump.remark}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Contact Information</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex items-center gap-2">
+                        <User size={16} className="text-indigo-500" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Nearby Person</p>
+                          <p className="font-semibold text-gray-800">{selectedHandpump.nearbyPerson}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Phone size={16} className="text-emerald-500" />
+                        <div className="flex-1">
+                          <p className="text-xs text-gray-500">Contact Number</p>
+                          <p className="font-semibold text-gray-800">{selectedHandpump.contact}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <h4 className="text-lg font-bold text-gray-800 mb-4">Additional Information</h4>
+                    <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Created By:</span>
+                        <span className="font-semibold text-gray-800">{selectedHandpump.originalData.CreatedBy || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Has Image:</span>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          selectedHandpump.hasImage === 'Yes' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedHandpump.hasImage}
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Has Video:</span>
+                        <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                          selectedHandpump.hasVideo === 'Yes' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedHandpump.hasVideo}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    const lat = selectedHandpump.originalData.Latitude;
+                    const lng = selectedHandpump.originalData.Longitude;
+                    if (lat && lng) {
+                      window.open(`https://www.google.com/maps?q=${lat},${lng}`, '_blank');
+                    }
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  <Navigation size={16} />
+                  Open in Maps
+                </button>
+                <button
+                  onClick={() => setSelectedHandpump(null)}
+                  className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors font-medium"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image Popup Modal */}
+      {imagePopup && (
+        <div
+          className="fixed inset-0 bg-black/70 flex items-center justify-center z-[2000] p-4"
+          onClick={() => setImagePopup(null)}
+        >
+          <div
+            className="relative bg-white rounded-xl shadow-xl flex items-center justify-center max-w-5xl max-h-[90vh] w-auto h-auto overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={imagePopup}
+              alt="Handpump"
+              className="max-w-[90vw] max-h-[85vh] w-auto h-auto rounded-lg object-contain"
+            />
+
+            <button
+              onClick={() => setImagePopup(null)}
+              className="absolute top-3 right-3 text-white bg-black/60 hover:bg-black/80 rounded-full p-2 transition"
+            >
+              <X size={22} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
