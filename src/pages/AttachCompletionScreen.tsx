@@ -22,6 +22,11 @@ const AttachCompletionScreen = () => {
   const [totalLabourCost, setTotalLabourCost] = useState('');
   const [dailyWageRate, setDailyWageRate] = useState('');
   const [noOfMandays, setNoOfMandays] = useState('');
+  const [validationErrors, setValidationErrors] = useState({
+  materialCost: '',
+  labourCost: '',
+  wageRate: ''
+});
 
   // API states
   const [requisitions, setRequisitions] = useState([]);
@@ -136,17 +141,45 @@ const AttachCompletionScreen = () => {
     );
   });
 
+const validateCosts = (field, value) => {
+  const numValue = parseFloat(value);
+  const errors = { ...validationErrors };
+  
+  if (field === 'materialCost' && numValue > 1000000) {
+    errors.materialCost = 'Material cost cannot exceed ₹10,00,000';
+  } else if (field === 'materialCost') {
+    errors.materialCost = '';
+  }
+  
+  if (field === 'labourCost' && numValue > 1000000) {
+    errors.labourCost = 'Labour cost cannot exceed ₹10,00,000';
+  } else if (field === 'labourCost') {
+    errors.labourCost = '';
+  }
+  
+  if (field === 'wageRate' && numValue > 2000) {
+    errors.wageRate = 'Daily wage rate cannot exceed ₹2,000';
+  } else if (field === 'wageRate') {
+    errors.wageRate = '';
+  }
+  
+  setValidationErrors(errors);
+  return !errors.materialCost && !errors.labourCost && !errors.wageRate;
+};
+
   const handleAttachCompletion = (requisition) => {
-    setSelectedRequisition(requisition);
-    setShowCompletionModal(true);
-    // Reset form
-    setMaterialBill(null);
-    setMaterialBillBase64('');
-    setTotalMaterialCost('');
-    setTotalLabourCost('');
-    setDailyWageRate('');
-    setNoOfMandays('');
-  };
+  setSelectedRequisition(requisition);
+  setShowCompletionModal(true);
+  // Reset form
+  setMaterialBill(null);
+  setMaterialBillBase64('');
+  setTotalMaterialCost('');
+  setTotalLabourCost('');
+  setDailyWageRate('');
+  setNoOfMandays('');
+  setValidationErrors({ materialCost: '', labourCost: '', wageRate: '' });
+};
+
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -220,25 +253,33 @@ const AttachCompletionScreen = () => {
   };
 
   const handleSubmit = () => {
-    console.log('=== SUBMIT BUTTON CLICKED ===');
-    console.log('Material Bill:', materialBill?.name);
-    console.log('Total Material Cost:', totalMaterialCost);
-    console.log('Total Labour Cost:', totalLabourCost);
-    console.log('Daily Wage Rate:', dailyWageRate);
-    console.log('No of Mandays:', noOfMandays);
-    
-    if (materialBill && totalMaterialCost && totalLabourCost && dailyWageRate) {
-      console.log('All fields valid - showing preview');
-      setShowPreview(true);
-    } else {
-      console.warn('Some fields are missing:', {
-        hasMaterialBill: !!materialBill,
-        hasTotalMaterialCost: !!totalMaterialCost,
-        hasTotalLabourCost: !!totalLabourCost,
-        hasDailyWageRate: !!dailyWageRate
-      });
-    }
-  };
+  console.log('=== SUBMIT BUTTON CLICKED ===');
+  console.log('Material Bill:', materialBill?.name);
+  console.log('Total Material Cost:', totalMaterialCost);
+  console.log('Total Labour Cost:', totalLabourCost);
+  console.log('Daily Wage Rate:', dailyWageRate);
+  console.log('No of Mandays:', noOfMandays);
+  
+  // Check for validation errors
+  const hasErrors = validationErrors.materialCost || validationErrors.labourCost || validationErrors.wageRate;
+  
+  if (hasErrors) {
+    alert('Please fix the validation errors before submitting.');
+    return;
+  }
+  
+  if (materialBill && totalMaterialCost && totalLabourCost && dailyWageRate) {
+    console.log('All fields valid - showing preview');
+    setShowPreview(true);
+  } else {
+    console.warn('Some fields are missing:', {
+      hasMaterialBill: !!materialBill,
+      hasTotalMaterialCost: !!totalMaterialCost,
+      hasTotalLabourCost: !!totalLabourCost,
+      hasDailyWageRate: !!dailyWageRate
+    });
+  }
+};
 
   const handleConfirm = async () => {
     try {
@@ -768,49 +809,127 @@ const AttachCompletionScreen = () => {
               {/* Cost Inputs */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Total Material Cost (₹) *
-                  </label>
-                  <input
-  type="number"
-  value={totalMaterialCost}
-  onChange={(e) => setTotalMaterialCost(e.target.value)}
-  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-  placeholder="Enter material cost"
-  min="0"
-  step="0.01"
-/>
-                </div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Total Material Cost (₹) *
+  </label>
+  <div>
+    <input
+      type="number"
+      value={totalMaterialCost}
+      onChange={(e) => {
+        const value = e.target.value;
+        setTotalMaterialCost(value);
+        if (value) validateCosts('materialCost', value);
+      }}
+      onInput={(e) => {
+        // Prevent entering values greater than 1000000
+        if (parseFloat(e.target.value) > 1000000) {
+          e.target.value = '1000000';
+          setTotalMaterialCost('1000000');
+          validateCosts('materialCost', '1000000');
+        }
+      }}
+      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+        validationErrors.materialCost 
+          ? 'border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 focus:ring-green-500'
+      }`}
+      placeholder="Enter material cost"
+      min="0"
+      max="1000000"
+      step="0.01"
+    />
+    {validationErrors.materialCost && (
+      <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
+        <AlertCircle size={12} />
+        {validationErrors.materialCost}
+      </p>
+    )}
+    <p className="text-gray-500 text-xs mt-1">Maximum: ₹10,00,000</p>
+  </div>
+</div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Total Labour Cost (₹) *
-                  </label>
-                  <input
-  type="number"
-  value={totalLabourCost}
-  onChange={(e) => setTotalLabourCost(e.target.value)}
-  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-  placeholder="Enter labour cost"
-  min="0"
-  step="0.01"
-/>
-                </div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Total Labour Cost (₹) *
+  </label>
+  <div>
+    <input
+      type="number"
+      value={totalLabourCost}
+      onChange={(e) => {
+        const value = e.target.value;
+        setTotalLabourCost(value);
+        if (value) validateCosts('labourCost', value);
+      }}
+      onInput={(e) => {
+        // Prevent entering values greater than 1000000
+        if (parseFloat(e.target.value) > 1000000) {
+          e.target.value = '1000000';
+          setTotalLabourCost('1000000');
+          validateCosts('labourCost', '1000000');
+        }
+      }}
+      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+        validationErrors.labourCost 
+          ? 'border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 focus:ring-green-500'
+      }`}
+      placeholder="Enter labour cost"
+      min="0"
+      max="1000000"
+      step="0.01"
+    />
+    {validationErrors.labourCost && (
+      <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
+        <AlertCircle size={12} />
+        {validationErrors.labourCost}
+      </p>
+    )}
+    <p className="text-gray-500 text-xs mt-1">Maximum: ₹10,00,000</p>
+  </div>
+</div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Daily Wage Rate (₹) *
-                  </label>
-                  <input
-  type="number"
-  value={dailyWageRate}
-  onChange={(e) => setDailyWageRate(e.target.value)}
-  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
-  placeholder="Enter daily wage rate"
-  min="0"
-  step="0.01"
-/>
-                </div>
+  <label className="block text-sm font-semibold text-gray-700 mb-2">
+    Daily Wage Rate (₹) *
+  </label>
+  <div>
+    <input
+      type="number"
+      value={dailyWageRate}
+      onChange={(e) => {
+        const value = e.target.value;
+        setDailyWageRate(value);
+        if (value) validateCosts('wageRate', value);
+      }}
+      onInput={(e) => {
+        // Prevent entering values greater than 2000
+        if (parseFloat(e.target.value) > 2000) {
+          e.target.value = '2000';
+          setDailyWageRate('2000');
+          validateCosts('wageRate', '2000');
+        }
+      }}
+      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+        validationErrors.wageRate 
+          ? 'border-red-500 focus:ring-red-500' 
+          : 'border-gray-300 focus:ring-green-500'
+      }`}
+      placeholder="Enter daily wage rate"
+      min="0"
+      max="2000"
+      step="0.01"
+    />
+    {validationErrors.wageRate && (
+      <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
+        <AlertCircle size={12} />
+        {validationErrors.wageRate}
+      </p>
+    )}
+    <p className="text-gray-500 text-xs mt-1">Maximum: ₹2,000</p>
+  </div>
+</div>
                 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -829,12 +948,20 @@ const AttachCompletionScreen = () => {
               {/* Submit Button */}
               <div className="flex justify-end">
                 <button
-                  onClick={handleSubmit}
-                  disabled={!materialBill || !totalMaterialCost || !totalLabourCost || !dailyWageRate}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
-                >
-                  Submit Details
-                </button>
+  onClick={handleSubmit}
+  disabled={
+    !materialBill || 
+    !totalMaterialCost || 
+    !totalLabourCost || 
+    !dailyWageRate ||
+    validationErrors.materialCost ||
+    validationErrors.labourCost ||
+    validationErrors.wageRate
+  }
+  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-semibold rounded-lg hover:from-green-700 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 shadow-lg"
+>
+  Submit Details
+</button>
               </div>
             </div>
           </div>

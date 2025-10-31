@@ -990,27 +990,27 @@ const ManageHandpumpComplaints = () => {
                       </div>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex flex-col gap-1">
-                        <button
-                          onClick={() => handleViewComplaint(c)}
-                          className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded-md hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-sm font-medium"
-                          disabled={loading}
-                        >
-                          <Eye size={12} />
-                          View Details
-                        </button>
-                        {(c.complaintStatus === "Pending" || c.complaintStatus === "In Progress") && (
-                          <button
-                            onClick={() => handleTakeAction(c)}
-                            className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium"
-                            disabled={loading}
-                          >
-                            <Wrench size={12} />
-                            Take Action
-                          </button>
-                        )}
-                      </div>
-                    </td>
+  <div className="flex flex-col gap-1">
+    <button
+      onClick={() => handleViewComplaint(c)}
+      className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs rounded-md hover:from-blue-600 hover:to-blue-700 transition-all duration-300 shadow-sm font-medium"
+      disabled={loading}
+    >
+      <Eye size={12} />
+      View Details
+    </button>
+    {role === "Gram_Panchayat_Sachiv" && (c.complaintStatus === "Pending" || c.complaintStatus === "In Progress") && (
+      <button
+        onClick={() => handleTakeAction(c)}
+        className="flex items-center gap-1 px-3 py-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white text-xs rounded-md hover:from-emerald-600 hover:to-emerald-700 transition-all duration-300 shadow-sm font-medium"
+        disabled={loading}
+      >
+        <Wrench size={12} />
+        Take Action
+      </button>
+    )}
+  </div>
+</td>
                   </tr>
                 ))}
               </tbody>
@@ -1203,28 +1203,28 @@ const ManageHandpumpComplaints = () => {
               </div>
 
               <div className="flex justify-end gap-3 mt-8">
-                <button 
-                  onClick={() => {
-                    setShowViewModal(false);
-                    setSelectedComplaint(null);
-                  }} 
-                  className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
-                >
-                  Close
-                </button>
-                {(selectedComplaint.complaintStatus === "Pending" || selectedComplaint.complaintStatus === "In Progress") && (
-                  <button 
-                    onClick={() => {
-                      setShowViewModal(false);
-                      setSelectedComplaint(null);
-                      handleTakeAction(selectedComplaint);
-                    }}
-                    className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-lg transition-all duration-300 font-medium shadow-lg"
-                  >
-                    Take Action
-                  </button>
-                )}
-              </div>
+  <button 
+    onClick={() => {
+      setShowViewModal(false);
+      setSelectedComplaint(null);
+    }} 
+    className="px-6 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors font-medium"
+  >
+    Close
+  </button>
+  {role === "Gram_Panchayat_Sachiv" && (selectedComplaint.complaintStatus === "Pending" || selectedComplaint.complaintStatus === "In Progress") && (
+    <button 
+      onClick={() => {
+        setShowViewModal(false);
+        setSelectedComplaint(null);
+        handleTakeAction(selectedComplaint);
+      }}
+      className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-700 hover:to-green-700 text-white rounded-lg transition-all duration-300 font-medium shadow-lg"
+    >
+      Take Action
+    </button>
+  )}
+</div>
             </div>
           </div>
         )}

@@ -57,10 +57,11 @@ interface Village {
 }
 
 interface Handpump {
-  HandpumpId: number;
-  HandpumpCode: string;
-  Location: string;
-  Status: string;
+  H_id: number;
+  HandpumpId: string;  // This is actually the code
+  NearByPersonName: string;
+  HandpumpStatus: string;
+  VillegeId: number;
 }
 
 const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false, onClose }) => {
@@ -276,63 +277,62 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
 
   // Fetch handpumps when village changes
   useEffect(() => {
-    if (!selectedVillage) {
-      setHandpumps([]);
-      setSelectedHandpump(null);
-      return;
-    }
+  if (!selectedVillage) {
+    setHandpumps([]);
+    setSelectedHandpump(null);
+    return;
+  }
 
-    const fetchHandpumps = async () => {
-      try {
-        const villageId = selectedVillage.Id;
-        console.log("Fetching handpumps for VillageId:", villageId);
-        const token = getAuthToken();
-        
-        if (!token) {
-          toast.error('Authentication token not found');
-          return;
-        }
-        
-        // Try to fetch from API - replace with actual endpoint when available
-        const res = await fetch(`${API_BASE}/Master/GetHandpumpsByVillage?VillageId=${villageId}`, {
-          headers: {
-            "Content-Type": "application/json",
-            accept: "*/*",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        const json = await res.json();
-        console.log("Handpump API response:", json);
-        
-        if (json.Status && Array.isArray(json.Data) && json.Data.length > 0) {
-          setHandpumps(json.Data);
-        } else {
-          // Mock data for demonstration - remove when real API is available
-          const mockHandpumps = [
-            { HandpumpId: 1, HandpumpCode: `HP${villageId}001`, Location: "Near School", Status: "Working" },
-            { HandpumpId: 2, HandpumpCode: `HP${villageId}002`, Location: "Village Center", Status: "Not Working" },
-            { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
-          ];
-          setHandpumps(mockHandpumps);
-          console.log('Using mock handpump data');
-        }
-      } catch (err) {
-        console.error("Error fetching handpumps:", err);
-        // Mock data fallback
-        const villageId = selectedVillage.Id;
-        const mockHandpumps = [
-          { HandpumpId: 1, HandpumpCode: `HP${villageId}001`, Location: "Near School", Status: "Working" },
-          { HandpumpId: 2, HandpumpCode: `HP${villageId}002`, Location: "Village Center", Status: "Not Working" },
-          { HandpumpId: 3, HandpumpCode: `HP${villageId}003`, Location: "Near Temple", Status: "Working" },
-        ];
-        setHandpumps(mockHandpumps);
-        console.log('Using mock handpump data due to error');
+  const fetchHandpumps = async () => {
+    try {
+      const villageId = selectedVillage.Id;
+      console.log("Fetching handpumps for VillageId:", villageId);
+      const token = getAuthToken();
+      
+      if (!token) {
+        toast.error('Authentication token not found');
+        setHandpumps([]);
+        return;
       }
-    };
+      
+      const res = await fetch(`${API_BASE}/HandpumpRegistration/GetHandpumpListByUserId?UserId=${userId}`, {
+        method: "GET",
+        headers: {
+          accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      
+      const json = await res.json();
+      console.log("Handpump API response:", json);
+      
+      if (json.Status && Array.isArray(json.Data)) {
+        // Filter handpumps by selected village
+        const filteredHandpumps = json.Data.filter((h: Handpump) => h.VillegeId === villageId);
+        
+        if (filteredHandpumps.length > 0) {
+          setHandpumps(filteredHandpumps);
+        } else {
+          setHandpumps([]);
+          toast.info('No handpumps found for this village');
+        }
+      } else {
+        setHandpumps([]);
+        toast.error(json.Message || 'Failed to fetch handpumps');
+      }
+    } catch (err) {
+      console.error("Error fetching handpumps:", err);
+      setHandpumps([]);
+      toast.error("Failed to fetch handpumps. Please try again.");
+    }
+  };
 
-    fetchHandpumps();
-  }, [selectedVillage]);
+  fetchHandpumps();
+}, [selectedVillage, userId]);
 
   // Update resolution days on category change
   useEffect(() => {
@@ -413,20 +413,20 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
 
       // Prepare request body according to API specification
       const bodyData = {
-        HandpumpId: selectedHandpump.HandpumpId,
-        DistrictId: selectedDistrictId || 0,
-        BlockId: selectedBlockId || 0,
-        GpId: selectedGramPanchayatId || 0,
-        VillageId: selectedVillage.Id,
-        ComplainantName: form.complainantName,
-        ContactNumber: form.complainantContact,
-        Landmark: form.landmark,
-        IssueCategory: form.category === "Other" ? form.otherCategory : form.category,
-        UrgencyLevel: form.urgency,
-        ResolutionTimelineDays: Number(form.resolutionDays),
-        IssueDescription: form.description,
-        CreatedBy: userId
-      };
+  HandpumpId: selectedHandpump.H_id,
+  DistrictId: selectedDistrictId || 0,
+  BlockId: selectedBlockId || 0,
+  GpId: selectedGramPanchayatId || 0,
+  VillageId: selectedVillage.Id,
+  ComplainantName: form.complainantName,
+  ContactNumber: form.complainantContact,
+  Landmark: form.landmark,
+  IssueCategory: form.category === "Other" ? form.otherCategory : form.category,
+  UrgencyLevel: form.urgency,
+  ResolutionTimelineDays: Number(form.resolutionDays),
+  IssueDescription: form.description,
+  CreatedBy: userId
+};
 
       console.log('=== SUBMITTING HANDPUMP COMPLAINT ===');
       console.log('Request Body:', bodyData);
@@ -606,18 +606,18 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
             Select Handpump <span className="text-red-500">*</span>
           </label>
           <select
-            value={selectedHandpump?.HandpumpId || ""}
-            onChange={(e) => setSelectedHandpump(handpumps.find(h => h.HandpumpId === Number(e.target.value)) || null)}
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-            required
-          >
-            <option value="">Select Handpump</option>
-            {handpumps.map((h) => (
-              <option key={h.HandpumpId} value={h.HandpumpId}>
-                {h.HandpumpCode} - {h.Location} ({h.Status})
-              </option>
-            ))}
-          </select>
+  value={selectedHandpump?.H_id || ""}
+  onChange={(e) => setSelectedHandpump(handpumps.find(h => h.H_id === Number(e.target.value)) || null)}
+  className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+  required
+>
+  <option value="">Select Handpump</option>
+  {handpumps.map((h) => (
+    <option key={h.H_id} value={h.H_id}>
+      {h.HandpumpId} - {h.NearByPersonName} ({h.HandpumpStatus})
+    </option>
+  ))}
+</select>
         </div>
 
         {/* Complainant Name */}
