@@ -122,10 +122,10 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data to match component structure
           const transformedData = data.Data.map(req => ({
+            
   id: req.RequisitionId?.toString() || 'N/A',
   handpumpId: req.HandpumpId || 'N/A',
-  mode: req.RequisitionType || 'Unknown',
-  date: req.RequisitionDate || new Date().toISOString(),
+  mode: req.RequisitionTypeId === 2 ? 'REBORE' : (req.RequisitionType || 'Unknown'),  date: req.RequisitionDate || new Date().toISOString(),
   sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
   status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
   orderId: req.OrderId,
