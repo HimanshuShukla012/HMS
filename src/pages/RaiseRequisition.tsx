@@ -5,6 +5,59 @@ import { ToastContainer } from "react-toastify";
 import { Camera, Upload, X, FileText, Wrench, Drill, CheckCircle, AlertCircle, MapPin, Settings } from "lucide-react";
 import { useUserInfo } from '../utils/userInfo';
 
+// Image compression function
+const compressImage = (file: File, targetSizeKB: number = 400): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Calculate new dimensions to reduce file size
+        const maxDimension = 1920; // Max width or height
+        if (width > height && width > maxDimension) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        } else if (height > maxDimension) {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Start with quality 0.9 and reduce if needed
+        let quality = 0.9;
+        let compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        
+        // Keep reducing quality until size is under target
+        while (compressedDataUrl.length > targetSizeKB * 1024 * 1.37 && quality > 0.1) {
+          quality -= 0.1;
+          compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        
+        // Ensure it's above 150KB
+        if (compressedDataUrl.length < 150 * 1024 * 1.37) {
+          quality = 0.8;
+          compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+        
+        resolve(compressedDataUrl);
+      };
+      img.onerror = reject;
+    };
+    reader.onerror = reject;
+  });
+};
+
 const RaiseRequisition = () => {
   type Handpump = { 
     Id: number; 
@@ -158,32 +211,69 @@ useEffect(() => {
   }, [selectedVillageId]);
 
   // Handle image upload
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({ ...prev, image: "Please select a valid image file" }));
-        return;
-      }
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const file = e.target.files?.[0];
+  if (file) {
+    // Validate file type - only JPEG
+    if (!file.type.match('image/jpeg') && !file.type.match('image/jpg')) {
+      setErrors(prev => ({ ...prev, image: "Please select a JPEG image file only" }));
+      toast.error("Only JPEG images are allowed");
+      return;
+    }
 
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({ ...prev, image: "Image size should be less than 5MB" }));
-        return;
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors(prev => ({ ...prev, image: "Image size should be less than 5MB" }));
+      toast.error("Image size should be less than 5MB");
+      return;
+    }
+
+    try {
+      // Check if compression is needed (file > 500KB)
+      const fileSizeKB = file.size / 1024;
+      let finalDataUrl: string;
+      
+      if (fileSizeKB > 500) {
+        toast.info("Compressing image...");
+        finalDataUrl = await compressImage(file, 400); // Target 400KB
+        
+        // Verify compressed size
+        const compressedSizeKB = (finalDataUrl.length * 0.75) / 1024; // Approximate size
+        console.log(`Original size: ${fileSizeKB.toFixed(2)}KB, Compressed size: ${compressedSizeKB.toFixed(2)}KB`);
+        
+        if (compressedSizeKB > 500) {
+          toast.warning("Image compressed but still large. Reducing quality further...");
+          finalDataUrl = await compressImage(file, 350);
+        }
+        
+        toast.success("Image compressed successfully");
+      } else {
+        // No compression needed, but ensure proper format
+        const reader = new FileReader();
+        finalDataUrl = await new Promise((resolve, reject) => {
+          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      }
+      
+      // Ensure the format is exactly: data:image/jpeg;base64,
+      if (!finalDataUrl.startsWith('data:image/jpeg;base64,')) {
+        const base64Part = finalDataUrl.split(',')[1];
+        finalDataUrl = `data:image/jpeg;base64,${base64Part}`;
       }
 
       setHandpumpImage(file);
+      setImagePreview(finalDataUrl);
       setErrors(prev => ({ ...prev, image: "" }));
-
-      // Create preview
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setImagePreview(e.target?.result as string);
-      };
-      reader.readAsDataURL(file);
+      
+    } catch (error) {
+      console.error('Error processing image:', error);
+      setErrors(prev => ({ ...prev, image: "Failed to process image" }));
+      toast.error("Failed to process image. Please try another image.");
     }
-  };
+  }
+};
 
   // Remove uploaded image
   const removeImage = () => {
@@ -222,11 +312,20 @@ useEffect(() => {
       reader.readAsDataURL(handpumpImage);
       
       reader.onload = async () => {
-        const base64String = reader.result as string;
-        const base64Data = base64String.split(',')[1]; // Remove data:image/...;base64, prefix
+  // Use the already processed image preview (which is compressed if needed)
+  let base64Data = imagePreview;
+  
+  // Ensure the format is exactly: data:image/jpeg;base64,
+  if (!base64Data.startsWith('data:image/jpeg;base64,')) {
+    const base64Part = base64Data.includes(',') ? base64Data.split(',')[1] : base64Data;
+    base64Data = `data:image/jpeg;base64,${base64Part}`;
+  }
 
-        // Prepare request body according to API spec
-        const requestBody = {
+  console.log('Base64 format check:', base64Data.substring(0, 30));
+  console.log('Base64 size (KB):', ((base64Data.length * 0.75) / 1024).toFixed(2));
+
+  // Prepare request body according to API spec
+  const requestBody = {
   RequisitionId: 0,
   UserId: userId,
   HandpumpId: selectedHandpumpId,
@@ -638,12 +737,12 @@ const response = await fetch(
                           </p>
                         </div>
                         <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageUpload}
-                          className="hidden"
-                          id="image-upload"
-                        />
+  type="file"
+  accept="image/jpeg,image/jpg"
+  onChange={handleImageUpload}
+  className="hidden"
+  id="image-upload"
+/>
                         <label
                           htmlFor="image-upload"
                           className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-amber-600 to-orange-600 text-white font-semibold rounded-lg shadow-lg hover:from-amber-700 hover:to-orange-700 cursor-pointer transition-all duration-300 transform hover:scale-105"
@@ -685,9 +784,9 @@ const response = await fetch(
                     </div>
                   )}
                   <p className="text-gray-500 text-sm mt-3 flex items-center gap-2">
-                    <FileText size={14} />
-                    Supported formats: JPG, PNG, GIF. Maximum size: 5MB
-                  </p>
+  <FileText size={14} />
+  Only JPEG format. Images over 500KB will be automatically compressed.
+</p>
                 </div>
 
                 {/* Selected Details */}
