@@ -167,25 +167,29 @@ const ViewEstimationScreen = () => {
         const data = await response.json();
 
         if (data && data.Data && Array.isArray(data.Data)) {
-          // Extract consulting engineer name from first item
-          if (data.Data.length > 0 && data.Data[0].UserName) {
-            setConsultingEngineer(data.Data[0].UserName);
-          }
+  // Extract consulting engineer name from first item
+  if (data.Data.length > 0 && data.Data[0].UserName) {
+    setConsultingEngineer(data.Data[0].UserName);
+  }
 
-          // Transform items to match the structure
-          const transformedItems = data.Data.map((item, index) => ({
-            sno: index + 1,
-            item: item.ItemName || 'Unknown Item',
-            unit: 'Nos',
-            rate: item.Quantity > 0 ? item.Amount / item.Quantity : item.Amount,
-            qty: item.Quantity || 1,
-            amount: item.Amount || 0
-          }));
-          
-          setRequisitionItems(transformedItems);
-        } else {
-          setRequisitionItems([]);
-        }
+  // Transform items to match the structure
+  const transformedItems = data.Data.map((item, index) => ({
+    sno: index + 1,
+    item: item.ItemName || 'Unknown Item',
+    unit: item.Unit || 'Nos',
+    rate: item.Quantity > 0 ? (item.Amount / item.Quantity) : 0,
+    qty: item.Quantity || 0,
+    amount: item.Amount || 0,
+    ref: item.Source || '',
+    l: item.Length || '',
+    b: item.Width || '',
+    h: item.Height || ''
+  }));
+  
+  setRequisitionItems(transformedItems);
+} else {
+  setRequisitionItems([]);
+}
       } catch (err) {
         console.error('Error fetching requisition items:', err);
         setRequisitionItems([]);
@@ -206,24 +210,27 @@ const ViewEstimationScreen = () => {
   };
 
   const getMasterItems = () => {
-    if (!selectedEstimation) return [];
-    
-    const isRepair = selectedEstimation.mode === 'REPAIR';
-    const masterItems = isRepair ? masterRepairItems : masterReboreItems;
-    
-    return masterItems.map((item, index) => ({
+  if (!selectedEstimation) return [];
+  
+  const isRepair = selectedEstimation.mode === 'REPAIR';
+  const masterItems = isRepair ? masterRepairItems : masterReboreItems;
+  
+  // Filter out header items (items with 0 quantity and 0 rate)
+  return masterItems
+    .filter(item => !(item.Quantity === 0 && item.Rate === 0))
+    .map((item, index) => ({
       sno: index + 1,
       item: item.ItemName || 'Unknown Item',
-      unit: item.Unit || '',
+      unit: item.Unit || 'Nos',
       rate: item.Rate || 0,
       qty: item.Quantity || 0,
       amount: item.Amount || 0,
       ref: item.Source || '',
-      l: item.Length || '',
-      b: item.Width || '',
-      h: item.Height || ''
+      l: item.Length?.toString() || '',
+      b: item.Width?.toString() || '',
+      h: item.Height?.toString() || ''
     }));
-  };
+};
 
   const filteredRequisitions = requisitions.filter(req => {
     const modeMatch = filterMode === 'All' || req.mode === filterMode;

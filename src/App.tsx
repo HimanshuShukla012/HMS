@@ -3,7 +3,7 @@ import Login from "./components/Login";
 import AdminDashboard from "./pages/AdminDashboard";
 import GPDashboard from "./pages/GPDashboard";
 import RaiseRequisition from "./pages/RaiseRequisition";
-import ManageBeneficiary from "./pages/ManageBeneficiary";
+import ManageBeneficiary from "./pages/viewestimation";
 import PumpHouseMaster from "./pages/PumpHouseMaster";
 import ViewClosureUpdatesScreen from "./pages/ViewClosureUpdatesScreen"; 
 import GMAS from "./pages/GMAS";

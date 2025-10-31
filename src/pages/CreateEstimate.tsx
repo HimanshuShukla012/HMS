@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Filter, Search, Plus, Eye, Calendar, FileText, Wrench, Drill, X, Upload, Trash2, Edit3, Check, Calculator, MapPin } from 'lucide-react';
+import { Filter, Search, Plus, Eye, Calendar, FileText, Wrench, Drill, X, Trash2, Edit3, Check, Calculator, MapPin } from 'lucide-react';
 import { useUserInfo } from '../utils/userInfo';
 
 const CreateEstimationScreen = () => {
@@ -9,16 +9,15 @@ const CreateEstimationScreen = () => {
   const [selectedRequisition, setSelectedRequisition] = useState(null);
   const [showAddItemModal, setShowAddItemModal] = useState(false);
   const [newItem, setNewItem] = useState({
-    name: '',
-    unit: '',
-    rate: '',
-    quantity: 1,
-    source: 'CPWD-SOR',
-    length: '',
-    width: '',
-    height: '',
-    quotationFile: null
-  });
+  name: '',
+  unit: '',
+  rate: '',
+  quantity: 1,
+  source: 'CPWD-SOR',
+  length: '',
+  width: '',
+  height: ''
+});
   const [addedItems, setAddedItems] = useState([]);
   const [selectedPreDefinedItems, setSelectedPreDefinedItems] = useState({});
   const [showSuccessModal, setShowSuccessModal] = useState(false);
@@ -172,70 +171,122 @@ const processedRequisitions = reqData.Data
   };
 
   const handleAddItem = async () => {
-    if (newItem.name && newItem.unit && newItem.rate && newItem.quantity) {
-      const item = {
-        id: Date.now(),
-        name: newItem.name,
-        unit: newItem.unit,
-        rate: parseFloat(newItem.rate),
-        quantity: parseInt(newItem.quantity),
-        source: newItem.source,
-        length: parseFloat(newItem.length) || 0,
-        width: parseFloat(newItem.width) || 0,
-        height: parseFloat(newItem.height) || 0,
-        amount: parseFloat(newItem.rate) * parseInt(newItem.quantity),
-        quotationFile: newItem.quotationFile,
-        isCustom: true
-      };
-
-      // Save to API based on requisition type
-      try {
-        const endpoint = selectedRequisition.mode.toUpperCase() === 'REPAIR' 
-          ? '/Master/InsertRepairEstimateItems'
-          : '/Master/InsertReborEstimateItems';
-
-        const response = await fetch(`${API_BASE}${endpoint}`, {
-          method: 'POST',
-          headers: {
-            'accept': '*/*',
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            ItemName: newItem.name,
-            Unit: newItem.unit,
-            Quantity: parseInt(newItem.quantity),
-            Rate: parseFloat(newItem.rate),
-            Amount: parseFloat(newItem.rate) * parseInt(newItem.quantity),
-            UpdatedBy: userId,
-            Source: newItem.source,
-            Length: parseFloat(newItem.length) || 0,
-            Width: parseFloat(newItem.width) || 0,
-            Height: parseFloat(newItem.height) || 0
-          })
-        });
-
-        if (response.ok) {
-          setAddedItems([...addedItems, item]);
-        }
-      } catch (error) {
-        console.error('Error adding item:', error);
+  if (newItem.name && newItem.unit && newItem.rate && newItem.quantity) {
+    try {
+      const authToken = getAuthToken();
+      
+      if (!authToken) {
+        alert('Authentication token not found. Please login again.');
+        return;
       }
 
-      setNewItem({
-        name: '',
-        unit: '',
-        rate: '',
-        quantity: 1,
-        source: 'CPWD-SOR',
-        length: '',
-        width: '',
-        height: '',
-        quotationFile: null
+      const amount = parseFloat(newItem.rate) * parseInt(newItem.quantity);
+      
+      const requestBody = {
+        ItemName: newItem.name,
+        Unit: newItem.unit,
+        Quantity: parseInt(newItem.quantity),
+        Rate: parseFloat(newItem.rate),
+        Amount: amount,
+        UpdatedBy: userId,
+        Source: newItem.source,
+        Length: parseFloat(newItem.length) || 0,
+        Width: parseFloat(newItem.width) || 0,
+        Height: parseFloat(newItem.height) || 0
+      };
+
+      const endpoint = selectedRequisition.mode.toUpperCase() === 'REPAIR' 
+        ? `${API_BASE}/Master/InsertRepairEstimateItems`
+        : `${API_BASE}/Master/InsertReborEstimateItems`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(requestBody)
       });
-      setShowAddItemModal(false);
+
+      if (response.ok) {
+        // Refresh the items list after successful addition
+        if (selectedRequisition.mode.toUpperCase() === 'REPAIR') {
+          const repairResponse = await fetch(
+            `${API_BASE}/Master/GetRepairEstimation`,
+            {
+              headers: {
+                'accept': '*/*',
+                'Authorization': `Bearer ${authToken}`
+              }
+            }
+          );
+          const repairData = await repairResponse.json();
+          const processedRepairItems = repairData.Data.map(item => ({
+            id: item.Id,
+            name: item.ItemName,
+            unit: item.Unit || '',
+            rate: item.Rate,
+            qty: item.Quantity,
+            source: item.Source || 'CPWD-SOR',
+            l: item.Length?.toString() || '',
+            b: item.Width?.toString() || '',
+            h: item.Height?.toString() || '',
+            amount: item.Amount,
+            isHeader: item.Quantity === 0 && item.Rate === 0
+          }));
+          setRepairItems(processedRepairItems);
+        } else {
+          const reboreResponse = await fetch(
+            `${API_BASE}/Master/GetReboreEstimation`,
+            {
+              headers: {
+                'accept': '*/*',
+                'Authorization': `Bearer ${authToken}`
+              }
+            }
+          );
+          const reboreData = await reboreResponse.json();
+          const processedReboreItems = reboreData.Data.map(item => ({
+            id: item.Id,
+            name: item.ItemName,
+            unit: item.Unit || '',
+            rate: item.Rate,
+            qty: item.Quantity,
+            source: item.Source || 'CPWD-SOR',
+            l: item.Length?.toString() || '',
+            b: item.Width?.toString() || '',
+            h: item.Height?.toString() || '',
+            amount: item.Amount,
+            isHeader: item.Quantity === 0 && item.Rate === 0
+          }));
+          setReboreItems(processedReboreItems);
+        }
+
+        // Reset form
+        setNewItem({
+          name: '',
+          unit: '',
+          rate: '',
+          quantity: 1,
+          source: 'CPWD-SOR',
+          length: '',
+          width: '',
+          height: '',
+          quotationFile: null
+        });
+        setShowAddItemModal(false);
+        
+        alert('Item added successfully!');
+      } else {
+        alert('Failed to add item. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error adding item:', error);
+      alert('Failed to add item. Please try again.');
     }
-  };
+  }
+};
 
   const handleItemSelection = (itemId, checked) => {
     const items = selectedRequisition?.mode.toUpperCase() === 'REPAIR' ? repairItems : reboreItems;
@@ -276,30 +327,13 @@ const processedRequisitions = reqData.Data
   };
 
   const calculateTotal = () => {
-    let total = 0;
-    
-    // Add custom items
-    addedItems.forEach(item => {
-      total += item.amount;
-    });
-    
-    // Add predefined items
-    Object.values(selectedPreDefinedItems).forEach(item => {
-      const l = parseFloat(item.l) || 1;
-      const b = parseFloat(item.b) || 1;
-      const h = parseFloat(item.h) || 1;
-      const qty = parseFloat(item.quantity) || 1;
-      
-      let finalQty = qty;
-      
-      if (item.l && item.b && item.h) {
-        finalQty = l * b * h * qty;
-      } else if (item.l && !item.b && !item.h) {
-        finalQty = l * qty;
-      }
-      
-      total += item.rate * finalQty;
-    });
+  let total = 0;
+  
+  // Add all selected items (including custom ones)
+  Object.values(selectedPreDefinedItems).forEach(item => {
+    const qty = parseFloat(item.quantity) || 1;
+    total += item.rate * qty;
+  });
     
     const gstRate = gstDetails ? (gstDetails.Igst / 100) : 0.18;
     const gst = total * gstRate;
@@ -326,25 +360,15 @@ const processedRequisitions = reqData.Data
       const items = [];
       
       // Add predefined items
-      Object.entries(selectedPreDefinedItems).forEach(([itemId, item]) => {
-        const l = parseFloat(item.l) || 1;
-        const b = parseFloat(item.b) || 1;
-        const h = parseFloat(item.h) || 1;
-        const qty = parseFloat(item.quantity) || 1;
-        
-        let finalQty = qty;
-        if (item.l && item.b && item.h) {
-          finalQty = l * b * h * qty;
-        } else if (item.l && !item.b && !item.h) {
-          finalQty = l * qty;
-        }
-        
-        items.push({
-          ItemId: parseInt(itemId),
-          Quantity: finalQty,
-          Amount: item.rate * finalQty
-        });
-      });
+Object.entries(selectedPreDefinedItems).forEach(([itemId, item]) => {
+  const qty = parseFloat(item.quantity) || 1;
+  
+  items.push({
+    ItemId: parseInt(itemId),
+    Quantity: qty,
+    Amount: item.rate * qty
+  });
+});
 
       // Prepare request body
       const requestBody = {
@@ -426,14 +450,7 @@ const processedRequisitions = reqData.Data
     setSavedEstimationData(null);
   };
 
-  const handleFileUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type === 'application/pdf') {
-      setNewItem(prev => ({ ...prev, quotationFile: file }));
-    } else {
-      alert('Please upload a PDF file only');
-    }
-  };
+  
 
   const calculations = showModal ? calculateTotal() : { total: 0, gst: 0, totalWithGST: 0, consultingFeeEstimation: 0, consultingFeeMB: 0, grandTotal: 0 };
 
@@ -701,9 +718,9 @@ const processedRequisitions = reqData.Data
                 {/* Pre-defined Items Selection in Table Format */}
                 <div className="mb-8">
                   <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                    <FileText size={20} />
-                    Select Pre-defined Items
-                  </h4>
+  <FileText size={20} />
+  Select Pre-defined Items <span className="text-red-500">*</span>
+</h4>
                   <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
                     <div className="overflow-x-auto max-h-96 overflow-y-auto">
                       <table className="w-full">
@@ -729,20 +746,10 @@ const processedRequisitions = reqData.Data
                             const isHeaderItem = item.isHeader || item.qty === 0;
                             
                             let calculatedAmount = 0;
-                            if (isSelected && !isHeaderItem) {
-                              const l = parseFloat(selectedItem.l) || 1;
-                              const b = parseFloat(selectedItem.b) || 1;
-                              const h = parseFloat(selectedItem.h) || 1;
-                              const qty = parseFloat(selectedItem.quantity) || 1;
-                              
-                              let finalQty = qty;
-                              if (selectedItem.l && selectedItem.b && selectedItem.h) {
-                                finalQty = l * b * h * qty;
-                              } else if (selectedItem.l && !selectedItem.b && !selectedItem.h) {
-                                finalQty = l * qty;
-                              }
-                              calculatedAmount = item.rate * finalQty;
-                            }
+if (isSelected && !isHeaderItem) {
+  const qty = parseFloat(selectedItem.quantity) || 1;
+  calculatedAmount = item.rate * qty;
+}
                             
                             return (
                               <tr key={item.id} className={`${
@@ -767,10 +774,11 @@ const processedRequisitions = reqData.Data
                                 </td>
                                 <td className="px-3 py-3 text-sm font-semibold text-gray-700">{index + 1}</td>
                                 <td className="px-3 py-3 text-xs max-w-xs">
-                                  <div className={`break-words ${isHeaderItem ? 'text-gray-700 font-semibold' : 'text-gray-800'}`}>
-                                    {item.name}
-                                  </div>
-                                </td>
+  <div className={`break-words ${isHeaderItem ? 'text-gray-700 font-semibold' : 'text-gray-800'}`}>
+    {item.name}
+    {item.isCustom && <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-800">Custom</span>}
+  </div>
+</td>
                                 <td className="px-3 py-3 text-sm text-gray-700">{item.unit || '-'}</td>
                                 <td className="px-3 py-3 text-sm font-semibold">
                                   {item.rate > 0 ? (
@@ -894,60 +902,7 @@ const processedRequisitions = reqData.Data
                   </div>
                 </div>
 
-                {/* Added Custom Items Summary */}
-                {addedItems.length > 0 && (
-                  <div className="mb-6">
-                    <h4 className="text-xl font-bold text-gray-800 mb-4 flex items-center gap-2">
-                      <Calculator size={20} />
-                      Custom Added Items
-                    </h4>
-                    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
-                      <table className="w-full">
-                        <thead className="bg-purple-100">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Sr. No</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Item</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Unit</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Rate (₹)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Quantity</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Amount (₹)</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Source</th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-purple-700 uppercase">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {addedItems.map((item, index) => (
-                            <tr key={item.id} className="hover:bg-gray-50">
-                              <td className="px-4 py-3 text-sm font-semibold text-purple-600">{index + 1}</td>
-                              <td className="px-4 py-3 text-sm text-gray-800">{item.name}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700">{item.unit}</td>
-                              <td className="px-4 py-3 text-sm text-emerald-600 font-semibold">₹{item.rate.toLocaleString()}</td>
-                              <td className="px-4 py-3 text-sm text-gray-700">{item.quantity}</td>
-                              <td className="px-4 py-3 text-sm text-slate-700 font-semibold">₹{item.amount.toLocaleString()}</td>
-                              <td className="px-4 py-3">
-                                <span className={`inline-flex items-center px-2 py-1 text-xs font-medium rounded-full ${
-                                  item.source === 'Market Rate' ? 'bg-orange-100 text-orange-800' :
-                                  item.source === 'CPWD-SOR' ? 'bg-blue-100 text-blue-800' :
-                                  'bg-green-100 text-green-800'
-                                }`}>
-                                  {item.source}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3">
-                                <button
-                                  onClick={() => setAddedItems(addedItems.filter(i => i.id !== item.id))}
-                                  className="text-red-600 hover:text-red-800 transition-colors"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
+                
 
                 {/* Modal Footer */}
                 <div className="flex justify-end gap-4 pt-6 border-t border-gray-200">
@@ -960,7 +915,7 @@ const processedRequisitions = reqData.Data
                   <button
                     onClick={handleSaveEstimation}
                     className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-md font-medium flex items-center gap-2"
-                    disabled={Object.keys(selectedPreDefinedItems).length === 0 && addedItems.length === 0}
+                    disabled={Object.keys(selectedPreDefinedItems).length === 0}
                   >
                     <Check size={18} />
                     Save Estimation
@@ -990,7 +945,7 @@ const processedRequisitions = reqData.Data
               <div className="p-6">
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Name</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Name <span className="text-red-500">*</span></label>
                     <input
                       type="text"
                       value={newItem.name}
@@ -1002,7 +957,7 @@ const processedRequisitions = reqData.Data
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Unit</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
                       <input
                         type="text"
                         value={newItem.unit}
@@ -1013,7 +968,7 @@ const processedRequisitions = reqData.Data
                     </div>
                     
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Rate (₹)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Rate (₹) <span className="text-red-500">*</span></label>
                       <input
                         type="number"
                         value={newItem.rate}
@@ -1026,7 +981,7 @@ const processedRequisitions = reqData.Data
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Quantity <span className="text-red-500">*</span></label>
                     <input
                       type="number"
                       value={newItem.quantity}
@@ -1074,10 +1029,10 @@ const processedRequisitions = reqData.Data
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Source</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Item Source <span className="text-red-500">*</span></label>
                     <select
                       value={newItem.source}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, source: e.target.value, quotationFile: e.target.value !== 'Market Rate' ? null : prev.quotationFile }))}
+                      onChange={(e) => setNewItem(prev => ({ ...prev, source: e.target.value }))}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     >
                       <option value="CPWD-SOR">CPWD-SOR</option>
@@ -1086,27 +1041,7 @@ const processedRequisitions = reqData.Data
                     </select>
                   </div>
                   
-                  {newItem.source === 'Market Rate' && (
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Upload Quotation (PDF)</label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="file"
-                          accept=".pdf"
-                          onChange={handleFileUpload}
-                          className="hidden"
-                          id="quotation-file"
-                        />
-                        <label
-                          htmlFor="quotation-file"
-                          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 flex items-center gap-2"
-                        >
-                          <Upload size={16} />
-                          {newItem.quotationFile ? newItem.quotationFile.name : 'Choose PDF file'}
-                        </label>
-                      </div>
-                    </div>
-                  )}
+                  
                 </div>
                 
                 <div className="flex justify-end gap-3 mt-6">
@@ -1119,7 +1054,7 @@ const processedRequisitions = reqData.Data
                   <button
                     onClick={handleAddItem}
                     className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-md flex items-center gap-2"
-                    disabled={!newItem.name || !newItem.unit || !newItem.rate || !newItem.quantity || (newItem.source === 'Market Rate' && !newItem.quotationFile)}
+                    disabled={!newItem.name || !newItem.unit || !newItem.rate || !newItem.quantity}
                   >
                     <Plus size={16} />
                     Add Item
