@@ -788,12 +788,12 @@ const validateCosts = (field, value) => {
                   <Upload size={24} className="mx-auto text-gray-400 mb-2" />
                   <p className="text-sm text-gray-600 mb-2">Click to upload or drag and drop</p>
                   <input 
-                    type="file" 
-                    className="hidden" 
-                    id="material-bill"
-                    accept=".pdf,.jpg,.png,.jpeg"
-                    onChange={handleFileUpload}
-                  />
+  type="file" 
+  className="hidden" 
+  id="material-bill"
+  accept=".pdf,application/pdf"
+  onChange={handleFileUpload}
+/>
                   <label 
                     htmlFor="material-bill" 
                     className="cursor-pointer bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors inline-block"
@@ -814,31 +814,44 @@ const validateCosts = (field, value) => {
   </label>
   <div>
     <input
-      type="number"
-      value={totalMaterialCost}
-      onChange={(e) => {
-        const value = e.target.value;
-        setTotalMaterialCost(value);
-        if (value) validateCosts('materialCost', value);
-      }}
-      onInput={(e) => {
-        // Prevent entering values greater than 1000000
-        if (parseFloat(e.target.value) > 1000000) {
-          e.target.value = '1000000';
-          setTotalMaterialCost('1000000');
-          validateCosts('materialCost', '1000000');
-        }
-      }}
-      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-        validationErrors.materialCost 
-          ? 'border-red-500 focus:ring-red-500' 
-          : 'border-gray-300 focus:ring-green-500'
-      }`}
-      placeholder="Enter material cost"
-      min="0"
-      max="1000000"
-      step="0.01"
-    />
+  type="number"
+  value={totalMaterialCost}
+  onChange={(e) => {
+    const value = e.target.value;
+    setTotalMaterialCost(value);
+    if (value) validateCosts('materialCost', value);
+  }}
+  onInput={(e) => {
+    // Prevent entering values greater than 1000000
+    if (parseFloat(e.target.value) > 1000000) {
+      e.target.value = '1000000';
+      setTotalMaterialCost('1000000');
+      validateCosts('materialCost', '1000000');
+    }
+  }}
+  onKeyDown={(e) => {
+    // Prevent minus/negative sign
+    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  }}
+  onPaste={(e) => {
+    // Prevent pasting negative values
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText.includes('-')) {
+      e.preventDefault();
+    }
+  }}
+  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+    validationErrors.materialCost 
+      ? 'border-red-500 focus:ring-red-500' 
+      : 'border-gray-300 focus:ring-green-500'
+  }`}
+  placeholder="Enter material cost"
+  min="0"
+  max="1000000"
+  step="0.01"
+/>
     {validationErrors.materialCost && (
       <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
         <AlertCircle size={12} />
@@ -855,31 +868,44 @@ const validateCosts = (field, value) => {
   </label>
   <div>
     <input
-      type="number"
-      value={totalLabourCost}
-      onChange={(e) => {
-        const value = e.target.value;
-        setTotalLabourCost(value);
-        if (value) validateCosts('labourCost', value);
-      }}
-      onInput={(e) => {
-        // Prevent entering values greater than 1000000
-        if (parseFloat(e.target.value) > 1000000) {
-          e.target.value = '1000000';
-          setTotalLabourCost('1000000');
-          validateCosts('labourCost', '1000000');
-        }
-      }}
-      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-        validationErrors.labourCost 
-          ? 'border-red-500 focus:ring-red-500' 
-          : 'border-gray-300 focus:ring-green-500'
-      }`}
-      placeholder="Enter labour cost"
-      min="0"
-      max="1000000"
-      step="0.01"
-    />
+  type="number"
+  value={totalLabourCost}
+  onChange={(e) => {
+    const value = e.target.value;
+    setTotalLabourCost(value);
+    if (value) validateCosts('labourCost', value);
+  }}
+  onInput={(e) => {
+    // Prevent entering values greater than 1000000
+    if (parseFloat(e.target.value) > 1000000) {
+      e.target.value = '1000000';
+      setTotalLabourCost('1000000');
+      validateCosts('labourCost', '1000000');
+    }
+  }}
+  onKeyDown={(e) => {
+    // Prevent minus/negative sign
+    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  }}
+  onPaste={(e) => {
+    // Prevent pasting negative values
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText.includes('-')) {
+      e.preventDefault();
+    }
+  }}
+  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+    validationErrors.labourCost 
+      ? 'border-red-500 focus:ring-red-500' 
+      : 'border-gray-300 focus:ring-green-500'
+  }`}
+  placeholder="Enter labour cost"
+  min="0"
+  max="1000000"
+  step="0.01"
+/>
     {validationErrors.labourCost && (
       <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
         <AlertCircle size={12} />
@@ -896,31 +922,44 @@ const validateCosts = (field, value) => {
   </label>
   <div>
     <input
-      type="number"
-      value={dailyWageRate}
-      onChange={(e) => {
-        const value = e.target.value;
-        setDailyWageRate(value);
-        if (value) validateCosts('wageRate', value);
-      }}
-      onInput={(e) => {
-        // Prevent entering values greater than 2000
-        if (parseFloat(e.target.value) > 2000) {
-          e.target.value = '2000';
-          setDailyWageRate('2000');
-          validateCosts('wageRate', '2000');
-        }
-      }}
-      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
-        validationErrors.wageRate 
-          ? 'border-red-500 focus:ring-red-500' 
-          : 'border-gray-300 focus:ring-green-500'
-      }`}
-      placeholder="Enter daily wage rate"
-      min="0"
-      max="2000"
-      step="0.01"
-    />
+  type="number"
+  value={dailyWageRate}
+  onChange={(e) => {
+    const value = e.target.value;
+    setDailyWageRate(value);
+    if (value) validateCosts('wageRate', value);
+  }}
+  onInput={(e) => {
+    // Prevent entering values greater than 2000
+    if (parseFloat(e.target.value) > 2000) {
+      e.target.value = '2000';
+      setDailyWageRate('2000');
+      validateCosts('wageRate', '2000');
+    }
+  }}
+  onKeyDown={(e) => {
+    // Prevent minus/negative sign
+    if (e.key === '-' || e.key === 'e' || e.key === 'E') {
+      e.preventDefault();
+    }
+  }}
+  onPaste={(e) => {
+    // Prevent pasting negative values
+    const pastedText = e.clipboardData.getData('text');
+    if (pastedText.includes('-')) {
+      e.preventDefault();
+    }
+  }}
+  className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:border-transparent ${
+    validationErrors.wageRate 
+      ? 'border-red-500 focus:ring-red-500' 
+      : 'border-gray-300 focus:ring-green-500'
+  }`}
+  placeholder="Enter daily wage rate"
+  min="0"
+  max="2000"
+  step="0.01"
+/>
     {validationErrors.wageRate && (
       <p className="text-red-600 text-xs mt-1 flex items-center gap-1">
         <AlertCircle size={12} />
