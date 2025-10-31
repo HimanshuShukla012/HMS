@@ -793,13 +793,20 @@ if (isSelected && !isHeaderItem) {
                                 <td className="px-3 py-3">
                                   {!isHeaderItem && isSelected ? (
                                     <input
-                                      type="text"
-                                      value={selectedItem.l}
-                                      onChange={(e) => updatePreDefinedItem(item.id, 'l', e.target.value)}
-                                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                                      disabled={!item.l}
-                                      placeholder={item.l || '-'}
-                                    />
+  type="number"
+  value={selectedItem.l}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      updatePreDefinedItem(item.id, 'l', e.target.value);
+    }
+  }}
+  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+  disabled={!item.l}
+  placeholder={item.l || '-'}
+  step="0.01"
+  max="100"
+/>
                                   ) : (
                                     <span className="text-xs text-gray-500">{item.l || '-'}</span>
                                   )}
@@ -809,13 +816,20 @@ if (isSelected && !isHeaderItem) {
                                 <td className="px-3 py-3">
                                   {!isHeaderItem && isSelected ? (
                                     <input
-                                      type="text"
-                                      value={selectedItem.b}
-                                      onChange={(e) => updatePreDefinedItem(item.id, 'b', e.target.value)}
-                                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                                      disabled={!item.b}
-                                      placeholder={item.b || '-'}
-                                    />
+  type="number"
+  value={selectedItem.b}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      updatePreDefinedItem(item.id, 'b', e.target.value);
+    }
+  }}
+  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+  disabled={!item.b}
+  placeholder={item.b || '-'}
+  step="0.01"
+  max="100"
+/>
                                   ) : (
                                     <span className="text-xs text-gray-500">{item.b || '-'}</span>
                                   )}
@@ -825,13 +839,20 @@ if (isSelected && !isHeaderItem) {
                                 <td className="px-3 py-3">
                                   {!isHeaderItem && isSelected ? (
                                     <input
-                                      type="text"
-                                      value={selectedItem.h}
-                                      onChange={(e) => updatePreDefinedItem(item.id, 'h', e.target.value)}
-                                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                                      disabled={!item.h}
-                                      placeholder={item.h || '-'}
-                                    />
+  type="number"
+  value={selectedItem.h}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      updatePreDefinedItem(item.id, 'h', e.target.value);
+    }
+  }}
+  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+  disabled={!item.h}
+  placeholder={item.h || '-'}
+  step="0.01"
+  max="100"
+/>
                                   ) : (
                                     <span className="text-xs text-gray-500">{item.h || '-'}</span>
                                   )}
@@ -841,12 +862,18 @@ if (isSelected && !isHeaderItem) {
                                 <td className="px-3 py-3">
                                   {!isHeaderItem && isSelected ? (
                                     <input
-                                      type="number"
-                                      value={selectedItem.quantity}
-                                      onChange={(e) => updatePreDefinedItem(item.id, 'quantity', parseInt(e.target.value) || 1)}
-                                      className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
-                                      min="1"
-                                    />
+  type="number"
+  value={selectedItem.quantity}
+  onChange={(e) => {
+    const value = parseInt(e.target.value);
+    if (e.target.value === '' || (value >= 1 && value <= 100)) {
+      updatePreDefinedItem(item.id, 'quantity', parseInt(e.target.value) || 1);
+    }
+  }}
+  className="w-16 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500"
+  min="1"
+  max="100"
+/>
                                   ) : (
                                     <span className="text-xs text-gray-500">{item.qty || '-'}</span>
                                   )}
@@ -959,72 +986,107 @@ if (isSelected && !isHeaderItem) {
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Unit <span className="text-red-500">*</span></label>
                       <input
-                        type="text"
-                        value={newItem.unit}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, unit: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="e.g., Nos, Rm"
-                      />
+  type="text"
+  value={newItem.unit}
+  onChange={(e) => {
+    if (e.target.value.length <= 100) {
+      setNewItem(prev => ({ ...prev, unit: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="e.g., Nos, Rm"
+  maxLength="100"
+/>
                     </div>
                     
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Rate (₹) <span className="text-red-500">*</span></label>
                       <input
-                        type="number"
-                        value={newItem.rate}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, rate: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="0.00"
-                        step="0.01"
-                      />
+  type="number"
+  value={newItem.rate}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 10000)) {
+      setNewItem(prev => ({ ...prev, rate: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="0.00"
+  step="0.01"
+  max="10000"
+/>
                     </div>
                   </div>
                   
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Quantity <span className="text-red-500">*</span></label>
                     <input
-                      type="number"
-                      value={newItem.quantity}
-                      onChange={(e) => setNewItem(prev => ({ ...prev, quantity: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                      placeholder="1"
-                      min="1"
-                    />
+  type="number"
+  value={newItem.quantity}
+  onChange={(e) => {
+    const value = parseInt(e.target.value);
+    if (e.target.value === '' || (value >= 1 && value <= 100)) {
+      setNewItem(prev => ({ ...prev, quantity: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="1"
+  min="1"
+  max="100"
+/>
                   </div>
 
                   <div className="grid grid-cols-3 gap-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Length</label>
                       <input
-                        type="number"
-                        value={newItem.length}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, length: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="0"
-                        step="0.01"
-                      />
+  type="number"
+  value={newItem.length}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      setNewItem(prev => ({ ...prev, length: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="0"
+  step="0.01"
+  max="100"
+/>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Width</label>
                       <input
-                        type="number"
-                        value={newItem.width}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, width: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="0"
-                        step="0.01"
-                      />
+  type="number"
+  value={newItem.width}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      setNewItem(prev => ({ ...prev, width: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="0"
+  step="0.01"
+  max="100"
+/>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-1">Height</label>
                       <input
-                        type="number"
-                        value={newItem.height}
-                        onChange={(e) => setNewItem(prev => ({ ...prev, height: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        placeholder="0"
-                        step="0.01"
-                      />
+  type="number"
+  value={newItem.height}
+  onChange={(e) => {
+    const value = parseFloat(e.target.value);
+    if (e.target.value === '' || (value >= 0 && value <= 100)) {
+      setNewItem(prev => ({ ...prev, height: e.target.value }));
+    }
+  }}
+  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+  placeholder="0"
+  step="0.01"
+  max="100"
+/>
                     </div>
                   </div>
                   
