@@ -11,6 +11,11 @@ const ViewEstimationScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [districtFilter, setDistrictFilter] = useState('All');
+const [blockFilter, setBlockFilter] = useState('All');
+const [gpFilter, setGpFilter] = useState('All');
+const [currentPage, setCurrentPage] = useState(1);
+const [rowsPerPage, setRowsPerPage] = useState(10);
   const [masterRepairItems, setMasterRepairItems] = useState([]);
   const [masterReboreItems, setMasterReboreItems] = useState([]);
   const [consultingEngineer, setConsultingEngineer] = useState('');
@@ -117,17 +122,20 @@ const ViewEstimationScreen = () => {
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data to match component structure
           const transformedData = data.Data.map(req => ({
-            id: req.RequisitionId?.toString() || 'N/A',
-            handpumpId: req.HandpumpId || 'N/A',
-            mode: req.RequisitionType || 'Unknown',
-            date: req.RequisitionDate || new Date().toISOString(),
-            sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
-            status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
-            orderId: req.OrderId,
-            requisitionTypeId: req.RequisitionTypeId,
-            image: req.HandpumpImage,
-            sanctionAmount: req.SanctionAmount || 0
-          })).filter(req => req.orderId); // Only show requisitions with OrderId (sanctioned)
+  id: req.RequisitionId?.toString() || 'N/A',
+  handpumpId: req.HandpumpId || 'N/A',
+  mode: req.RequisitionType || 'Unknown',
+  date: req.RequisitionDate || new Date().toISOString(),
+  sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
+  status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
+  orderId: req.OrderId,
+  requisitionTypeId: req.RequisitionTypeId,
+  image: req.HandpumpImage,
+  sanctionAmount: req.SanctionAmount || 0,
+  district: req.District || 'N/A',
+  block: req.Block || 'N/A',
+  gramPanchayat: req.GramPanchayat || req.GP || 'N/A'
+})).filter(req => req.orderId);
 
           setRequisitions(transformedData);
         } else {
@@ -199,6 +207,11 @@ const ViewEstimationScreen = () => {
     fetchRequisitionItems();
   }, [selectedEstimation]);
 
+  // Reset pagination when filters change
+useEffect(() => {
+  setCurrentPage(1);
+}, [filterMode, searchQuery, districtFilter, blockFilter, gpFilter]);
+
   const calculateTotal = () => {
     const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
     const total = items.reduce((sum, item) => sum + (item.amount || 0), 0);
@@ -232,13 +245,97 @@ const ViewEstimationScreen = () => {
     }));
 };
 
-  const filteredRequisitions = requisitions.filter(req => {
-    const modeMatch = filterMode === 'All' || req.mode === filterMode;
-    const searchMatch = searchQuery === '' || 
-      req.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.handpumpId.toLowerCase().includes(searchQuery.toLowerCase());
-    return modeMatch && searchMatch;
-  });
+  // Get unique values for dropdowns first (before filtering)
+const uniqueDistricts = ['All', ...new Set(requisitions.map(r => r.district).filter(d => d && d !== 'N/A'))];
+const uniqueBlocks = ['All', ...new Set(requisitions.map(r => r.block).filter(b => b && b !== 'N/A'))];
+const uniqueGPs = ['All', ...new Set(requisitions.map(r => r.gramPanchayat).filter(gp => gp && gp !== 'N/A'))];
+
+const filteredRequisitions = requisitions.filter(req => {
+  // Mode filter - must match exactly (case-insensitive)
+  const modeMatch = filterMode === 'All' || req.mode?.trim().toUpperCase() === filterMode.trim().toUpperCase();
+  
+  // Search filter
+  const searchMatch = searchQuery === '' || 
+    req.id?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    req.handpumpId?.toLowerCase().includes(searchQuery.toLowerCase());
+  
+  // Location filters
+  const districtMatch = districtFilter === 'All' || req.district === districtFilter;
+  const blockMatch = blockFilter === 'All' || req.block === blockFilter;
+  const gpMatch = gpFilter === 'All' || req.gramPanchayat === gpFilter;
+  
+  return modeMatch && searchMatch && districtMatch && blockMatch && gpMatch;
+});
+
+// Debug: Log filter values and first few requisitions
+console.log('Filter Mode:', filterMode);
+console.log('Total Requisitions:', requisitions.length);
+console.log('Filtered Requisitions:', filteredRequisitions.length);
+console.log('Sample requisition modes:', requisitions.slice(0, 5).map(r => ({ id: r.id, mode: r.mode, modeType: typeof r.mode })));
+
+// Pagination calculations
+const totalPages = Math.ceil(filteredRequisitions.length / rowsPerPage);
+const startIndex = (currentPage - 1) * rowsPerPage;
+const endIndex = startIndex + rowsPerPage;
+const paginatedRequisitions = filteredRequisitions.slice(startIndex, endIndex);
+
+// Reset to page 1 when filters change
+const resetPagination = () => {
+  setCurrentPage(1);
+};
+
+// Page navigation functions
+const goToPage = (page) => {
+  setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+};
+
+const goToNextPage = () => {
+  if (currentPage < totalPages) {
+    setCurrentPage(currentPage + 1);
+  }
+};
+
+const goToPreviousPage = () => {
+  if (currentPage > 1) {
+    setCurrentPage(currentPage - 1);
+  }
+};
+
+// Generate page numbers for pagination
+const getPageNumbers = () => {
+  const pages = [];
+  const maxPagesToShow = 5;
+  
+  if (totalPages <= maxPagesToShow) {
+    for (let i = 1; i <= totalPages; i++) {
+      pages.push(i);
+    }
+  } else {
+    if (currentPage <= 3) {
+      for (let i = 1; i <= 4; i++) {
+        pages.push(i);
+      }
+      pages.push('...');
+      pages.push(totalPages);
+    } else if (currentPage >= totalPages - 2) {
+      pages.push(1);
+      pages.push('...');
+      for (let i = totalPages - 3; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      pages.push(1);
+      pages.push('...');
+      pages.push(currentPage - 1);
+      pages.push(currentPage);
+      pages.push(currentPage + 1);
+      pages.push('...');
+      pages.push(totalPages);
+    }
+  }
+  
+  return pages;
+};
 
   const handleViewEstimation = (requisition) => {
     setSelectedEstimation(requisition);
@@ -811,31 +908,76 @@ const ViewEstimationScreen = () => {
             </h1>
             
             {/* Professional Filters */}
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterMode}
-                  onChange={(e) => setFilterMode(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
-                >
-                  <option value="All" className="text-gray-800">All Modes</option>
-                  <option value="REPAIR" className="text-gray-800">Repair</option>
-                  <option value="REBORE" className="text-gray-800">Rebore</option>
-                </select>
-              </div>
-              
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Search size={18} className="text-white" />
-                <input
-                  type="text"
-                  placeholder="Search by Requisition ID or Handpump ID"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent text-white placeholder-white/70 focus:outline-none w-64"
-                />
-              </div>
-            </div>
+<div className="flex flex-wrap gap-4 items-center">
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={filterMode}
+      onChange={(e) => setFilterMode(e.target.value)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+    >
+      <option value="All" className="text-gray-800">All Modes</option>
+      <option value="REPAIR" className="text-gray-800">Repair</option>
+      <option value="REBORE" className="text-gray-800">Rebore</option>
+    </select>
+  </div>
+  
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={districtFilter}
+      onChange={(e) => setDistrictFilter(e.target.value)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+    >
+      {uniqueDistricts.map(district => (
+        <option key={district} value={district} className="text-gray-800">
+          {district === 'All' ? 'All Districts' : district}
+        </option>
+      ))}
+    </select>
+  </div>
+  
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={blockFilter}
+      onChange={(e) => setBlockFilter(e.target.value)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+    >
+      {uniqueBlocks.map(block => (
+        <option key={block} value={block} className="text-gray-800">
+          {block === 'All' ? 'All Blocks' : block}
+        </option>
+      ))}
+    </select>
+  </div>
+  
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={gpFilter}
+      onChange={(e) => setGpFilter(e.target.value)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+    >
+      {uniqueGPs.map(gp => (
+        <option key={gp} value={gp} className="text-gray-800">
+          {gp === 'All' ? 'All Gram Panchayats' : gp}
+        </option>
+      ))}
+    </select>
+  </div>
+  
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Search size={18} className="text-white" />
+    <input
+      type="text"
+      placeholder="Search by Requisition ID or Handpump ID"
+      value={searchQuery}
+      onChange={(e) => setSearchQuery(e.target.value)}
+      className="bg-transparent text-white placeholder-white/70 focus:outline-none w-64"
+    />
+  </div>
+</div>
           </div>
         </div>
 
@@ -913,6 +1055,10 @@ const ViewEstimationScreen = () => {
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+                    S.No
+                  </th>
+                  
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
                     Requisition ID
                   </th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
@@ -933,10 +1079,12 @@ const ViewEstimationScreen = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {filteredRequisitions.map((requisition, index) => (
-                  <tr key={requisition.id} className={`${
+{paginatedRequisitions.map((requisition, index) => (                  <tr key={requisition.id} className={`${
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   } hover:bg-blue-50 transition-colors duration-300`}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className="text-lg font-semibold text-gray-600">{startIndex + index + 1}</span>
+                    </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
@@ -984,7 +1132,7 @@ const ViewEstimationScreen = () => {
             </table>
           </div>
           
-          {filteredRequisitions.length === 0 && (
+          {filteredRequisitions.length === 0 ? (
             <div className="p-12 text-center">
               <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
                 <Search size={24} className="text-gray-400" />
@@ -992,6 +1140,87 @@ const ViewEstimationScreen = () => {
               <p className="text-lg text-gray-500 font-medium">No requisitions found for the selected filter.</p>
               <p className="text-gray-400 mt-1">Try adjusting your search criteria</p>
             </div>
+          ) : (
+            <>
+              {/* Pagination Controls */}
+              <div className="bg-gray-50 px-6 py-4 border-t border-gray-200">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                  {/* Rows per page selector */}
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-gray-700 font-medium">Rows per page:</span>
+                    <select
+                      value={rowsPerPage}
+                      onChange={(e) => {
+                        setRowsPerPage(Number(e.target.value));
+                        setCurrentPage(1);
+                      }}
+                      className="border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                    </select>
+                    <span className="text-sm text-gray-600">
+                      Showing {startIndex + 1} to {Math.min(endIndex, filteredRequisitions.length)} of {filteredRequisitions.length} entries
+                    </span>
+                  </div>
+
+                  {/* Page navigation */}
+                  <div className="flex items-center gap-2">
+                    {/* Previous button */}
+                    <button
+                      onClick={goToPreviousPage}
+                      disabled={currentPage === 1}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        currentPage === 1
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+                      }`}
+                    >
+                      Previous
+                    </button>
+
+                    {/* Page numbers */}
+                    <div className="flex items-center gap-1">
+                      {getPageNumbers().map((page, index) => (
+                        page === '...' ? (
+                          <span key={`ellipsis-${index}`} className="px-3 py-1.5 text-gray-500">
+                            ...
+                          </span>
+                        ) : (
+                          <button
+                            key={page}
+                            onClick={() => goToPage(page)}
+                            className={`min-w-[2.5rem] px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                              currentPage === page
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                                : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+                            }`}
+                          >
+                            {page}
+                          </button>
+                        )
+                      ))}
+                    </div>
+
+                    {/* Next button */}
+                    <button
+                      onClick={goToNextPage}
+                      disabled={currentPage === totalPages}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                        currentPage === totalPages
+                          ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                          : 'bg-white text-gray-700 border border-gray-300 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-600'
+                      }`}
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           )}
         </div>
       </div>

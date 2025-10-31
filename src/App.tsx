@@ -19,7 +19,7 @@ import WaterQuality from "./pages/waterquality";
 import ViewWaterQuality from "./pages/viewwaterquality";
 import UserManagement from "./pages/AdminUserManagement";
 import FeeManagement from "./pages/AdminFeeManagement";
-import ManageHandpump from "./pages/UpdateRoaster";
+import ManageHandpump from "./pages/managehandpump";
 import MISReportingPage from "./pages/GPReporting";
 import PrivateRoute from "./components/PrivateRoute";
 import GuidelinesPage from "./pages/guidelines";
