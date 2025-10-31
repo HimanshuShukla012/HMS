@@ -98,10 +98,10 @@ const CreateEstimationScreen = () => {
         );
         const gstData = await gstResponse.json();
 
-        // Process requisitions - filter only pending ones (RequisitionStatus = 1)
-        const processedRequisitions = reqData.Data
-          .filter(req => req.RequisitionStatus === 1)
-          .map(req => ({
+        // Process requisitions - filter only pending ones (RequisitionStatus = 1) and no OrderId
+const processedRequisitions = reqData.Data
+  .filter(req => req.RequisitionStatus === 1 && req.OrderId === null)
+  .map(req => ({
             id: req.RequisitionId.toString(),
             handpumpId: req.HandpumpId,
             gramPanchayat: req.GrampanchayatName,
@@ -401,8 +401,8 @@ const CreateEstimationScreen = () => {
         );
         const reqData = await reqResponse.json();
         const processedRequisitions = reqData.Data
-          .filter(req => req.RequisitionStatus === 1)
-          .map(req => ({
+  .filter(req => req.RequisitionStatus === 1 && req.OrderId === null)
+  .map(req => ({
             id: req.RequisitionId.toString(),
             handpumpId: req.HandpumpId,
             gramPanchayat: req.GrampanchayatName,

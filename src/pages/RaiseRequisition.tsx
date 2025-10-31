@@ -24,6 +24,7 @@ const RaiseRequisition = () => {
   const [handpumps, setHandpumps] = useState<Handpump[]>([]);
   const [selectedHandpumpId, setSelectedHandpumpId] = useState<number | null>(null);
   const [requisitionMode, setRequisitionMode] = useState("");
+  const [repairType, setRepairType] = useState<number | null>(null);
   const [handpumpImage, setHandpumpImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
   const [loading, setLoading] = useState(false);
@@ -32,11 +33,12 @@ const RaiseRequisition = () => {
 
   // Validation errors
   const [errors, setErrors] = useState({
-    village: "",
-    handpump: "",
-    requisitionMode: "",
-    image: ""
-  });
+  village: "",
+  handpump: "",
+  requisitionMode: "",
+  repairType: "",
+  image: ""
+});
 
   const { userId } = useUserInfo();
 
@@ -60,13 +62,18 @@ useEffect(() => {
 
   // Check if all mandatory fields are filled
   const isMandatoryFieldsFilled = () => {
-    return (
-      selectedVillageId !== null &&
-      selectedHandpumpId !== null &&
-      requisitionMode !== "" &&
-      handpumpImage !== null
-    );
-  };
+  const baseFieldsFilled = selectedVillageId !== null &&
+    selectedHandpumpId !== null &&
+    requisitionMode !== "" &&
+    handpumpImage !== null;
+  
+  // For Repair mode, repair type must be selected
+  if (requisitionMode === "Repair") {
+    return baseFieldsFilled && repairType !== null;
+  }
+  
+  return baseFieldsFilled;
+};
 
   // Fetch villages on component mount
   useEffect(() => {
@@ -191,11 +198,12 @@ useEffect(() => {
 
     // Validate mandatory fields
     const mandatoryErrors = {
-      village: !selectedVillageId ? "Please select a village" : "",
-      handpump: !selectedHandpumpId ? "Please select a handpump" : "",
-      requisitionMode: !requisitionMode ? "Please select requisition mode" : "",
-      image: !handpumpImage ? "Please attach handpump image" : ""
-    };
+  village: !selectedVillageId ? "Please select a village" : "",
+  handpump: !selectedHandpumpId ? "Please select a handpump" : "",
+  requisitionMode: !requisitionMode ? "Please select requisition mode" : "",
+  repairType: (requisitionMode === "Repair" && !repairType) ? "Please select repair type" : "",
+  image: !handpumpImage ? "Please attach handpump image" : ""
+};
 
     setErrors(mandatoryErrors);
 
@@ -219,19 +227,19 @@ useEffect(() => {
 
         // Prepare request body according to API spec
         const requestBody = {
-          RequisitionId: 0,
-          UserId: userId,
-          HandpumpId: selectedHandpumpId,
-          VillageId: selectedVillageId,
-          RequisitionType: requisitionMode === "Repair" ? 1 : 2,
-          RequisitionRepairType: 0,
-          RequisitionDate: new Date().toISOString(),
-          RequisitionDescription: `${requisitionMode} requisition for handpump`,
-          RequisitionStatus: true,
-          UpdatedBy: userId,
-          ImageBase64String: base64Data,
-          HandpumpPhotoPath: ""
-        };
+  RequisitionId: 0,
+  UserId: userId,
+  HandpumpId: selectedHandpumpId,
+  VillageId: selectedVillageId,
+  RequisitionType: requisitionMode === "Repair" ? 1 : 2,
+  RequisitionRepairType: requisitionMode === "Repair" ? (repairType || 0) : 1,
+  RequisitionDate: new Date().toISOString(),
+  RequisitionDescription: `${requisitionMode} requisition for handpump`,
+  RequisitionStatus: true,
+  UpdatedBy: userId,
+  ImageBase64String: base64Data,
+  HandpumpPhotoPath: ""
+};
 
         try {
           if (!authToken) {
@@ -284,18 +292,20 @@ const response = await fetch(
 
   // Reset form
   const resetForm = () => {
-    setSelectedVillageId(null);
-    setSelectedHandpumpId(null);
-    setRequisitionMode("");
-    setHandpumpImage(null);
-    setImagePreview("");
-    setErrors({
-      village: "",
-      handpump: "",
-      requisitionMode: "",
-      image: ""
-    });
-  };
+  setSelectedVillageId(null);
+  setSelectedHandpumpId(null);
+  setRequisitionMode("");
+  setRepairType(null);
+  setHandpumpImage(null);
+  setImagePreview("");
+  setErrors({
+    village: "",
+    handpump: "",
+    requisitionMode: "",
+    repairType: "",
+    image: ""
+  });
+};
 
   // Get selected village name
   const getSelectedVillage = () => {
@@ -501,9 +511,10 @@ const response = await fetch(
                     <button
                       type="button"
                       onClick={() => {
-                        setRequisitionMode("Repair");
-                        setErrors(prev => ({ ...prev, requisitionMode: "" }));
-                      }}
+  setRequisitionMode("Repair");
+  setRepairType(null); // Reset repair type when mode changes
+  setErrors(prev => ({ ...prev, requisitionMode: "", repairType: "" }));
+}}
                       className={`p-4 rounded-lg border-2 transition-all duration-300 flex items-center gap-3 ${
                         requisitionMode === "Repair"
                           ? 'border-blue-500 bg-blue-50 text-blue-700'
@@ -519,9 +530,10 @@ const response = await fetch(
                     <button
                       type="button"
                       onClick={() => {
-                        setRequisitionMode("Rebore");
-                        setErrors(prev => ({ ...prev, requisitionMode: "" }));
-                      }}
+  setRequisitionMode("Rebore");
+  setRepairType(null); // Reset repair type when mode changes to Rebore
+  setErrors(prev => ({ ...prev, requisitionMode: "", repairType: "" }));
+}}
                       className={`p-4 rounded-lg border-2 transition-all duration-300 flex items-center gap-3 ${
                         requisitionMode === "Rebore"
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
@@ -542,6 +554,59 @@ const response = await fetch(
                     </div>
                   )}
                 </div>
+                {/* Repair Type Selection - Only show when Repair mode is selected */}
+{requisitionMode === "Repair" && (
+  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-xl p-6 border border-indigo-200">
+    <label className="block text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+      <Settings size={20} className="text-indigo-600" />
+      Type of Repair <span className="text-red-500">*</span>
+    </label>
+    <div className="grid grid-cols-2 gap-4">
+      <button
+        type="button"
+        onClick={() => {
+          setRepairType(1);
+          setErrors(prev => ({ ...prev, repairType: "" }));
+        }}
+        className={`p-4 rounded-lg border-2 transition-all duration-300 flex items-center gap-3 ${
+          repairType === 1
+            ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
+            : 'border-gray-300 bg-white hover:border-indigo-300 hover:bg-indigo-50'
+        }`}
+      >
+        <Settings size={20} />
+        <div className="text-left">
+          <div className="font-semibold">Civil</div>
+          <div className="text-sm opacity-70">Structural repairs</div>
+        </div>
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setRepairType(2);
+          setErrors(prev => ({ ...prev, repairType: "" }));
+        }}
+        className={`p-4 rounded-lg border-2 transition-all duration-300 flex items-center gap-3 ${
+          repairType === 2
+            ? 'border-purple-500 bg-purple-50 text-purple-700'
+            : 'border-gray-300 bg-white hover:border-purple-300 hover:bg-purple-50'
+        }`}
+      >
+        <Wrench size={20} />
+        <div className="text-left">
+          <div className="font-semibold">Mechanical</div>
+          <div className="text-sm opacity-70">Equipment repairs</div>
+        </div>
+      </button>
+    </div>
+    {errors.repairType && (
+      <div className="flex items-center gap-2 mt-3 text-red-600">
+        <AlertCircle size={16} />
+        <p className="text-sm font-medium">{errors.repairType}</p>
+      </div>
+    )}
+  </div>
+)}
               </div>
 
               {/* Right Column */}
@@ -651,6 +716,12 @@ const response = await fetch(
                           <span className="font-bold text-teal-700">{requisitionMode}</span>
                         </div>
                       )}
+                      {requisitionMode === "Repair" && repairType && (
+  <div className="flex justify-between items-center p-3 bg-white rounded-lg border border-teal-100">
+    <span className="font-medium text-gray-700">Repair Type:</span>
+    <span className="font-bold text-teal-700">{repairType === 1 ? 'Civil' : 'Mechanical'}</span>
+  </div>
+)}
                     </div>
                   </div>
                 )}
