@@ -18,6 +18,12 @@ const ViewClosureUpdatesScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [villages, setVillages] = useState(['All']);
+  const [districts, setDistricts] = useState(['All']);
+const [blocks, setBlocks] = useState(['All']);
+const [gramPanchayats, setGramPanchayats] = useState(['All']);
+const [districtFilter, setDistrictFilter] = useState('All');
+const [blockFilter, setBlockFilter] = useState('All');
+const [gpFilter, setGpFilter] = useState('All');
 
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
 
@@ -65,8 +71,12 @@ const ViewClosureUpdatesScreen = () => {
       
       if (result.Status && result.Data) {
         // Extract unique villages
-        const uniqueVillages = ['All', ...new Set(result.Data.map(item => item.VillageName).filter(Boolean))];
-        setVillages(uniqueVillages);
+        // Extract unique villages
+const uniqueVillages = ['All', ...new Set(result.Data.map(item => item.VillageName).filter(Boolean))];
+const uniqueDistricts = ['All', ...new Set(result.Data.map(item => item.DistrictName).filter(Boolean))];
+const uniqueBlocks = ['All', ...new Set(result.Data.map(item => item.BlockName).filter(Boolean))];
+const uniqueGPs = ['All', ...new Set(result.Data.map(item => item.GrampanchayatName).filter(Boolean))];
+setVillages(uniqueVillages);
 
         // Transform API data to match component structure
         const transformedData = result.Data
@@ -76,22 +86,26 @@ const ViewClosureUpdatesScreen = () => {
             const isVerified = hasMaterialBook; // Can be enhanced based on actual verification data
             
             return {
-              id: `REQ${item.RequisitionId.toString().padStart(3, '0')}`,
-              requisitionId: item.RequisitionId,
-              handpumpId: item.HandpumpId,
-              hpId: item.HPId,
-              village: item.VillageName,
-              requisitionDate: item.RequisitionDate,
-              mode: item.RequisitionType,
-              completionDate: item.CompletionDateStr,
-              mbStatus: hasMaterialBook ? 'Complete' : 'Pending',
-              verificationResult: hasMaterialBook ? 'Satisfactory' : 'Pending',
-              escalation: hasMaterialBook ? 'No Escalation' : 'Pending',
-              closureStatus: hasMaterialBook ? 'Completed' : 'Pending at CE Level',
-              estimatedAmount: item.SanctionAmount || 0,
-              actualAmount: item.TotalMBAmount || 0,
-              orderId: item.OrderId
-            };
+  id: `REQ${item.RequisitionId.toString().padStart(3, '0')}`,
+  uniqueKey: `${item.RequisitionId}-${item.OrderId}`,
+  requisitionId: item.RequisitionId,
+  handpumpId: item.HandpumpId,
+  hpId: item.HPId,
+  village: item.VillageName,
+  district: item.DistrictName || 'N/A',
+  block: item.BlockName || 'N/A',
+  gramPanchayat: item.GrampanchayatName || 'N/A',
+  requisitionDate: item.RequisitionDate,
+  mode: item.RequisitionType,
+  completionDate: item.CompletionDateStr,
+  mbStatus: hasMaterialBook ? 'Complete' : 'Pending',
+  verificationResult: hasMaterialBook ? 'Satisfactory' : 'Pending',
+  escalation: hasMaterialBook ? 'No Escalation' : 'Pending',
+  closureStatus: hasMaterialBook ? 'Completed' : 'Pending at CE Level',
+  estimatedAmount: item.SanctionAmount || 0,
+  actualAmount: item.TotalMBAmount || 0,
+  orderId: item.OrderId
+};
           });
         
         setClosureUpdates(transformedData);
@@ -186,14 +200,17 @@ const ViewClosureUpdatesScreen = () => {
   const verificationOptions = ['All', 'Satisfactory', 'Not Satisfactory', 'Pending'];
 
   const filteredUpdates = closureUpdates.filter(update => {
-    return (
-      (filterClosureStatus === 'All' || update.closureStatus === filterClosureStatus) &&
-      (filterVerificationResult === 'All' || update.verificationResult === filterVerificationResult) &&
-      (filterVillage === 'All' || update.village === filterVillage) &&
-      (filterHandpumpId === '' || update.handpumpId.toLowerCase().includes(filterHandpumpId.toLowerCase())) &&
-      (filterRequisitionId === '' || update.id.toLowerCase().includes(filterRequisitionId.toLowerCase()))
-    );
-  });
+  return (
+    (filterClosureStatus === 'All' || update.closureStatus === filterClosureStatus) &&
+    (filterVerificationResult === 'All' || update.verificationResult === filterVerificationResult) &&
+    (filterVillage === 'All' || update.village === filterVillage) &&
+    (districtFilter === 'All' || update.district === districtFilter) &&
+    (blockFilter === 'All' || update.block === blockFilter) &&
+    (gpFilter === 'All' || update.gramPanchayat === gpFilter) &&
+    (filterHandpumpId === '' || update.handpumpId.toLowerCase().includes(filterHandpumpId.toLowerCase())) &&
+    (filterRequisitionId === '' || update.id.toLowerCase().includes(filterRequisitionId.toLowerCase()))
+  );
+});
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -237,9 +254,402 @@ const ViewClosureUpdatesScreen = () => {
     setShowVerificationModal(true);
   };
 
-  const handleDownloadPDF = () => {
-    alert('PDF download functionality would be implemented here');
-  };
+  const handleDownloadMaterialBookPDF = async () => {
+  if (!selectedRecord || !materialBookData) return;
+
+  const items = getMaterialBookItems();
+  const isRepair = selectedRecord.mode === 'REPAIR';
+
+  // Create a hidden div for PDF generation
+  const printContent = document.createElement('div');
+  printContent.style.width = '210mm';
+  printContent.style.padding = '20mm';
+  printContent.style.fontFamily = 'Arial, sans-serif';
+  printContent.style.backgroundColor = '#ffffff';
+  printContent.style.position = 'absolute';
+  printContent.style.left = '-9999px';
+  printContent.style.top = '0';
+
+  printContent.innerHTML = `
+    <style>
+      .pdf-header {
+        background: linear-gradient(to right, #2563eb, #3b82f6);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+      .pdf-table-container {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+      }
+      .pdf-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .pdf-table thead {
+        background: #f9fafb;
+      }
+      .pdf-table th {
+        padding: 12px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #374151;
+        text-transform: uppercase;
+        border-bottom: 2px solid #93c5fd;
+      }
+      .pdf-table tbody tr:nth-child(even) {
+        background: #f9fafb;
+      }
+      .pdf-table tbody tr:nth-child(odd) {
+        background: white;
+      }
+      .pdf-table td {
+        padding: 12px;
+        font-size: 12px;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .summary-box {
+        background: #eff6ff;
+        padding: 20px;
+        border-radius: 10px;
+        margin-bottom: 20px;
+        border: 1px solid #93c5fd;
+      }
+      .amount-comparison {
+        background: #fef3c7;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+        border: 1px solid #fbbf24;
+      }
+    </style>
+
+    <div class="pdf-header">
+      <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">Material Book</h1>
+      <p style="font-size: 14px; opacity: 0.95; margin: 0;">Requisition: ${selectedRecord.id} - ${selectedRecord.handpumpId}</p>
+    </div>
+
+    <div class="summary-box">
+      <h3 style="font-size: 18px; font-weight: bold; margin: 0 0 15px 0; color: #1e40af;">Material Book Summary</h3>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+        <div>
+          <p style="font-size: 12px; color: #6b7280; margin: 0;">Total Material Cost</p>
+          <p style="font-size: 20px; font-weight: bold; color: #1e40af; margin: 5px 0 0 0;">₹${materialBookData.TotalMaterialCost?.toLocaleString() || '0'}</p>
+        </div>
+        <div>
+          <p style="font-size: 12px; color: #6b7280; margin: 0;">Total Labour Cost</p>
+          <p style="font-size: 20px; font-weight: bold; color: #1e40af; margin: 5px 0 0 0;">₹${materialBookData.TotalLabourCost?.toLocaleString() || '0'}</p>
+        </div>
+        <div>
+          <p style="font-size: 12px; color: #6b7280; margin: 0;">Total Project Cost</p>
+          <p style="font-size: 20px; font-weight: bold; color: #1e40af; margin: 5px 0 0 0;">₹${materialBookData.TotalProjectCost?.toLocaleString() || '0'}</p>
+        </div>
+      </div>
+    </div>
+
+    ${items.length > 0 ? `
+      <div class="pdf-table-container">
+        <table class="pdf-table">
+          <thead>
+            <tr>
+              <th>S.No</th>
+              <th>Item</th>
+              <th>Unit</th>
+              <th>Rate (Rs.)</th>
+              <th>Ref/Source</th>
+              <th>L</th>
+              <th>B</th>
+              <th>H</th>
+              <th>Qty.</th>
+              <th>Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items.map(item => `
+              <tr>
+                <td style="color: #2563eb; font-weight: 600;">${item.sno}</td>
+                <td>${item.item}</td>
+                <td>${item.unit}</td>
+                <td style="color: #059669; font-weight: 600;">${item.rate ? '₹' + item.rate.toLocaleString() : ''}</td>
+                <td>${item.ref || ''}</td>
+                <td>${item.l || ''}</td>
+                <td>${item.b || ''}</td>
+                <td>${item.h || ''}</td>
+                <td>${item.qty || ''}</td>
+                <td style="color: #475569; font-weight: 600;">${item.amount ? '₹' + item.amount.toLocaleString() : ''}</td>
+              </tr>
+            `).join('')}
+            <tr style="background: #e0e7ff; font-weight: 600;">
+              <td colspan="9" style="color: #3730a3;">Subtotal</td>
+              <td style="color: #3730a3;">₹${calculations.total.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #ccfbf1; font-weight: 600;">
+              <td colspan="9" style="color: #115e59;">GST (18%)</td>
+              <td style="color: #115e59;">₹${calculations.gst.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #cffafe; font-weight: 600;">
+              <td colspan="9" style="color: #155e75;">Total (including GST)</td>
+              <td style="color: #155e75;">₹${calculations.totalWithGST.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #d1fae5; font-weight: 600;">
+              <td colspan="9" style="color: #065f46;">1% Consulting Engineer Fee</td>
+              <td style="color: #065f46;">₹${calculations.consultingFee.toLocaleString()}</td>
+            </tr>
+            <tr style="background: #dcfce7; font-weight: bold; border-top: 2px solid #86efac;">
+              <td colspan="9" style="color: #166534; font-size: 14px;">Grand Total</td>
+              <td style="color: #166534; font-size: 16px;">₹${calculations.grandTotal.toLocaleString()}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    ` : ''}
+
+    <div class="amount-comparison">
+      <h3 style="font-size: 18px; font-weight: bold; margin: 0 0 15px 0; color: #92400e;">Amount Comparison</h3>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+        <div>
+          <p style="font-size: 12px; color: #92400e; margin: 0;">Estimated Amount</p>
+          <p style="font-size: 20px; font-weight: bold; color: #92400e; margin: 5px 0 0 0;">₹${selectedRecord.estimatedAmount?.toLocaleString()}</p>
+        </div>
+        <div>
+          <p style="font-size: 12px; color: #92400e; margin: 0;">Actual Amount</p>
+          <p style="font-size: 20px; font-weight: bold; color: #92400e; margin: 5px 0 0 0;">₹${selectedRecord.actualAmount?.toLocaleString()}</p>
+        </div>
+        <div>
+          <p style="font-size: 12px; color: #92400e; margin: 0;">Variance</p>
+          <p style="font-size: 20px; font-weight: bold; color: ${(selectedRecord.actualAmount - selectedRecord.estimatedAmount) > 0 ? '#dc2626' : '#16a34a'}; margin: 5px 0 0 0;">
+            ${(selectedRecord.actualAmount - selectedRecord.estimatedAmount) > 0 ? '+' : ''}₹${(selectedRecord.actualAmount - selectedRecord.estimatedAmount)?.toLocaleString()}
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(printContent);
+
+  try {
+    const html2canvas = (await import('html2canvas')).default;
+    const jsPDF = (await import('jspdf')).default;
+
+    const canvas = await html2canvas(printContent, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+
+    const imgWidth = 210;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgData = canvas.toDataURL('image/png');
+    
+    let position = 0;
+    const pageHeight = 297;
+    
+    if (imgHeight <= pageHeight) {
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    } else {
+      let heightLeft = imgHeight;
+      while (heightLeft > 0) {
+        if (position !== 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        position -= pageHeight;
+      }
+    }
+
+    pdf.save(`Material_Book_${selectedRecord.id}_${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Failed to generate PDF. Please try again.');
+  } finally {
+    document.body.removeChild(printContent);
+  }
+};
+
+const handleDownloadReport = async () => {
+  const printContent = document.createElement('div');
+  printContent.style.width = '297mm'; // A4 landscape width
+  printContent.style.padding = '20mm';
+  printContent.style.fontFamily = 'Arial, sans-serif';
+  printContent.style.backgroundColor = '#ffffff';
+  printContent.style.position = 'absolute';
+  printContent.style.left = '-9999px';
+  printContent.style.top = '0';
+
+  printContent.innerHTML = `
+    <style>
+      .pdf-header {
+        background: linear-gradient(to right, #1e293b, #475569, #1e40af);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 20px;
+        margin-bottom: 30px;
+      }
+      .stat-card {
+        background: linear-gradient(to bottom right, #3b82f6, #2563eb);
+        color: white;
+        padding: 20px;
+        border-radius: 10px;
+      }
+      .pdf-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10px;
+      }
+      .pdf-table thead {
+        background: #f9fafb;
+      }
+      .pdf-table th {
+        padding: 10px 8px;
+        text-align: left;
+        font-size: 9px;
+        font-weight: 600;
+        color: #374151;
+        text-transform: uppercase;
+        border-bottom: 2px solid #93c5fd;
+      }
+      .pdf-table tbody tr:nth-child(even) {
+        background: #f9fafb;
+      }
+      .pdf-table tbody tr:nth-child(odd) {
+        background: white;
+      }
+      .pdf-table td {
+        padding: 10px 8px;
+        font-size: 9px;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .status-badge {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 8px;
+        font-weight: 600;
+      }
+      .status-completed { background: #dcfce7; color: #166534; }
+      .status-pending { background: #fef3c7; color: #92400e; }
+      .status-onhold { background: #fee2e2; color: #991b1b; }
+      .mode-repair { background: #dbeafe; color: #1e40af; }
+      .mode-rebore { background: #d1fae5; color: #065f46; }
+    </style>
+
+    <div class="pdf-header">
+      <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">Closure Updates Report</h1>
+      <p style="font-size: 14px; opacity: 0.95; margin: 0;">Generated on ${new Date().toLocaleDateString('en-IN')} at ${new Date().toLocaleTimeString('en-IN')}</p>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-card" style="background: linear-gradient(to bottom right, #10b981, #059669);">
+        <p style="font-size: 12px; opacity: 0.9; margin: 0;">Completed</p>
+        <p style="font-size: 24px; font-weight: bold; margin: 5px 0;">${stats.completed}</p>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(to bottom right, #f59e0b, #d97706);">
+        <p style="font-size: 12px; opacity: 0.9; margin: 0;">Pending at CE Level</p>
+        <p style="font-size: 24px; font-weight: bold; margin: 5px 0;">${stats.pendingCE}</p>
+      </div>
+      <div class="stat-card" style="background: linear-gradient(to bottom right, #ef4444, #dc2626);">
+        <p style="font-size: 12px; opacity: 0.9; margin: 0;">On-Hold</p>
+        <p style="font-size: 24px; font-weight: bold; margin: 5px 0;">${stats.onHold}</p>
+      </div>
+      <div class="stat-card">
+        <p style="font-size: 12px; opacity: 0.9; margin: 0;">Total Closures</p>
+        <p style="font-size: 24px; font-weight: bold; margin: 5px 0;">${stats.total}</p>
+      </div>
+    </div>
+
+    <table class="pdf-table">
+      <thead>
+        <tr>
+          <th>Req ID</th>
+          <th>Handpump ID</th>
+          <th>Req Date</th>
+          <th>Mode</th>
+          <th>Completion</th>
+          <th>MB Status</th>
+          <th>Verification</th>
+          <th>Escalation</th>
+          <th>Closure Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filteredUpdates.map(update => `
+          <tr>
+            <td style="font-weight: 600; color: #2563eb;">${update.id}</td>
+            <td>${update.handpumpId}</td>
+            <td>${new Date(update.requisitionDate).toLocaleDateString('en-IN')}</td>
+            <td><span class="status-badge ${update.mode === 'REPAIR' ? 'mode-repair' : 'mode-rebore'}">${update.mode}</span></td>
+            <td>${update.completionDate && update.completionDate !== 'N/A' ? update.completionDate : 'N/A'}</td>
+            <td><span class="status-badge ${update.mbStatus === 'Complete' ? 'status-completed' : 'status-pending'}">${update.mbStatus}</span></td>
+            <td><span class="status-badge ${update.verificationResult === 'Satisfactory' ? 'status-completed' : 'status-pending'}">${update.verificationResult}</span></td>
+            <td><span class="status-badge ${update.escalation === 'No Escalation' ? 'status-completed' : 'status-pending'}">${update.escalation}</span></td>
+            <td><span class="status-badge ${update.closureStatus === 'Completed' ? 'status-completed' : update.closureStatus === 'On-Hold' ? 'status-onhold' : 'status-pending'}">${update.closureStatus}</span></td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  `;
+
+  document.body.appendChild(printContent);
+
+  try {
+    const html2canvas = (await import('html2canvas')).default;
+    const jsPDF = (await import('jspdf')).default;
+
+    const canvas = await html2canvas(printContent, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+
+    const imgWidth = 297; // A4 landscape
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    const pdf = new jsPDF('l', 'mm', 'a4'); // 'l' for landscape
+    const imgData = canvas.toDataURL('image/png');
+    
+    let position = 0;
+    const pageHeight = 210; // A4 landscape height
+    
+    if (imgHeight <= pageHeight) {
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    } else {
+      let heightLeft = imgHeight;
+      while (heightLeft > 0) {
+        if (position !== 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        position -= pageHeight;
+      }
+    }
+
+    pdf.save(`Closure_Updates_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Failed to generate PDF. Please try again.');
+  } finally {
+    document.body.removeChild(printContent);
+  }
+};
 
   const calculateMaterialBookTotal = () => {
     // If API provides totals directly, use those
@@ -455,12 +865,12 @@ const ViewClosureUpdatesScreen = () => {
               <p className="text-gray-200 mt-2">Monitor closure status and verification results</p>
             </div>
             <button
-              onClick={handleDownloadPDF}
-              className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white px-5 py-2 rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg font-medium"
-            >
-              <Download size={18} />
-              Download Report
-            </button>
+  onClick={handleDownloadReport}
+  className="flex items-center gap-2 bg-gradient-to-r from-emerald-600 to-green-600 text-white px-5 py-2 rounded-lg hover:from-emerald-700 hover:to-green-700 transition-all duration-300 shadow-lg font-medium"
+>
+  <Download size={18} />
+  Download Report
+</button>
           </div>
           
           <div className="overflow-x-auto">
@@ -498,7 +908,7 @@ const ViewClosureUpdatesScreen = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredUpdates.map((update, index) => (
-                  <tr key={update.id} className={`${
+  <tr key={update.uniqueKey} className={`${
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   } hover:bg-blue-50 transition-colors duration-300`}>
                     <td className="px-4 py-4 whitespace-nowrap">
@@ -529,13 +939,13 @@ const ViewClosureUpdatesScreen = () => {
                       </span>
                     </td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-green-500" />
-                        <span className="text-sm font-medium text-green-700">
-                          {update.completionDate ? new Date(update.completionDate).toLocaleDateString('en-IN') : 'N/A'}
-                        </span>
-                      </div>
-                    </td>
+  <div className="flex items-center gap-2">
+    <Calendar size={16} className="text-green-500" />
+    <span className="text-sm font-medium text-green-700">
+      {update.completionDate && update.completionDate !== 'N/A' ? update.completionDate : 'N/A'}
+    </span>
+  </div>
+</td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       {update.mbStatus === 'Complete' ? (
                         <button
@@ -619,12 +1029,12 @@ const ViewClosureUpdatesScreen = () => {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={handleDownloadPDF}
-                    className="flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium"
-                  >
-                    <Download size={16} />
-                    Download PDF
-                  </button>
+  onClick={handleDownloadMaterialBookPDF}
+  className="flex items-center gap-2 bg-white/20 text-white px-4 py-2 rounded-lg hover:bg-white/30 transition-colors font-medium"
+>
+  <Download size={16} />
+  Download PDF
+</button>
                   <button 
                     onClick={() => setShowMaterialBookModal(false)}
                     className="w-8 h-8 bg-white/20 rounded-lg flex items-center justify-center hover:bg-white/30 transition-colors"
