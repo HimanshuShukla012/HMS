@@ -142,21 +142,58 @@ useEffect(() => {
 
   fetchData();
 }, []);
-  // Get unique filter options from API data
+  // Get unique filter options from API data with cascading logic
   const filterOptions = {
     districts: ['All Districts', ...new Set(handpumps.map(hp => hp.DistrictName).filter(Boolean))],
-    blocks: ['All Blocks', ...new Set(handpumps.map(hp => hp.BlockName).filter(Boolean))],
-    gramPanchayats: ['All Gram Panchayats', ...new Set(handpumps.map(hp => hp.GrampanchayatName).filter(Boolean))],
-    villages: ['All Villages', ...new Set(handpumps.map(hp => hp.VillegeName).filter(Boolean))],
+    blocks: ['All Blocks', ...new Set(
+      handpumps
+        .filter(hp => !filters.district || hp.DistrictName === filters.district)
+        .map(hp => hp.BlockName)
+        .filter(Boolean)
+    )],
+    gramPanchayats: ['All Gram Panchayats', ...new Set(
+      handpumps
+        .filter(hp => {
+          const districtMatch = !filters.district || hp.DistrictName === filters.district;
+          const blockMatch = !filters.block || hp.BlockName === filters.block;
+          return districtMatch && blockMatch;
+        })
+        .map(hp => hp.GrampanchayatName)
+        .filter(Boolean)
+    )],
+    villages: ['All Villages', ...new Set(
+      handpumps
+        .filter(hp => {
+          const districtMatch = !filters.district || hp.DistrictName === filters.district;
+          const blockMatch = !filters.block || hp.BlockName === filters.block;
+          const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
+          return districtMatch && blockMatch && gpMatch;
+        })
+        .map(hp => hp.VillegeName)
+        .filter(Boolean)
+    )],
     financialYears: ['2024-25', '2023-24', '2022-23', '2021-22'],
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   };
 
   const handleFilterChange = (filterName, value) => {
-    setFilters(prev => ({
-      ...prev,
-      [filterName]: value
-    }));
+    setFilters(prev => {
+      const newFilters = { ...prev, [filterName]: value };
+      
+      // Reset dependent filters when parent filter changes
+      if (filterName === 'district') {
+        newFilters.block = '';
+        newFilters.gramPanchayat = '';
+        newFilters.village = '';
+      } else if (filterName === 'block') {
+        newFilters.gramPanchayat = '';
+        newFilters.village = '';
+      } else if (filterName === 'gramPanchayat') {
+        newFilters.village = '';
+      }
+      
+      return newFilters;
+    });
   };
 
   const resetFilters = () => {
