@@ -122,19 +122,19 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data to match component structure
           const transformedData = data.Data.map(req => ({
-            
   id: req.RequisitionId?.toString() || 'N/A',
   handpumpId: req.HandpumpId || 'N/A',
-  mode: req.RequisitionTypeId === 2 ? 'REBORE' : (req.RequisitionType || 'Unknown'),  date: req.RequisitionDate || new Date().toISOString(),
+  mode: req.RequisitionType || 'Unknown',
+  date: req.RequisitionDate || new Date().toISOString(),
   sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
   status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
   orderId: req.OrderId,
   requisitionTypeId: req.RequisitionTypeId,
   image: req.HandpumpImage,
   sanctionAmount: req.SanctionAmount || 0,
-  district: req.District || 'N/A',
-  block: req.Block || 'N/A',
-  gramPanchayat: req.GramPanchayat || req.GP || 'N/A'
+  district: req.DistrictName || 'N/A',
+  block: req.BlockName || 'N/A',
+  gramPanchayat: req.GrampanchayatName || 'N/A'
 })).filter(req => req.orderId);
 
           setRequisitions(transformedData);
@@ -246,13 +246,32 @@ useEffect(() => {
 };
 
   // Get unique values for dropdowns first (before filtering)
+// Get unique values for dropdowns with cascading logic
 const uniqueDistricts = ['All', ...new Set(requisitions.map(r => r.district).filter(d => d && d !== 'N/A'))];
-const uniqueBlocks = ['All', ...new Set(requisitions.map(r => r.block).filter(b => b && b !== 'N/A'))];
-const uniqueGPs = ['All', ...new Set(requisitions.map(r => r.gramPanchayat).filter(gp => gp && gp !== 'N/A'))];
 
+// Blocks filtered by selected district
+const uniqueBlocks = ['All', ...new Set(
+  requisitions
+    .filter(r => districtFilter === 'All' || r.district === districtFilter)
+    .map(r => r.block)
+    .filter(b => b && b !== 'N/A')
+)];
+
+// GPs filtered by selected district and block
+const uniqueGPs = ['All', ...new Set(
+  requisitions
+    .filter(r => {
+      const districtMatch = districtFilter === 'All' || r.district === districtFilter;
+      const blockMatch = blockFilter === 'All' || r.block === blockFilter;
+      return districtMatch && blockMatch;
+    })
+    .map(r => r.gramPanchayat)
+    .filter(gp => gp && gp !== 'N/A')
+)];
 const filteredRequisitions = requisitions.filter(req => {
-  // Mode filter - must match exactly (case-insensitive)
-  const modeMatch = filterMode === 'All' || req.mode?.trim().toUpperCase() === filterMode.trim().toUpperCase();
+  // Mode filter - strict comparison without case sensitivity
+  const modeMatch = filterMode === 'All' || 
+    (req.mode && req.mode.toUpperCase() === filterMode.toUpperCase());
   
   // Search filter
   const searchMatch = searchQuery === '' || 
@@ -266,6 +285,14 @@ const filteredRequisitions = requisitions.filter(req => {
   
   return modeMatch && searchMatch && districtMatch && blockMatch && gpMatch;
 });
+
+// Temporary debug - remove after checking
+if (filterMode === 'REBORE') {
+  console.log('REBORE Filter - Showing these requisitions:');
+  filteredRequisitions.forEach(req => {
+    console.log(`ID: ${req.id}, Mode: "${req.mode}", OrderId: ${req.orderId}`);
+  });
+}
 
 // Debug: Log filter values and first few requisitions
 console.log('Filter Mode:', filterMode);
@@ -923,34 +950,41 @@ const getPageNumbers = () => {
   </div>
   
   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-    <Filter size={18} className="text-white" />
-    <select
-      value={districtFilter}
-      onChange={(e) => setDistrictFilter(e.target.value)}
-      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
-    >
-      {uniqueDistricts.map(district => (
-        <option key={district} value={district} className="text-gray-800">
-          {district === 'All' ? 'All Districts' : district}
-        </option>
-      ))}
-    </select>
-  </div>
+  <Filter size={18} className="text-white" />
+  <select
+    value={districtFilter}
+    onChange={(e) => {
+      setDistrictFilter(e.target.value);
+      setBlockFilter('All');
+      setGpFilter('All');
+    }}
+    className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+  >
+    {uniqueDistricts.map(district => (
+      <option key={district} value={district} className="text-gray-800">
+        {district === 'All' ? 'All Districts' : district}
+      </option>
+    ))}
+  </select>
+</div>
   
   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-    <Filter size={18} className="text-white" />
-    <select
-      value={blockFilter}
-      onChange={(e) => setBlockFilter(e.target.value)}
-      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
-    >
-      {uniqueBlocks.map(block => (
-        <option key={block} value={block} className="text-gray-800">
-          {block === 'All' ? 'All Blocks' : block}
-        </option>
-      ))}
-    </select>
-  </div>
+  <Filter size={18} className="text-white" />
+  <select
+    value={blockFilter}
+    onChange={(e) => {
+      setBlockFilter(e.target.value);
+      setGpFilter('All');
+    }}
+    className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+  >
+    {uniqueBlocks.map(block => (
+      <option key={block} value={block} className="text-gray-800">
+        {block === 'All' ? 'All Blocks' : block}
+      </option>
+    ))}
+  </select>
+</div>
   
   <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
     <Filter size={18} className="text-white" />
@@ -1053,33 +1087,41 @@ const getPageNumbers = () => {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    S.No
-                  </th>
-                  
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Requisition ID
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Handpump ID
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Requisition Mode
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Requisition Date
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Sanctioned Total
-                  </th>
-                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
-                    Action
-                  </th>
-                </tr>
-              </thead>
+  <tr>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      S.No
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Requisition ID
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Handpump ID
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      District
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Block
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Gram Panchayat
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Requisition Mode
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Requisition Date
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Sanctioned Total
+    </th>
+    <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">
+      Action
+    </th>
+  </tr>
+</thead>
               <tbody className="divide-y divide-gray-100">
-{paginatedRequisitions.map((requisition, index) => (                  <tr key={requisition.id} className={`${
+{paginatedRequisitions.map((requisition, index) => (                  <tr key={`${requisition.id}-${requisition.orderId}`} className={`${
                     index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                   } hover:bg-blue-50 transition-colors duration-300`}>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1092,18 +1134,27 @@ const getPageNumbers = () => {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
-                        requisition.mode === 'REPAIR' 
-                          ? 'bg-blue-100 text-blue-800 border border-blue-200' 
-                          : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                      }`}>
-                        {requisition.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
-                        {requisition.mode}
-                      </span>
-                    </td>
+  <span className="text-lg font-medium text-slate-700">{requisition.handpumpId}</span>
+</td>
+<td className="px-6 py-4 whitespace-nowrap">
+  <span className="text-sm font-medium text-gray-700">{requisition.district}</span>
+</td>
+<td className="px-6 py-4 whitespace-nowrap">
+  <span className="text-sm font-medium text-gray-700">{requisition.block}</span>
+</td>
+<td className="px-6 py-4 whitespace-nowrap">
+  <span className="text-sm font-medium text-gray-700">{requisition.gramPanchayat}</span>
+</td>
+<td className="px-6 py-4 whitespace-nowrap">
+  <span className={`inline-flex items-center gap-2 px-3 py-1 text-sm font-semibold rounded-md ${
+    requisition.mode === 'REPAIR' 
+      ? 'bg-blue-100 text-blue-800 border border-blue-200' 
+      : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+  }`}>
+    {requisition.mode === 'REPAIR' ? <Wrench size={14} /> : <Drill size={14} />}
+    {requisition.mode}
+  </span>
+</td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center gap-2">
                         <Calendar size={16} className="text-gray-500" />
