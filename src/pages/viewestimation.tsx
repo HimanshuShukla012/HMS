@@ -369,338 +369,359 @@ const getPageNumbers = () => {
     setConsultingEngineer(''); // Reset consulting engineer name
   };
 
-  const handleDownloadPDF = () => {
-    const isRepair = selectedEstimation.mode === 'REPAIR';
-    const calculations = calculateTotal();
-    const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
+  const handleDownloadPDF = async () => {
+  const isRepair = selectedEstimation.mode === 'REPAIR';
+  const calculations = calculateTotal();
+  const items = requisitionItems.length > 0 ? requisitionItems : getMasterItems();
 
-    // Create a hidden div for PDF generation
-    const printContent = document.createElement('div');
-    printContent.style.padding = '40px';
-    printContent.style.fontFamily = 'Arial, sans-serif';
-    printContent.style.backgroundColor = '#ffffff';
+  // Create a hidden div for PDF generation
+  const printContent = document.createElement('div');
+  printContent.style.width = '210mm'; // A4 width
+  printContent.style.padding = '20mm';
+  printContent.style.fontFamily = 'Arial, sans-serif';
+  printContent.style.backgroundColor = '#ffffff';
+  printContent.style.position = 'absolute';
+  printContent.style.left = '-9999px';
+  printContent.style.top = '0';
 
-    printContent.innerHTML = `
-      <style>
-        @media print {
-          body { margin: 0; padding: 0; }
-          .no-print { display: none; }
-          table { page-break-inside: auto; }
-          tr { page-break-inside: avoid; page-break-after: auto; }
-        }
-        .pdf-header {
-          background: linear-gradient(to right, #0f766e, #0891b2, #2563eb);
-          color: white;
-          padding: 30px;
-          border-radius: 10px;
-          margin-bottom: 30px;
-        }
-        .pdf-engineer-card {
-          background: linear-gradient(to right, #0d9488, #06b6d4, #3b82f6);
-          color: white;
-          padding: 25px;
-          border-radius: 10px;
-          margin-bottom: 30px;
-        }
-        .pdf-info-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          gap: 20px;
-          margin-top: 20px;
-        }
-        .pdf-info-box {
-          background: rgba(255, 255, 255, 0.2);
-          padding: 15px;
-          border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        .pdf-info-label {
-          font-size: 12px;
-          opacity: 0.9;
-          margin-bottom: 5px;
-        }
-        .pdf-info-value {
-          font-size: 18px;
-          font-weight: bold;
-        }
-        .pdf-mode-badge {
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          padding: 8px 15px;
-          border-radius: 6px;
-          font-weight: 600;
-          font-size: 14px;
-          margin-top: 10px;
-        }
-        .pdf-mode-repair {
-          background: #3b82f6;
-          color: white;
-        }
-        .pdf-mode-rebore {
-          background: #10b981;
-          color: white;
-        }
-        .pdf-table-container {
-          background: white;
-          border-radius: 10px;
-          overflow: hidden;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          border: 1px solid #e5e7eb;
-        }
-        .pdf-table-header {
-          background: linear-gradient(to right, #374151, #475569);
-          color: white;
-          padding: 20px 25px;
-        }
-        .pdf-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
-        .pdf-table thead {
-          background: #f9fafb;
-        }
-        .pdf-table th {
-          padding: 12px;
-          text-align: left;
-          font-size: 11px;
-          font-weight: 600;
-          color: #374151;
-          text-transform: uppercase;
-          border-bottom: 2px solid #93c5fd;
-        }
-        .pdf-table tbody tr:nth-child(even) {
-          background: #f9fafb;
-        }
-        .pdf-table tbody tr:nth-child(odd) {
-          background: white;
-        }
-        .pdf-table td {
-          padding: 12px;
-          font-size: 12px;
-          color: #1f2937;
-          border-bottom: 1px solid #e5e7eb;
-        }
-        .row-add-items {
-          background: #fef3c7 !important;
-        }
-        .row-add-items td {
-          color: #92400e;
-          font-weight: 600;
-        }
-        .row-total {
-          background: #dbeafe !important;
-        }
-        .row-total td {
-          color: #1e40af;
-          font-weight: 600;
-        }
-        .row-gst {
-          background: #e0e7ff !important;
-        }
-        .row-gst td {
-          color: #3730a3;
-          font-weight: 600;
-        }
-        .row-total-with-gst {
-          background: #ccfbf1 !important;
-        }
-        .row-total-with-gst td {
-          color: #115e59;
-          font-weight: 600;
-        }
-        .row-consulting-fee {
-          background: #cffafe !important;
-        }
-        .row-consulting-fee td {
-          color: #155e75;
-          font-weight: 600;
-        }
-        .row-consulting-fee-mb {
-          background: #d1fae5 !important;
-        }
-        .row-consulting-fee-mb td {
-          color: #065f46;
-          font-weight: 600;
-        }
-        .row-grand-total {
-          background: #dcfce7 !important;
-          border-top: 2px solid #86efac;
-        }
-        .row-grand-total td {
-          color: #166534;
-          font-weight: bold;
-          font-size: 14px;
-          padding: 15px 12px;
-        }
-        .sno-cell {
-          color: #2563eb;
-          font-weight: 600;
-        }
-        .rate-cell {
-          color: #059669;
-          font-weight: 600;
-        }
-        .amount-cell {
-          color: #475569;
-          font-weight: 600;
-        }
-      </style>
+  printContent.innerHTML = `
+    <style>
+      .pdf-header {
+        background: linear-gradient(to right, #0f766e, #0891b2, #2563eb);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+      .pdf-engineer-card {
+        background: linear-gradient(to right, #0d9488, #06b6d4, #3b82f6);
+        color: white;
+        padding: 25px;
+        border-radius: 10px;
+        margin-bottom: 30px;
+      }
+      .pdf-info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-top: 20px;
+      }
+      .pdf-info-box {
+        background: rgba(255, 255, 255, 0.2);
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.3);
+      }
+      .pdf-info-label {
+        font-size: 12px;
+        opacity: 0.9;
+        margin-bottom: 5px;
+      }
+      .pdf-info-value {
+        font-size: 18px;
+        font-weight: bold;
+      }
+      .pdf-mode-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 15px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 14px;
+        margin-top: 10px;
+      }
+      .pdf-mode-repair {
+        background: #3b82f6;
+        color: white;
+      }
+      .pdf-mode-rebore {
+        background: #10b981;
+        color: white;
+      }
+      .pdf-table-container {
+        background: white;
+        border-radius: 10px;
+        overflow: hidden;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        border: 1px solid #e5e7eb;
+      }
+      .pdf-table-header {
+        background: linear-gradient(to right, #374151, #475569);
+        color: white;
+        padding: 20px 25px;
+      }
+      .pdf-table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      .pdf-table thead {
+        background: #f9fafb;
+      }
+      .pdf-table th {
+        padding: 12px;
+        text-align: left;
+        font-size: 11px;
+        font-weight: 600;
+        color: #374151;
+        text-transform: uppercase;
+        border-bottom: 2px solid #93c5fd;
+      }
+      .pdf-table tbody tr:nth-child(even) {
+        background: #f9fafb;
+      }
+      .pdf-table tbody tr:nth-child(odd) {
+        background: white;
+      }
+      .pdf-table td {
+        padding: 12px;
+        font-size: 12px;
+        color: #1f2937;
+        border-bottom: 1px solid #e5e7eb;
+      }
+      .row-add-items {
+        background: #fef3c7 !important;
+      }
+      .row-add-items td {
+        color: #92400e;
+        font-weight: 600;
+      }
+      .row-total {
+        background: #dbeafe !important;
+      }
+      .row-total td {
+        color: #1e40af;
+        font-weight: 600;
+      }
+      .row-gst {
+        background: #e0e7ff !important;
+      }
+      .row-gst td {
+        color: #3730a3;
+        font-weight: 600;
+      }
+      .row-total-with-gst {
+        background: #ccfbf1 !important;
+      }
+      .row-total-with-gst td {
+        color: #115e59;
+        font-weight: 600;
+      }
+      .row-consulting-fee {
+        background: #cffafe !important;
+      }
+      .row-consulting-fee td {
+        color: #155e75;
+        font-weight: 600;
+      }
+      .row-consulting-fee-mb {
+        background: #d1fae5 !important;
+      }
+      .row-consulting-fee-mb td {
+        color: #065f46;
+        font-weight: 600;
+      }
+      .row-grand-total {
+        background: #dcfce7 !important;
+        border-top: 2px solid #86efac;
+      }
+      .row-grand-total td {
+        color: #166534;
+        font-weight: bold;
+        font-size: 14px;
+        padding: 15px 12px;
+      }
+      .sno-cell {
+        color: #2563eb;
+        font-weight: 600;
+      }
+      .rate-cell {
+        color: #059669;
+        font-weight: 600;
+      }
+      .amount-cell {
+        color: #475569;
+        font-weight: 600;
+      }
+    </style>
 
-      <div class="pdf-header">
-        <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">View Estimation - Gram Panchayat</h1>
-        <p style="font-size: 14px; opacity: 0.95; margin: 0;">${selectedEstimation.mode} Estimation Report</p>
-      </div>
+    <div class="pdf-header">
+      <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">View Estimation - Gram Panchayat</h1>
+      <p style="font-size: 14px; opacity: 0.95; margin: 0;">${selectedEstimation.mode} Estimation Report</p>
+    </div>
 
-      <div class="pdf-engineer-card">
-        <h2 style="font-size: 22px; font-weight: bold; margin: 0 0 20px 0;">
-          Consulting Engineer: ${consultingEngineer || 'N/A'}
-        </h2>
-        <div class="pdf-info-grid">
-          <div class="pdf-info-box">
-            <div class="pdf-info-label">Requisition ID</div>
-            <div class="pdf-info-value">${selectedEstimation.id}</div>
-          </div>
-          <div class="pdf-info-box">
-            <div class="pdf-info-label">Handpump ID</div>
-            <div class="pdf-info-value">${selectedEstimation.handpumpId}</div>
-          </div>
-          <div class="pdf-info-box">
-            <div class="pdf-info-label">Mode</div>
-            <div class="pdf-mode-badge ${isRepair ? 'pdf-mode-repair' : 'pdf-mode-rebore'}">
-              ${selectedEstimation.mode}
-            </div>
+    <div class="pdf-engineer-card">
+      <h2 style="font-size: 22px; font-weight: bold; margin: 0 0 20px 0;">
+        Consulting Engineer: ${consultingEngineer || 'N/A'}
+      </h2>
+      <div class="pdf-info-grid">
+        <div class="pdf-info-box">
+          <div class="pdf-info-label">Requisition ID</div>
+          <div class="pdf-info-value">${selectedEstimation.id}</div>
+        </div>
+        <div class="pdf-info-box">
+          <div class="pdf-info-label">Handpump ID</div>
+          <div class="pdf-info-value">${selectedEstimation.handpumpId}</div>
+        </div>
+        <div class="pdf-info-box">
+          <div class="pdf-info-label">Mode</div>
+          <div class="pdf-mode-badge ${isRepair ? 'pdf-mode-repair' : 'pdf-mode-rebore'}">
+            ${selectedEstimation.mode}
           </div>
         </div>
       </div>
+    </div>
 
-      <div class="pdf-table-container">
-        <div class="pdf-table-header">
-          <h3 style="font-size: 20px; font-weight: bold; margin: 0;">
-            ${selectedEstimation.mode} Estimation Details
-          </h3>
-        </div>
-        
-        <table class="pdf-table">
-          <thead>
+    <div class="pdf-table-container">
+      <div class="pdf-table-header">
+        <h3 style="font-size: 20px; font-weight: bold; margin: 0;">
+          ${selectedEstimation.mode} Estimation Details
+        </h3>
+      </div>
+      
+      <table class="pdf-table">
+        <thead>
+          <tr>
+            <th>S.No</th>
+            <th>Item</th>
+            <th>Unit</th>
+            <th>Rate (Rs.)</th>
+            ${!isRepair ? '<th>Reference/Source</th>' : ''}
+            ${!isRepair ? '<th>L</th>' : ''}
+            ${!isRepair ? '<th>B</th>' : ''}
+            ${!isRepair ? '<th>H</th>' : ''}
+            <th>Qty.</th>
+            <th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map((item) => `
             <tr>
-              <th>S.No</th>
-              <th>Item</th>
-              <th>Unit</th>
-              <th>Rate (Rs.)</th>
-              ${!isRepair ? '<th>Reference/Source</th>' : ''}
-              ${!isRepair ? '<th>L</th>' : ''}
-              ${!isRepair ? '<th>B</th>' : ''}
-              ${!isRepair ? '<th>H</th>' : ''}
-              <th>Qty.</th>
-              <th>Amount</th>
+              <td class="sno-cell">${item.sno}</td>
+              <td style="max-width: 400px;">${item.item}</td>
+              <td>${item.unit}</td>
+              <td class="rate-cell">${item.rate ? '₹' + item.rate.toLocaleString() : ''}</td>
+              ${!isRepair ? `<td>${item.ref || ''}</td>` : ''}
+              ${!isRepair ? `<td>${item.l || ''}</td>` : ''}
+              ${!isRepair ? `<td>${item.b || ''}</td>` : ''}
+              ${!isRepair ? `<td>${item.h || ''}</td>` : ''}
+              <td>${item.qty}</td>
+              <td class="amount-cell">${item.amount ? '₹' + item.amount.toLocaleString() : ''}</td>
             </tr>
-          </thead>
-          <tbody>
-            ${items.map((item, index) => `
-              <tr>
-                <td class="sno-cell">${item.sno}</td>
-                <td style="max-width: 400px;">${item.item}</td>
-                <td>${item.unit}</td>
-                <td class="rate-cell">${item.rate ? '₹' + item.rate.toLocaleString() : ''}</td>
-                ${!isRepair ? `<td>${item.ref || ''}</td>` : ''}
-                ${!isRepair ? `<td>${item.l || ''}</td>` : ''}
-                ${!isRepair ? `<td>${item.b || ''}</td>` : ''}
-                ${!isRepair ? `<td>${item.h || ''}</td>` : ''}
-                <td>${item.qty}</td>
-                <td class="amount-cell">${item.amount ? '₹' + item.amount.toLocaleString() : ''}</td>
-              </tr>
-            `).join('')}
-            
-            <tr class="row-add-items">
-              <td class="sno-cell">${items.length + 1}</td>
-              <td><strong>Add Items</strong></td>
-              <td></td>
-              <td></td>
-              ${!isRepair ? '<td></td>' : ''}
-              ${!isRepair ? '<td>1</td>' : ''}
-              ${!isRepair ? '<td>1</td>' : ''}
-              ${!isRepair ? '<td>1</td>' : ''}
-              <td></td>
-              <td></td>
-            </tr>
-            
-            <tr class="row-total">
-              <td class="sno-cell">${items.length + 2}</td>
-              <td><strong>Total</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong>₹${calculations.total.toLocaleString()}</strong></td>
-            </tr>
-            
-            <tr class="row-gst">
-              <td class="sno-cell">${items.length + 3}</td>
-              <td><strong>GST (18%)</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong>₹${calculations.gst.toLocaleString()}</strong></td>
-            </tr>
-            
-            <tr class="row-total-with-gst">
-              <td class="sno-cell">${items.length + 4}</td>
-              <td><strong>Total (including GST)</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong>₹${calculations.totalWithGST.toLocaleString()}</strong></td>
-            </tr>
-            
-            <tr class="row-consulting-fee">
-              <td class="sno-cell">${items.length + 5}</td>
-              <td><strong>1% Consulting Engineer Fee for Estimation</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
-            </tr>
-            
-            <tr class="row-consulting-fee-mb">
-              <td class="sno-cell">${items.length + 6}</td>
-              <td><strong>1% Consulting Engineer Fee for MB</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
-            </tr>
-            
-            <tr class="row-grand-total">
-              <td class="sno-cell">${items.length + 7}</td>
-              <td><strong>Grand Total</strong></td>
-              <td colspan="${isRepair ? 3 : 6}"></td>
-              <td><strong style="font-size: 16px;">₹${(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</strong></td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    `;
+          `).join('')}
+          
+          <tr class="row-add-items">
+            <td class="sno-cell">${items.length + 1}</td>
+            <td><strong>Add Items</strong></td>
+            <td></td>
+            <td></td>
+            ${!isRepair ? '<td></td>' : ''}
+            ${!isRepair ? '<td>1</td>' : ''}
+            ${!isRepair ? '<td>1</td>' : ''}
+            ${!isRepair ? '<td>1</td>' : ''}
+            <td></td>
+            <td></td>
+          </tr>
+          
+          <tr class="row-total">
+            <td class="sno-cell">${items.length + 2}</td>
+            <td><strong>Total</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong>₹${calculations.total.toLocaleString()}</strong></td>
+          </tr>
+          
+          <tr class="row-gst">
+            <td class="sno-cell">${items.length + 3}</td>
+            <td><strong>GST (18%)</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong>₹${calculations.gst.toLocaleString()}</strong></td>
+          </tr>
+          
+          <tr class="row-total-with-gst">
+            <td class="sno-cell">${items.length + 4}</td>
+            <td><strong>Total (including GST)</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong>₹${calculations.totalWithGST.toLocaleString()}</strong></td>
+          </tr>
+          
+          <tr class="row-consulting-fee">
+            <td class="sno-cell">${items.length + 5}</td>
+            <td><strong>1% Consulting Engineer Fee for Estimation</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+          </tr>
+          
+          <tr class="row-consulting-fee-mb">
+            <td class="sno-cell">${items.length + 6}</td>
+            <td><strong>1% Consulting Engineer Fee for MB</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+          </tr>
+          
+          <tr class="row-grand-total">
+            <td class="sno-cell">${items.length + 7}</td>
+            <td><strong>Grand Total</strong></td>
+            <td colspan="${isRepair ? 3 : 6}"></td>
+            <td><strong style="font-size: 16px;">₹${(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  `;
 
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>Estimation Report - ${selectedEstimation.id}</title>
-          <style>
-            body {
-              margin: 0;
-              padding: 0;
-              font-family: Arial, sans-serif;
-            }
-            @page {
-              margin: 20mm;
-            }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-        </body>
-      </html>
-    `);
-    printWindow.document.close();
+  // Append to body temporarily
+  document.body.appendChild(printContent);
+
+  try {
+    // Import libraries dynamically
+    const html2canvas = (await import('html2canvas')).default;
+    const jsPDF = (await import('jspdf')).default;
+
+    // Generate canvas from HTML
+    const canvas = await html2canvas(printContent, {
+      scale: 2,
+      useCORS: true,
+      logging: false,
+      backgroundColor: '#ffffff'
+    });
+
+    // Calculate PDF dimensions
+    const imgWidth = 210; // A4 width in mm
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
     
-    // Wait for content to load then print
-    setTimeout(() => {
-      printWindow.print();
-    }, 500);
-  };
+    const pdf = new jsPDF('p', 'mm', 'a4');
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Add image to PDF
+    let position = 0;
+    const pageHeight = 297; // A4 height in mm
+    
+    if (imgHeight <= pageHeight) {
+      // Single page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+    } else {
+      // Multiple pages
+      let heightLeft = imgHeight;
+      while (heightLeft > 0) {
+        if (position !== 0) {
+          pdf.addPage();
+        }
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+        position -= pageHeight;
+      }
+    }
+
+    // Download PDF
+    pdf.save(`Estimation_Report_${selectedEstimation.id}_${new Date().toISOString().split('T')[0]}.pdf`);
+  } catch (error) {
+    console.error('Error generating PDF:', error);
+    alert('Failed to generate PDF. Please try again.');
+  } finally {
+    // Remove temporary element
+    document.body.removeChild(printContent);
+  }
+};
 
   // Show loading state
   if (userLoading || loading) {
