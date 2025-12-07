@@ -29,6 +29,7 @@ import CreateEstimationScreen from "./pages/CreateEstimate";
 import MBVisitReportScreen from "./pages/MbVisitReport";
 import LodgeComplaintPage from "./pages/LodgeComplaintPage";
 import ManageComplaint from "./pages/ManageComplaint";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
 
 function App() {
   return (
@@ -40,6 +41,7 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/guidelines" element={<GuidelinesPage />} />
           <Route path="/about" element={<About />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
           <Route
             path="/unauthorized"
             element={
