@@ -30,6 +30,7 @@ import MBVisitReportScreen from "./pages/MbVisitReport";
 import LodgeComplaintPage from "./pages/LodgeComplaintPage";
 import ManageComplaint from "./pages/ManageComplaint";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
+import SupportPage from "./pages/support";
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
           <Route path="/guidelines" element={<GuidelinesPage />} />
           <Route path="/about" element={<About />} />
           <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+           <Route path="/app-support" element={<SupportPage />} />
           <Route
             path="/unauthorized"
             element={
