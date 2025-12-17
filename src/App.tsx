@@ -4,21 +4,21 @@ import AdminDashboard from "./pages/AdminDashboard";
 import GPDashboard from "./pages/GPDashboard";
 import RaiseRequisition from "./pages/RaiseRequisition";
 import ManageBeneficiary from "./pages/viewestimation";
-import PumpHouseMaster from "./pages/PumpHouseMaster";
+
 import ViewClosureUpdatesScreen from "./pages/ViewClosureUpdatesScreen"; 
 import GMAS from "./pages/GMAS";
-import FeeCollectionPage from "./pages/FeeCollectionPage";
-import FeeManagementPage from "./pages/FeeManagementPage";
-import consultingengineerDashboard from "./pages/consultingengineerDashboard";
+
+
+
 import DashboardLayout from "./components/DashboardLayout";
 import LandingPage from "./pages/LandingPage";
 import AttachCompletionScreen from "./pages/AttachCompletionScreen";
-import ManagePumpHouse from "./pages/ManagePumphouse";
+
 import ViewRoaster from "./pages/ViewRoaster";
-import WaterQuality from "./pages/waterquality";
-import ViewWaterQuality from "./pages/viewwaterquality";
+
+
 import UserManagement from "./pages/AdminUserManagement";
-import FeeManagement from "./pages/AdminFeeManagement";
+
 import ManageHandpump from "./pages/managehandpump";
 import MISReportingPage from "./pages/GPReporting";
 import PrivateRoute from "./components/PrivateRoute";
@@ -60,8 +60,8 @@ function App() {
             <Route path="/admin/*" element={<DashboardLayout role="admin" />}>
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="user-management" element={<UserManagement />} />
-              <Route path="fee-management" element={<FeeManagement />} />
-              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              
+              
               <Route path="manage-handpump" element={<ManageHandpump />} />
               <Route path="gmas" element={<GMAS />} />
               <Route path="reporting" element={<MISReportingPage />} />
@@ -78,16 +78,16 @@ function App() {
               <Route path="dashboard" element={<AdminDashboard />} />
               <Route path="raise-requisition" element={<RaiseRequisition />} />
               <Route path="manage-beneficiary" element={<ManageBeneficiary />} />
-              <Route path="pump-house-master" element={<PumpHouseMaster />} />
+              
               <Route path="view-closure" element={<ViewClosureUpdatesScreen />} />
               <Route path="gmas" element={<GMAS />} />
-              <Route path="fee-collection" element={<FeeCollectionPage />} />
-              <Route path="fee-management" element={<FeeManagementPage />} />
+              
+              
               <Route path="attach-completion" element={<AttachCompletionScreen />} />
-              <Route path="manage-pumphouse" element={<ManagePumpHouse />} />
+              
               <Route path="view-roaster" element={<ViewRoaster />} />
-              <Route path="water-quality" element={<WaterQuality />} />
-              <Route path="view-water-quality" element={<ViewWaterQuality />} />
+              
+              
               <Route path="manage-handpump" element={<ManageHandpump />} />
               <Route path="reporting" element={<MISReportingPage />} />
               <Route path="user-manual" element={<PDFFlipbook />} />
