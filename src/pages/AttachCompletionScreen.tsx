@@ -189,6 +189,21 @@ const validateCosts = (field, value) => {
       console.log('File Type:', file.type);
       console.log('File Size:', file.size, 'bytes');
       
+      // Validate file type
+      if (file.type !== 'application/pdf') {
+        alert('Invalid file format. Please upload a PDF file only.');
+        event.target.value = ''; // Reset input
+        return;
+      }
+      
+      // Validate file size (5MB = 5 * 1024 * 1024 bytes)
+      const maxSize = 2 * 1024 * 1024;
+      if (file.size > maxSize) {
+        alert('File size exceeds 2MB. Please upload a smaller file.');
+        event.target.value = ''; // Reset input
+        return;
+      }
+      
       setMaterialBill(file);
       
       // Convert file to base64 with proper prefix based on file type
@@ -794,6 +809,9 @@ const validateCosts = (field, value) => {
   accept=".pdf,application/pdf"
   onChange={handleFileUpload}
 />
+<p className="text-xs text-gray-500 mt-2">
+  Accepted format: PDF only | Maximum size: 2MB
+</p>
                   <label 
                     htmlFor="material-bill" 
                     className="cursor-pointer bg-green-100 text-green-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-200 transition-colors inline-block"
