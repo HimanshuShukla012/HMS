@@ -83,7 +83,8 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
   const [handpumps, setHandpumps] = useState<Handpump[]>([]);
   const [selectedHandpump, setSelectedHandpump] = useState<Handpump | null>(null);
 
-  // Form fields
+  
+
   const [form, setForm] = useState({
     complainantName: "",
     complainantContact: "",
@@ -95,12 +96,42 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
     urgency: "Medium", // Low, Medium, High, Critical
   });
 
+  const [validationErrors, setValidationErrors] = useState({
+    complainantName: "",
+    complainantContact: "",
+  });
+
+  const [userProfile, setUserProfile] = useState<any>(null);
+
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [role, setRole] = useState<string>("");
 
   // API base URL
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Validation functions
+  const validateComplainantName = (name: string): string => {
+    const nameRegex = /^[a-zA-Z\s]+$/;
+    if (!name.trim()) {
+      return "Name is required";
+    }
+    if (!nameRegex.test(name)) {
+      return "Name should only contain letters and spaces";
+    }
+    return "";
+  };
+
+  const validateContactNumber = (contact: string): string => {
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!contact.trim()) {
+      return "Contact number is required";
+    }
+    if (!mobileRegex.test(contact)) {
+      return "Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9";
+    }
+    return "";
+  };
 
   // Get auth token
   const getAuthToken = () => {
@@ -127,7 +158,10 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
       mandatoryFields.push(form.otherCategory.trim());
     }
 
-    return mandatoryFields.every(field => field !== null && field !== "" && field !== undefined);
+    // Check if there are any validation errors
+    const hasValidationErrors = validationErrors.complainantName || validationErrors.complainantContact;
+
+    return mandatoryFields.every(field => field !== null && field !== "" && field !== undefined) && !hasValidationErrors;
   };
 
   // Get role from token
@@ -142,7 +176,7 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
     }
   }, []);
 
-  // Fetch districts when component loads
+  // Fetch user profile and set district/block/GP based on role
   useEffect(() => {
     if (userLoading || !userId) return;
     
@@ -152,8 +186,9 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
       return;
     }
 
-    fetch(`${API_BASE}/Master/GetDistrictByUserId?UserId=${userId}`, {
-      method: "POST",
+    // Fetch user profile
+    fetch(`${API_BASE}/Signup/GetUserProfileById?UserId=${userId}`, {
+      method: "GET",
       headers: { 
         accept: "*/*",
         Authorization: `Bearer ${authToken}`
@@ -161,23 +196,81 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
     })
       .then((res) => res.json())
       .then((data) => {
-        console.log('Districts API response:', data);
-        if (data.Status && data.Data && data.Data.length) {
-          setDistricts(data.Data);
+        console.log('User Profile API response:', data);
+        if (data.Status && data.Data && data.Data.length > 0) {
+          const profile = data.Data[0];
+          setUserProfile(profile);
+          
+          // For Gram Panchayat Sachiv, auto-populate location fields
           if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
-            setSelectedDistrictId(data.Data[0].Id);
+            // Set district
+            if (profile.DistrictId) {
+              setDistricts([{
+                Id: profile.DistrictId,
+                DistrictName: profile.DistrictName,
+                Code: ""
+              }]);
+              setSelectedDistrictId(profile.DistrictId);
+            }
+            
+            // Set block
+            if (profile.BlockId) {
+              setBlocks([{
+                Id: profile.BlockId,
+                DistrictId: profile.DistrictId,
+                BlockName: profile.BlockName,
+                Code: ""
+              }]);
+              setSelectedBlockId(profile.BlockId);
+            }
+            
+            // Set gram panchayat
+            if (profile.GramPanchayatId) {
+              setGramPanchayats([{
+                Id: profile.GramPanchayatId,
+                BlockId: profile.BlockId,
+                GramPanchayatName: profile.GramPanchayatName,
+                Code: ""
+              }]);
+              setSelectedGramPanchayatId(profile.GramPanchayatId);
+            }
+          } else {
+            // For other roles, fetch districts normally
+            fetch(`${API_BASE}/Master/GetDistrictByUserId?UserId=${userId}`, {
+              method: "POST",
+              headers: { 
+                accept: "*/*",
+                Authorization: `Bearer ${authToken}`
+              },
+            })
+              .then((res) => res.json())
+              .then((data) => {
+                console.log('Districts API response:', data);
+                if (data.Status && data.Data && data.Data.length) {
+                  setDistricts(data.Data);
+                }
+              })
+              .catch((err) => {
+                console.error('Error fetching districts:', err);
+                toast.error("Failed to fetch districts");
+              });
           }
         }
       })
       .catch((err) => {
-        console.error('Error fetching districts:', err);
-        toast.error("Failed to fetch districts");
+        console.error('Error fetching user profile:', err);
+        toast.error("Failed to fetch user profile");
       });
   }, [userLoading, userId, role]);
 
-  // Fetch blocks when district changes
+  // Fetch blocks when district changes (only for non-GP users)
   useEffect(() => {
     if (!selectedDistrictId) return;
+    
+    // Skip if already populated from user profile
+    if (userProfile && (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat"))) {
+      return;
+    }
     
     const authToken = getAuthToken();
     if (!authToken) return;
@@ -195,9 +288,6 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         console.log('Blocks API response:', data);
         if (data.Status && data.Data && data.Data.length) {
           setBlocks(data.Data);
-          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
-            setSelectedBlockId(data.Data[0]?.Id || null);
-          }
         } else {
           setBlocks([]);
           setSelectedBlockId(null);
@@ -207,11 +297,16 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         console.error('Error fetching blocks:', err);
         toast.error("Failed to fetch blocks");
       });
-  }, [selectedDistrictId, role]);
+  }, [selectedDistrictId, role, userProfile]);
 
-  // Fetch gram panchayats when block changes
+  // Fetch gram panchayats when block changes (only for non-GP users)
   useEffect(() => {
     if (!selectedBlockId) return;
+    
+    // Skip if already populated from user profile
+    if (userProfile && (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat"))) {
+      return;
+    }
     
     const authToken = getAuthToken();
     if (!authToken) return;
@@ -229,9 +324,6 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         console.log('Gram Panchayats API response:', data);
         if (data.Status && data.Data && data.Data.length) {
           setGramPanchayats(data.Data);
-          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
-            setSelectedGramPanchayatId(data.Data[0]?.Id || null);
-          }
         } else {
           setGramPanchayats([]);
           setSelectedGramPanchayatId(null);
@@ -241,7 +333,7 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
         console.error('Error fetching gram panchayats:', err);
         toast.error("Failed to fetch gram panchayats");
       });
-  }, [selectedBlockId, role]);
+  }, [selectedBlockId, role, userProfile]);
 
   // Fetch villages when gram panchayat changes
   useEffect(() => {
@@ -358,9 +450,26 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
     }
   }, [form.category, form.urgency]);
 
-  // Handle form changes for basic form fields
+  // Handle form changes for basic form fields with validation
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    
+    // Apply validation for specific fields
+    if (name === "complainantName") {
+      const error = validateComplainantName(value);
+      setValidationErrors(prev => ({ ...prev, complainantName: error }));
+    }
+    
+    if (name === "complainantContact") {
+      // Only allow numbers and limit to 10 digits
+      const numericValue = value.replace(/\D/g, '').slice(0, 10);
+      setForm(prev => ({ ...prev, [name]: numericValue }));
+      
+      const error = validateContactNumber(numericValue);
+      setValidationErrors(prev => ({ ...prev, complainantContact: error }));
+      return;
+    }
+    
     setForm(prev => ({ ...prev, [name]: value }));
   };
 
@@ -528,7 +637,12 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           <select
             value={selectedDistrictId || ""}
             onChange={(e) => setSelectedDistrictId(Number(e.target.value))}
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+            className={`border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+              (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                ? 'bg-gray-100 cursor-not-allowed' 
+                : ''
+            }`}
             required
           >
             <option value="">Select District</option>
@@ -548,7 +662,12 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           <select
             value={selectedBlockId || ""}
             onChange={(e) => setSelectedBlockId(Number(e.target.value))}
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+            className={`border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+              (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                ? 'bg-gray-100 cursor-not-allowed' 
+                : ''
+            }`}
             required
           >
             <option value="">Select Block</option>
@@ -568,7 +687,12 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
           <select
             value={selectedGramPanchayatId || ""}
             onChange={(e) => setSelectedGramPanchayatId(Number(e.target.value))}
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+            className={`border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+              (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                ? 'bg-gray-100 cursor-not-allowed' 
+                : ''
+            }`}
             required
           >
             <option value="">Select Gram Panchayat</option>
@@ -631,9 +755,16 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
             value={form.complainantName}
             onChange={handleChange}
             placeholder="Name of person reporting the issue"
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 ${
+              validationErrors.complainantName 
+                ? 'border-red-500 focus:ring-red-400' 
+                : 'border-gray-300 focus:ring-blue-400'
+            }`}
             required
           />
+          {validationErrors.complainantName && (
+            <p className="text-xs text-red-600 mt-1">{validationErrors.complainantName}</p>
+          )}
         </div>
 
         {/* Complainant Contact Number */}
@@ -642,14 +773,23 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
             Contact Number <span className="text-red-500">*</span>
           </label>
           <input
-            type="text"
+            type="tel"
             name="complainantContact"
             value={form.complainantContact}
             onChange={handleChange}
-            placeholder="Contact number for follow-up"
-            className="border border-gray-300 px-3 py-2 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+            placeholder="10-digit mobile number"
+            maxLength={10}
+            className={`border px-3 py-2 rounded-md focus:outline-none focus:ring-2 ${
+              validationErrors.complainantContact 
+                ? 'border-red-500 focus:ring-red-400' 
+                : 'border-gray-300 focus:ring-blue-400'
+            }`}
             required
           />
+          {validationErrors.complainantContact && (
+            <p className="text-xs text-red-600 mt-1">{validationErrors.complainantContact}</p>
+          )}
+          <p className="text-xs text-gray-500 mt-1">Must start with 6, 7, 8, or 9</p>
         </div>
 
         {/* Landmark */}
