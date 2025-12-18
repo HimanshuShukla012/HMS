@@ -78,29 +78,29 @@ const AttachCompletionScreen = () => {
 
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data - only show sanctioned requisitions without completion
-          // A requisition is considered completed if it has TotalMBAmount (Material Book submitted)
           const transformedData = data.Data
-            .filter(req => req.OrderId && !req.TotalMBAmount)
-            .map(req => ({
-              id: req.RequisitionId?.toString() || 'N/A',
-              handpumpId: req.HandpumpId || 'N/A',
-              hpId: req.HPId, // Add HPId field
-              village: req.Village || 'Unknown',
-              mode: req.RequisitionType || 'Unknown',
-              requisitionDate: req.RequisitionDate || new Date().toISOString(),
-              sanctionDate: req.SanctionDate || req.RequisitionDate || new Date().toISOString(),
-              sanctionAmount: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
-              status: 'Sanctioned',
-              orderId: req.OrderId,
-              requisitionTypeId: req.RequisitionTypeId,
-              sanctionAmountRaw: req.SanctionAmount || 0
-            }));
+  .filter(req => req.OrderId && !req.TotalMBAmount)
+  .map(req => ({
+    id: req.RequisitionId?.toString() || 'N/A',
+    handpumpId: req.HandpumpId || 'N/A',
+    hpId: req.HPId, // Add HPId field
+    village: req.VillageName || req.Village || 'Unknown', // Use VillageName first, then Village
+    mode: req.RequisitionType || 'Unknown',
+    requisitionDate: req.RequisitionDate || new Date().toISOString(),
+    sanctionDate: req.SanctionDate || req.RequisitionDate || new Date().toISOString(),
+    sanctionAmount: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
+    status: 'Sanctioned',
+    orderId: req.OrderId,
+    requisitionTypeId: req.RequisitionTypeId,
+    sanctionAmountRaw: req.SanctionAmount || 0
+  }));
 
           setRequisitions(transformedData);
 
           // Extract unique villages
-          const uniqueVillages = ['All', ...new Set(transformedData.map(r => r.village).filter(v => v !== 'Unknown'))];
-          setVillages(uniqueVillages);
+          // Extract unique villages
+const uniqueVillages = ['All', ...new Set(transformedData.map(r => r.village).filter(v => v !== 'Unknown'))];
+setVillages(uniqueVillages);
         } else {
           setRequisitions([]);
         }
@@ -552,17 +552,17 @@ const validateCosts = (field, value) => {
             {/* Filters */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterVillage}
-                  onChange={(e) => setFilterVillage(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1"
-                >
-                  {villages.map(village => (
-                    <option key={village} value={village} className="text-gray-800">{village} Village</option>
-                  ))}
-                </select>
-              </div>
+  <Filter size={18} className="text-white" />
+  <select
+    value={filterVillage}
+    onChange={(e) => setFilterVillage(e.target.value)}
+    className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
+  >
+    {villages.map(village => (
+      <option key={village} value={village} className="text-gray-800">{village} Village</option>
+    ))}
+  </select>
+</div>
               
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
                 <Search size={18} className="text-white" />

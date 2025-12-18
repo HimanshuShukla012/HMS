@@ -15,6 +15,9 @@ const MBVisitReportScreen = () => {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successType, setSuccessType] = useState('');
   const [successId, setSuccessId] = useState('');
+  const [isViewMode, setIsViewMode] = useState(false);
+  const [viewMBData, setViewMBData] = useState([]);
+  const [viewVisitData, setViewVisitData] = useState(null);
 
   // API state
   const [requisitions, setRequisitions] = useState([]);
@@ -151,7 +154,6 @@ const MBVisitReportScreen = () => {
     }
   };
 
-  // API: Fetch Material Book PDF
   const fetchMaterialBook = async () => {
     if (!userId) return;
     
@@ -177,6 +179,68 @@ const MBVisitReportScreen = () => {
     }
   };
 
+  // API: Fetch Submitted Material Book for Viewing
+  const fetchSubmittedMB = async (requisitionId, orderId) => {
+    setLoading(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE_URL}/HandpumpRequisition/GetRequisitionItemList?RequisitionId=${requisitionId}&OrderID=${orderId}&TypeId=1`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': '*/*'
+          }
+        }
+      );
+
+      const data = await response.json();
+      
+      if (data.Status && data.Data) {
+        setViewMBData(data.Data);
+      } else {
+        setViewMBData([]);
+      }
+    } catch (err) {
+      console.error('Error fetching submitted MB:', err);
+      setError('Failed to fetch material book details');
+      setViewMBData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // API: Fetch Submitted Visit Report for Viewing
+  const fetchSubmittedVisitReport = async (requisitionId) => {
+    setLoading(true);
+    try {
+      const token = getAuthToken();
+      const response = await fetch(
+        `${API_BASE_URL}/HandpumpRequisition/GetVisitMonitoringListByUserId?requisitionId=${requisitionId}&userId=${userId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': '*/*'
+          }
+        }
+      );
+
+      const data = await response.json();
+      
+      if (data.Status && data.Data && data.Data.length > 0) {
+        setViewVisitData(data.Data[0]);
+      } else {
+        setViewVisitData(null);
+      }
+    } catch (err) {
+      console.error('Error fetching visit report:', err);
+      setError('Failed to fetch visit report details');
+      setViewVisitData(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleViewMaterialBook = () => {
     if (materialBookData?.MaterialImgFile) {
       window.open(materialBookData.MaterialImgFile, '_blank');
@@ -185,54 +249,76 @@ const MBVisitReportScreen = () => {
 
   const handleCreateMB = async (requisition) => {
     setSelectedRequisition(requisition);
+    
+    // Check if MB is already submitted (CEStatus === 1)
+    if (hasMaterialBook(requisition)) {
+      // View mode
+      setIsViewMode(true);
+      await fetchSubmittedMB(requisition.RequisitionId, requisition.OrderId);
+    } else {
+      // Create mode
+      setIsViewMode(false);
+      await fetchMBItems(requisition.RequisitionId, requisition.OrderId);
+      await fetchMaterialBook();
+    }
+    
     setShowMBModal(true);
-    await fetchMBItems(requisition.RequisitionId, requisition.OrderId);
-    await fetchMaterialBook();
   };
 
-  const handleCreateVisitReport = (requisition) => {
+  const handleCreateVisitReport = async (requisition) => {
     setSelectedRequisition(requisition);
+    
+    // Check if Visit Report is already submitted
+    if (hasVisitReport(requisition)) {
+      // View mode
+      setIsViewMode(true);
+      await fetchSubmittedVisitReport(requisition.RequisitionId);
+    } else {
+      // Create mode
+      setIsViewMode(false);
+      setVisitReport({
+        workAbility: 'good',
+        workAbilityRemark: '',
+        conditionPlatform: 'good',
+        conditionPlatformRemark: '',
+        groutingPedestal: 'Firm',
+        groutingPedestalRemark: '',
+        rustingHandleParts: 'none',
+        rustingHandlePartsRemark: '',
+        rustingPumpStandHead: 'none',
+        rustingPumpStandHeadRemark: '',
+        rustingPlungerSetup: 'none',
+        rustingPlungerSetupRemark: '',
+        rustingCheckValveSetup: 'Good',
+        rustingCheckValveSetupRemark: '',
+        damageCylinderLiner: 'none',
+        damageCylinderLinerRemark: '',
+        damageBearingParts: 'none',
+        damageBearingPartsRemark: '',
+        damageRisingMainPumprods: 'none',
+        damageRisingMainPumprodsRemark: '',
+        damageRisingMainCentralisers: 'none',
+        damageRisingMainCentralisersRemark: '',
+        damagedSealingParts: 'Bobbins',
+        damagedSealingPartsRemark: '',
+        preventiveMaintenance: 'yes',
+        preventiveMaintenanceRemark: '',
+        techMechAssistance: 'yes',
+        techMechAssistanceRemark: '',
+        maintenanceSystemSatisfying: 'yes',
+        maintenanceSystemSatisfyingRemark: '',
+        strokesToFill: '',
+        strokesToFillRemark: '',
+        breakdownsTillDate: '',
+        breakdownsTillDateRemark: '',
+        whyPoorPerformance: [],
+        whyPoorPerformanceRemark: '',
+        overallStatus: 'Good',
+        comments: ''
+      });
+    }
+    
     setShowVisitModal(true);
-    setVisitReport({
-      workAbility: 'good',
-      workAbilityRemark: '',
-      conditionPlatform: 'good',
-      conditionPlatformRemark: '',
-      groutingPedestal: 'Firm',
-      groutingPedestalRemark: '',
-      rustingHandleParts: 'none',
-      rustingHandlePartsRemark: '',
-      rustingPumpStandHead: 'none',
-      rustingPumpStandHeadRemark: '',
-      rustingPlungerSetup: 'none',
-      rustingPlungerSetupRemark: '',
-      rustingCheckValveSetup: 'Good',
-      rustingCheckValveSetupRemark: '',
-      damageCylinderLiner: 'none',
-      damageCylinderLinerRemark: '',
-      damageBearingParts: 'none',
-      damageBearingPartsRemark: '',
-      damageRisingMainPumprods: 'none',
-      damageRisingMainPumprodsRemark: '',
-      damageRisingMainCentralisers: 'none',
-      damageRisingMainCentralisersRemark: '',
-      damagedSealingParts: 'Bobbins',
-      damagedSealingPartsRemark: '',
-      preventiveMaintenance: 'yes',
-      preventiveMaintenanceRemark: '',
-      techMechAssistance: 'yes',
-      techMechAssistanceRemark: '',
-      maintenanceSystemSatisfying: 'yes',
-      maintenanceSystemSatisfyingRemark: '',
-      strokesToFill: '',
-      strokesToFillRemark: '',
-      breakdownsTillDate: '',
-      breakdownsTillDateRemark: '',
-      whyPoorPerformance: [],
-      whyPoorPerformanceRemark: '',
-      overallStatus: 'Good',
-      comments: ''
-    });
   };
 
   // API: Submit MB Remarks
@@ -393,7 +479,8 @@ const MBVisitReportScreen = () => {
   };
 
   const getTotalMBAmount = () => {
-    return mbItems.reduce((total, item) => total + (Number(item.Amount) || 0), 0);
+    const items = isViewMode ? viewMBData : mbItems;
+    return items.reduce((total, item) => total + (Number(item.Amount) || 0), 0);
   };
 
   const getCurrentDate = () => {
@@ -403,12 +490,26 @@ const MBVisitReportScreen = () => {
   const villages = ['All', ...new Set(requisitions.map(r => r.VillageName))];
 
   const filteredRequisitions = requisitions.filter(req => {
-    return (
-      (filterVillage === 'All' || req.VillageName === filterVillage) &&
+    const hasFilters = (filterVillage === 'All' || req.VillageName === filterVillage) &&
       (filterHandpumpId === '' || req.HandpumpId?.toLowerCase().includes(filterHandpumpId.toLowerCase())) &&
-      (filterRequisitionId === '' || req.RequisitionId?.toString().includes(filterRequisitionId))
-    );
+      (filterRequisitionId === '' || req.RequisitionId?.toString().includes(filterRequisitionId));
+    
+    // Hide if both MB and Visit Report are completed
+    const hasMB = req.TotalMBAmount !== null && req.TotalMBAmount !== undefined;
+    const hasVisitReport = req.VisitMonitoringId !== null && req.VisitMonitoringId !== undefined;
+    const hideCompletedRow = hasMB && hasVisitReport;
+    
+    return hasFilters && !hideCompletedRow;
   });
+
+  // Helper functions to check completion status
+  const hasMaterialBook = (requisition) => {
+    return requisition.CEStatus === 1;
+  };
+
+  const hasVisitReport = (requisition) => {
+    return requisition.VisitMonitoringId !== null && requisition.VisitMonitoringId !== undefined;
+  };
 
   if (userLoading || (loading && requisitions.length === 0)) {
     return (
@@ -512,7 +613,7 @@ const MBVisitReportScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-emerald-100 text-sm font-medium">MB Created</p>
-                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => r.TotalMBAmount).length}</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => hasMaterialBook(r)).length}</p>
                 <p className="text-emerald-200 text-xs mt-1">With material books</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -525,7 +626,7 @@ const MBVisitReportScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-100 text-sm font-medium">Visit Reports</p>
-                <p className="text-2xl font-bold mt-1">-</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => hasVisitReport(r)).length}</p>
                 <p className="text-purple-200 text-xs mt-1">Reports submitted</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -538,7 +639,7 @@ const MBVisitReportScreen = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-orange-100 text-sm font-medium">Pending</p>
-                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => !r.TotalMBAmount).length}</p>
+                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => !hasMaterialBook(r) || !hasVisitReport(r)).length}</p>
                 <p className="text-orange-200 text-xs mt-1">Need attention</p>
               </div>
               <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
@@ -570,13 +671,19 @@ const MBVisitReportScreen = () => {
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Mode</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Sanction Date</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Sanction Amount</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Status</th>
                   <th className="px-6 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Actions</th>
+                  
+                  
+                  
+                  
+                  
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {filteredRequisitions.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
                       No completed requisitions found
                     </td>
                   </tr>
@@ -627,20 +734,66 @@ const MBVisitReportScreen = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-1">
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded ${
+                            hasMaterialBook(requisition)
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {hasMaterialBook(requisition) ? <Check size={12} /> : <AlertCircle size={12} />}
+                            MB: {hasMaterialBook(requisition) ? 'Done' : 'Pending'}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold rounded ${
+                            hasVisitReport(requisition)
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {hasVisitReport(requisition) ? <Check size={12} /> : <AlertCircle size={12} />}
+                            VR: {hasVisitReport(requisition) ? 'Done' : 'Pending'}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="flex gap-2 flex-wrap">
                           <button
                             onClick={() => handleCreateMB(requisition)}
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-sm font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-purple-500 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                            className={`inline-flex items-center gap-2 px-3 py-2 text-white text-sm font-semibold rounded-lg focus:outline-none focus:ring-2 shadow-md transition-all duration-300 transform hover:scale-105 ${
+                              hasMaterialBook(requisition)
+                                ? 'bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 focus:ring-blue-500 hover:shadow-lg'
+                                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 focus:ring-purple-500 hover:shadow-lg'
+                            }`}
                           >
-                            <Edit3 size={14} />
-                            Create MB
+                            {hasMaterialBook(requisition) ? (
+                              <>
+                                <Eye size={14} />
+                                View MB
+                              </>
+                            ) : (
+                              <>
+                                <Edit3 size={14} />
+                                Create MB
+                              </>
+                            )}
                           </button>
                           <button
                             onClick={() => handleCreateVisitReport(requisition)}
-                            className="inline-flex items-center gap-2 px-3 py-2 bg-gradient-to-r from-teal-600 to-cyan-600 text-white text-sm font-semibold rounded-lg hover:from-teal-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-teal-500 shadow-md hover:shadow-lg transition-all duration-300 transform hover:scale-105"
+                            className={`inline-flex items-center gap-2 px-3 py-2 text-white text-sm font-semibold rounded-lg focus:outline-none focus:ring-2 shadow-md transition-all duration-300 transform hover:scale-105 ${
+                              hasVisitReport(requisition)
+                                ? 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 focus:ring-green-500 hover:shadow-lg'
+                                : 'bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-700 hover:to-cyan-700 focus:ring-teal-500 hover:shadow-lg'
+                            }`}
                           >
-                            <ClipboardCheck size={14} />
-                            Visit Report
+                            {hasVisitReport(requisition) ? (
+                              <>
+                                <Eye size={14} />
+                                View Report
+                              </>
+                            ) : (
+                              <>
+                                <ClipboardCheck size={14} />
+                                Visit Report
+                              </>
+                            )}
                           </button>
                         </div>
                       </td>
@@ -657,15 +810,15 @@ const MBVisitReportScreen = () => {
       {showMBModal && selectedRequisition && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-6 text-white rounded-t-2xl">
+            <div className={`${isViewMode ? 'bg-gradient-to-r from-blue-600 to-cyan-600' : 'bg-gradient-to-r from-purple-600 to-indigo-600'} p-6 text-white rounded-t-2xl`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <Edit3 size={20} />
+                    {isViewMode ? <Eye size={20} /> : <Edit3 size={20} />}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">Create Material Book (MB)</h3>
-                    <p className="text-purple-100">Requisition: {selectedRequisition.RequisitionId} - {selectedRequisition.HandpumpId}</p>
+                    <h3 className="text-xl font-bold">{isViewMode ? 'View Material Book (MB)' : 'Create Material Book (MB)'}</h3>
+                    <p className={`${isViewMode ? 'text-blue-100' : 'text-purple-100'}`}>Requisition: {selectedRequisition.RequisitionId} - {selectedRequisition.HandpumpId}</p>
                   </div>
                 </div>
                 <button 
@@ -678,7 +831,7 @@ const MBVisitReportScreen = () => {
             </div>
             
             <div className="p-6">
-              {materialBookData?.MaterialImgFile && (
+              {!isViewMode && materialBookData?.MaterialImgFile && (
                 <div className="mb-6">
                   <button
                     onClick={handleViewMaterialBook}
@@ -708,7 +861,7 @@ const MBVisitReportScreen = () => {
                     <Loader2 className="w-8 h-8 animate-spin text-purple-600 mx-auto mb-2" />
                     <p className="text-gray-600">Loading items...</p>
                   </div>
-                ) : mbItems.length === 0 ? (
+                ) : (isViewMode ? viewMBData : mbItems).length === 0 ? (
                   <div className="p-8 text-center text-gray-500">
                     No items found for this requisition
                   </div>
@@ -727,7 +880,7 @@ const MBVisitReportScreen = () => {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-100">
-                        {mbItems.map((item, index) => {
+                        {(isViewMode ? viewMBData : mbItems).map((item, index) => {
                           const itemId = item.ItemId || item.id;
                           return (
                             <tr key={itemId} className="hover:bg-gray-50">
@@ -738,13 +891,19 @@ const MBVisitReportScreen = () => {
                               <td className="px-4 py-3 text-sm text-emerald-600 font-semibold">₹{item.Rate || item.rate || 0}</td>
                               <td className="px-4 py-3 text-sm text-slate-700 font-semibold">₹{item.Amount || item.amount || 0}</td>
                               <td className="px-4 py-3">
-                                <textarea
-                                  value={mbRemarks[itemId] || ''}
-                                  onChange={(e) => updateMBRemark(itemId, e.target.value)}
-                                  placeholder="Add remarks for this item..."
-                                  className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
-                                  rows="2"
-                                />
+                                {isViewMode ? (
+                                  <div className="w-full px-3 py-2 text-xs bg-gray-50 border border-gray-200 rounded-lg min-h-[48px]">
+                                    {item.Consulting_Egnr_Remark || 'No remarks'}
+                                  </div>
+                                ) : (
+                                  <textarea
+                                    value={mbRemarks[itemId] || ''}
+                                    onChange={(e) => updateMBRemark(itemId, e.target.value)}
+                                    placeholder="Add remarks for this item..."
+                                    className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 resize-none"
+                                    rows="2"
+                                  />
+                                )}
                               </td>
                             </tr>
                           );
@@ -760,43 +919,45 @@ const MBVisitReportScreen = () => {
                 )}
               </div>
 
-              <div className="flex justify-end">
-                <button
-                  onClick={handleMBSubmit}
-                  disabled={loading || mbItems.length === 0}
-                  className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Save size={18} />
-                      Submit Material Book
-                    </>
-                  )}
-                </button>
-              </div>
+              {!isViewMode && (
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleMBSubmit}
+                    disabled={loading || mbItems.length === 0}
+                    className="px-6 py-3 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Save size={18} />
+                        Submit Material Book
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Visit Report Modal - Continuing from where we left off */}
+      {/* Visit Report Modal */}
       {showVisitModal && selectedRequisition && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="bg-gradient-to-r from-teal-600 to-cyan-600 p-6 text-white rounded-t-2xl">
+            <div className={`${isViewMode ? 'bg-gradient-to-r from-green-600 to-emerald-600' : 'bg-gradient-to-r from-teal-600 to-cyan-600'} p-6 text-white rounded-t-2xl`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                    <ClipboardCheck size={20} />
+                    {isViewMode ? <Eye size={20} /> : <ClipboardCheck size={20} />}
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold">Visit Monitoring Report</h3>
-                    <p className="text-teal-100">India Mark II Handpump - {selectedRequisition.HandpumpId}</p>
+                    <h3 className="text-xl font-bold">{isViewMode ? 'View Visit Monitoring Report' : 'Create Visit Monitoring Report'}</h3>
+                    <p className={`${isViewMode ? 'text-green-100' : 'text-teal-100'}`}>India Mark II Handpump - {selectedRequisition.HandpumpId}</p>
                   </div>
                 </div>
                 <button 
@@ -816,7 +977,7 @@ const MBVisitReportScreen = () => {
                   <div><span className="text-teal-600 font-medium">Village:</span> <span className="font-semibold">{selectedRequisition.VillageName}</span></div>
                   <div><span className="text-teal-600 font-medium">Gram Panchayat:</span> <span className="font-semibold">{selectedRequisition.GrampanchayatName}</span></div>
                   <div><span className="text-teal-600 font-medium">Recording Person:</span> <span className="font-semibold">Consulting Engineer</span></div>
-                  <div><span className="text-teal-600 font-medium">Date:</span> <span className="font-semibold">{getCurrentDate()}</span></div>
+                  <div><span className="text-teal-600 font-medium">Date:</span> <span className="font-semibold">{isViewMode && viewVisitData?.VisitDate ? new Date(viewVisitData.VisitDate).toLocaleDateString('en-IN') : getCurrentDate()}</span></div>
                 </div>
               </div>
 
@@ -831,9 +992,10 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="workAbility"
                           value={option}
-                          checked={visitReport.workAbility === option}
-                          onChange={(e) => updateVisitReport('workAbility', e.target.value)}
-                          className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                          checked={isViewMode ? viewVisitData?.WorkAbility === option : visitReport.workAbility === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('workAbility', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                       </label>
@@ -841,9 +1003,10 @@ const MBVisitReportScreen = () => {
                   </div>
                   <textarea
                     placeholder="Add remarks..."
-                    value={visitReport.workAbilityRemark}
-                    onChange={(e) => updateVisitReport('workAbilityRemark', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.WorkAbilityRemarks || '') : visitReport.workAbilityRemark}
+                    onChange={(e) => !isViewMode && updateVisitReport('workAbilityRemark', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="2"
                   />
                 </div>
@@ -858,9 +1021,10 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="conditionPlatform"
                           value={option}
-                          checked={visitReport.conditionPlatform === option}
-                          onChange={(e) => updateVisitReport('conditionPlatform', e.target.value)}
-                          className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                          checked={isViewMode ? viewVisitData?.PlatformCondition === option : visitReport.conditionPlatform === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('conditionPlatform', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                       </label>
@@ -868,9 +1032,10 @@ const MBVisitReportScreen = () => {
                   </div>
                   <textarea
                     placeholder="Add remarks..."
-                    value={visitReport.conditionPlatformRemark}
-                    onChange={(e) => updateVisitReport('conditionPlatformRemark', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.PlatformRemarks || '') : visitReport.conditionPlatformRemark}
+                    onChange={(e) => !isViewMode && updateVisitReport('conditionPlatformRemark', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="2"
                   />
                 </div>
@@ -885,9 +1050,10 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="groutingPedestal"
                           value={option}
-                          checked={visitReport.groutingPedestal === option}
-                          onChange={(e) => updateVisitReport('groutingPedestal', e.target.value)}
-                          className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                          checked={isViewMode ? viewVisitData?.PedestalGrouting === option : visitReport.groutingPedestal === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('groutingPedestal', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">{option}</span>
                       </label>
@@ -895,9 +1061,10 @@ const MBVisitReportScreen = () => {
                   </div>
                   <textarea
                     placeholder="Add remarks..."
-                    value={visitReport.groutingPedestalRemark}
-                    onChange={(e) => updateVisitReport('groutingPedestalRemark', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.PedestalRemarks || '') : visitReport.groutingPedestalRemark}
+                    onChange={(e) => !isViewMode && updateVisitReport('groutingPedestalRemark', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="2"
                   />
                 </div>
@@ -908,16 +1075,18 @@ const MBVisitReportScreen = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-3">No. of Strokes to Fill a 12-liter Bucket</label>
                     <input
                       type="number"
-                      value={visitReport.strokesToFill}
-                      onChange={(e) => updateVisitReport('strokesToFill', e.target.value)}
-                      className="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.Strokes12LBucket || '') : visitReport.strokesToFill}
+                      onChange={(e) => !isViewMode && updateVisitReport('strokesToFill', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 mb-3 border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       placeholder="Enter number of strokes"
                     />
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.strokesToFillRemark}
-                      onChange={(e) => updateVisitReport('strokesToFillRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.StrokesRemarks || '') : visitReport.strokesToFillRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('strokesToFillRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -926,16 +1095,18 @@ const MBVisitReportScreen = () => {
                     <label className="block text-sm font-semibold text-gray-700 mb-3">No. of Breakdowns Till Date</label>
                     <input
                       type="number"
-                      value={visitReport.breakdownsTillDate}
-                      onChange={(e) => updateVisitReport('breakdownsTillDate', e.target.value)}
-                      className="w-full px-3 py-2 mb-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.NoOfBreakdowns || '') : visitReport.breakdownsTillDate}
+                      onChange={(e) => !isViewMode && updateVisitReport('breakdownsTillDate', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 mb-3 border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       placeholder="Enter number of breakdowns"
                     />
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.breakdownsTillDateRemark}
-                      onChange={(e) => updateVisitReport('breakdownsTillDateRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.BreakdownsRemarks || '') : visitReport.breakdownsTillDateRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('breakdownsTillDateRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -952,9 +1123,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="rustingHandleParts"
                             value={option}
-                            checked={visitReport.rustingHandleParts === option}
-                            onChange={(e) => updateVisitReport('rustingHandleParts', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.RustingHandle === option : visitReport.rustingHandleParts === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('rustingHandleParts', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -962,9 +1134,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.rustingHandlePartsRemark}
-                      onChange={(e) => updateVisitReport('rustingHandlePartsRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.RustingHandleRemarks || '') : visitReport.rustingHandlePartsRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('rustingHandlePartsRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -979,20 +1152,21 @@ const MBVisitReportScreen = () => {
                         <label key={option} className="flex items-center">
                           <input
                             type="checkbox"
-                            checked={Array.isArray(visitReport.whyPoorPerformance) 
-                              ? visitReport.whyPoorPerformance.includes(option)
-                              : false}
+                            checked={isViewMode 
+                              ? (Array.isArray(viewVisitData?.PoorPerformanceReason) && viewVisitData.PoorPerformanceReason.includes(option))
+                              : (Array.isArray(visitReport.whyPoorPerformance) && visitReport.whyPoorPerformance.includes(option))}
                             onChange={(e) => {
-                              const current = Array.isArray(visitReport.whyPoorPerformance) 
-                                ? visitReport.whyPoorPerformance 
-                                : [];
-                              if (e.target.checked) {
-                                updateVisitReport('whyPoorPerformance', [...current, option]);
-                              } else {
-                                updateVisitReport('whyPoorPerformance', current.filter(item => item !== option));
+                              if (!isViewMode) {
+                                const current = Array.isArray(visitReport.whyPoorPerformance) ? visitReport.whyPoorPerformance : [];
+                                if (e.target.checked) {
+                                  updateVisitReport('whyPoorPerformance', [...current, option]);
+                                } else {
+                                  updateVisitReport('whyPoorPerformance', current.filter(item => item !== option));
+                                }
                               }
                             }}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm text-gray-700">{option}</span>
                         </label>
@@ -1000,9 +1174,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.whyPoorPerformanceRemark}
-                      onChange={(e) => updateVisitReport('whyPoorPerformanceRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.PoorPerformanceRemarks || '') : visitReport.whyPoorPerformanceRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('whyPoorPerformanceRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1016,9 +1191,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="rustingPumpStandHead"
                             value={option}
-                            checked={visitReport.rustingPumpStandHead === option}
-                            onChange={(e) => updateVisitReport('rustingPumpStandHead', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.RustingPumpStand === option : visitReport.rustingPumpStandHead === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('rustingPumpStandHead', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1026,9 +1202,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.rustingPumpStandHeadRemark}
-                      onChange={(e) => updateVisitReport('rustingPumpStandHeadRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.RustingPumpStandRemarks || '') : visitReport.rustingPumpStandHeadRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('rustingPumpStandHeadRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1042,9 +1219,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="rustingPlungerSetup"
                             value={option}
-                            checked={visitReport.rustingPlungerSetup === option}
-                            onChange={(e) => updateVisitReport('rustingPlungerSetup', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.RustingPlunger === option : visitReport.rustingPlungerSetup === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('rustingPlungerSetup', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1052,9 +1230,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.rustingPlungerSetupRemark}
-                      onChange={(e) => updateVisitReport('rustingPlungerSetupRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.RustingPlungerRemarks || '') : visitReport.rustingPlungerSetupRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('rustingPlungerSetupRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1068,9 +1247,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="rustingCheckValveSetup"
                             value={option}
-                            checked={visitReport.rustingCheckValveSetup === option}
-                            onChange={(e) => updateVisitReport('rustingCheckValveSetup', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.CheckValveCondition === option : visitReport.rustingCheckValveSetup === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('rustingCheckValveSetup', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1078,9 +1258,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.rustingCheckValveSetupRemark}
-                      onChange={(e) => updateVisitReport('rustingCheckValveSetupRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.CheckValveRemarks || '') : visitReport.rustingCheckValveSetupRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('rustingCheckValveSetupRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1097,9 +1278,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="damageCylinderLiner"
                             value={option}
-                            checked={visitReport.damageCylinderLiner === option}
-                            onChange={(e) => updateVisitReport('damageCylinderLiner', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.CylinderLinerDamage === option : visitReport.damageCylinderLiner === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('damageCylinderLiner', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1107,9 +1289,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.damageCylinderLinerRemark}
-                      onChange={(e) => updateVisitReport('damageCylinderLinerRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.CylinderLinerRemarks || '') : visitReport.damageCylinderLinerRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('damageCylinderLinerRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1123,9 +1306,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="damageBearingParts"
                             value={option}
-                            checked={visitReport.damageBearingParts === option}
-                            onChange={(e) => updateVisitReport('damageBearingParts', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.BearingDamage === option : visitReport.damageBearingParts === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('damageBearingParts', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1133,9 +1317,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.damageBearingPartsRemark}
-                      onChange={(e) => updateVisitReport('damageBearingPartsRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.BearingDamageRemarks || '') : visitReport.damageBearingPartsRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('damageBearingPartsRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1149,9 +1334,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="damageRisingMainPumprods"
                             value={option}
-                            checked={visitReport.damageRisingMainPumprods === option}
-                            onChange={(e) => updateVisitReport('damageRisingMainPumprods', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.RisingMainPumprodsDamage === option : visitReport.damageRisingMainPumprods === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('damageRisingMainPumprods', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1159,9 +1345,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.damageRisingMainPumprodsRemark}
-                      onChange={(e) => updateVisitReport('damageRisingMainPumprodsRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.RisingMainPumprodsRemarks || '') : visitReport.damageRisingMainPumprodsRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('damageRisingMainPumprodsRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1175,9 +1362,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="damageRisingMainCentralisers"
                             value={option}
-                            checked={visitReport.damageRisingMainCentralisers === option}
-                            onChange={(e) => updateVisitReport('damageRisingMainCentralisers', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.RisingMainCentralisersDamage === option : visitReport.damageRisingMainCentralisers === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('damageRisingMainCentralisers', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1185,9 +1373,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.damageRisingMainCentralisersRemark}
-                      onChange={(e) => updateVisitReport('damageRisingMainCentralisersRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.RisingMainCentralisersRemarks || '') : visitReport.damageRisingMainCentralisersRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('damageRisingMainCentralisersRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1203,9 +1392,12 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="damagedSealingParts"
                           value={option}
-                          checked={visitReport.damagedSealingParts === option}
-                          onChange={(e) => updateVisitReport('damagedSealingParts', e.target.value)}
-                          className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                          checked={isViewMode 
+                            ? (Array.isArray(viewVisitData?.SealingPartsDamage) && viewVisitData.SealingPartsDamage.includes(option))
+                            : visitReport.damagedSealingParts === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('damagedSealingParts', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700">{option}</span>
                       </label>
@@ -1213,9 +1405,10 @@ const MBVisitReportScreen = () => {
                   </div>
                   <textarea
                     placeholder="Add remarks..."
-                    value={visitReport.damagedSealingPartsRemark}
-                    onChange={(e) => updateVisitReport('damagedSealingPartsRemark', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.SealingPartsRemarks || '') : visitReport.damagedSealingPartsRemark}
+                    onChange={(e) => !isViewMode && updateVisitReport('damagedSealingPartsRemark', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="2"
                   />
                 </div>
@@ -1231,9 +1424,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="preventiveMaintenance"
                             value={option}
-                            checked={visitReport.preventiveMaintenance === option}
-                            onChange={(e) => updateVisitReport('preventiveMaintenance', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.PreventiveMaintenanceDone === option : visitReport.preventiveMaintenance === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('preventiveMaintenance', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1241,9 +1435,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.preventiveMaintenanceRemark}
-                      onChange={(e) => updateVisitReport('preventiveMaintenanceRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.PreventiveMaintenanceRemarks || '') : visitReport.preventiveMaintenanceRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('preventiveMaintenanceRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1257,9 +1452,10 @@ const MBVisitReportScreen = () => {
                             type="radio"
                             name="techMechAssistance"
                             value={option}
-                            checked={visitReport.techMechAssistance === option}
-                            onChange={(e) => updateVisitReport('techMechAssistance', e.target.value)}
-                            className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                            checked={isViewMode ? viewVisitData?.TechAssistanceAvailable === option : visitReport.techMechAssistance === option}
+                            onChange={(e) => !isViewMode && updateVisitReport('techMechAssistance', e.target.value)}
+                            disabled={isViewMode}
+                            className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                           />
                           <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                         </label>
@@ -1267,9 +1463,10 @@ const MBVisitReportScreen = () => {
                     </div>
                     <textarea
                       placeholder="Add remarks..."
-                      value={visitReport.techMechAssistanceRemark}
-                      onChange={(e) => updateVisitReport('techMechAssistanceRemark', e.target.value)}
-                      className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                      value={isViewMode ? (viewVisitData?.TechAssistanceRemarks || '') : visitReport.techMechAssistanceRemark}
+                      onChange={(e) => !isViewMode && updateVisitReport('techMechAssistanceRemark', e.target.value)}
+                      readOnly={isViewMode}
+                      className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                       rows="2"
                     />
                   </div>
@@ -1285,9 +1482,10 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="maintenanceSystemSatisfying"
                           value={option}
-                          checked={visitReport.maintenanceSystemSatisfying === option}
-                          onChange={(e) => updateVisitReport('maintenanceSystemSatisfying', e.target.value)}
-                          className="w-4 h-4 text-teal-600 focus:ring-teal-500"
+                          checked={isViewMode ? viewVisitData?.MaintenanceSatisfying === option : visitReport.maintenanceSystemSatisfying === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('maintenanceSystemSatisfying', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-4 h-4 text-teal-600 focus:ring-teal-500 disabled:opacity-50"
                         />
                         <span className="ml-2 text-sm font-medium text-gray-700 capitalize">{option}</span>
                       </label>
@@ -1295,9 +1493,10 @@ const MBVisitReportScreen = () => {
                   </div>
                   <textarea
                     placeholder="Add remarks..."
-                    value={visitReport.maintenanceSystemSatisfyingRemark}
-                    onChange={(e) => updateVisitReport('maintenanceSystemSatisfyingRemark', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.MaintenanceRemarks || '') : visitReport.maintenanceSystemSatisfyingRemark}
+                    onChange={(e) => !isViewMode && updateVisitReport('maintenanceSystemSatisfyingRemark', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="2"
                   />
                 </div>
@@ -1307,9 +1506,10 @@ const MBVisitReportScreen = () => {
                   <label className="block text-sm font-semibold text-gray-700 mb-3">Additional Comments</label>
                   <textarea
                     placeholder="Add any additional comments or observations..."
-                    value={visitReport.comments}
-                    onChange={(e) => updateVisitReport('comments', e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-teal-500"
+                    value={isViewMode ? (viewVisitData?.AdditionalComments || '') : visitReport.comments}
+                    onChange={(e) => !isViewMode && updateVisitReport('comments', e.target.value)}
+                    readOnly={isViewMode}
+                    className={`w-full px-3 py-2 text-sm border rounded-lg ${isViewMode ? 'bg-gray-50 border-gray-200' : 'border-gray-300 focus:ring-2 focus:ring-teal-500 focus:border-teal-500'}`}
                     rows="4"
                   />
                 </div>
@@ -1329,12 +1529,13 @@ const MBVisitReportScreen = () => {
                           type="radio"
                           name="overallStatus"
                           value={option}
-                          checked={visitReport.overallStatus === option}
-                          onChange={(e) => updateVisitReport('overallStatus', e.target.value)}
-                          className="w-5 h-5 text-teal-600 focus:ring-teal-500 focus:ring-2"
+                          checked={isViewMode ? viewVisitData?.Overall_Status === option : visitReport.overallStatus === option}
+                          onChange={(e) => !isViewMode && updateVisitReport('overallStatus', e.target.value)}
+                          disabled={isViewMode}
+                          className="w-5 h-5 text-teal-600 focus:ring-teal-500 focus:ring-2 disabled:opacity-50"
                         />
                         <span className={`ml-3 text-base font-semibold ${
-                          visitReport.overallStatus === option 
+                          (isViewMode ? viewVisitData?.Overall_Status : visitReport.overallStatus) === option 
                             ? 'text-teal-800' 
                             : 'text-gray-700'
                         }`}>{option}</span>
@@ -1348,25 +1549,27 @@ const MBVisitReportScreen = () => {
               </div>
 
               {/* Submit Button */}
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  onClick={handleVisitReportSubmit}
-                  disabled={loading}
-                  className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-700 hover:to-cyan-700 transition-all duration-300 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {loading ? (
-                    <>
-                      <Loader2 size={18} className="animate-spin" />
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      <Check size={18} />
-                      Submit Visit Report
-                    </>
-                  )}
-                </button>
-              </div>
+              {!isViewMode && (
+                <div className="flex justify-end pt-6 border-t border-gray-200">
+                  <button
+                    onClick={handleVisitReportSubmit}
+                    disabled={loading}
+                    className="px-6 py-3 bg-gradient-to-r from-teal-600 to-cyan-600 text-white font-semibold rounded-lg hover:from-teal-700 hover:to-cyan-700 transition-all duration-300 shadow-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 size={18} className="animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <Check size={18} />
+                        Submit Visit Report
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1395,7 +1598,7 @@ const MBVisitReportScreen = () => {
             <div className="p-8 text-center space-y-6">
               <div className={`${
                 successType === 'Material Book' ? 'bg-purple-50' : 'bg-teal-50'
-              } rounded-lg p-6`}>
+              } rounded-lg p-4 mb-6`}>
                 <p className="text-gray-700 leading-relaxed mb-4">
                   Thank you! Your {successType.toLowerCase()} has been successfully saved and shared with the respective authorities for further processing.
                 </p>
@@ -1478,4 +1681,5 @@ const MBVisitReportScreen = () => {
   );
 };
 
-export default MBVisitReportScreen;
+export default MBVisitReportScreen; 
+                  

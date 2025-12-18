@@ -4,14 +4,9 @@ import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, X, Al
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { useUserInfo } from "../utils/userInfo";
 
-// Mock user info hook (replace with actual implementation)
-const useUserInfo = () => ({
-  userId: 1,
-  role: 'Admin',
-  loading: false,
-  error: null
-});
+
 
 // Define the API response structure
 interface HandpumpData {

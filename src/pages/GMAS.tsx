@@ -21,11 +21,26 @@ const GMAS = () => {
   const [selectedRequisition, setSelectedRequisition] = useState(null);
   const [showRequisitionDetails, setShowRequisitionDetails] = useState(false);
   const [isSatelliteView, setIsSatelliteView] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+  const [role, setRole] = useState('');
+  const [searchHandpumpId, setSearchHandpumpId] = useState('');
 
   const mapRef = useRef(null);
   const modalMapRef = useRef(null);
 
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
+
+  // Get role from token
+  useEffect(() => {
+    try {
+      const token = getAuthToken();
+      if (!token) return;
+      const payload = JSON.parse(atob(token.split(".")[1]));
+      setRole(payload?.Role || payload?.UserRoll || "");
+    } catch (e) {
+      console.error("Failed to decode token", e);
+    }
+  }, []);
 
   // Get token from localStorage
   const getAuthToken = () => {
@@ -52,6 +67,46 @@ const GMAS = () => {
       popupAnchor: [1, -34],
     }),
   };
+
+  // Fetch user profile and auto-populate filters
+  useEffect(() => {
+    if (userLoading || !userId) return;
+    
+    const authToken = getAuthToken();
+    if (!authToken) return;
+
+    fetch(`${API_BASE}/Signup/GetUserProfileById?UserId=${userId}`, {
+      method: "GET",
+      headers: { 
+        accept: "*/*",
+        Authorization: `Bearer ${authToken}`
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        console.log('User Profile API response:', data);
+        if (data.Status && data.Data && data.Data.length > 0) {
+          const profile = data.Data[0];
+          setUserProfile(profile);
+          
+          // For Gram Panchayat Sachiv, auto-populate filters
+          if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
+            if (profile.DistrictName) {
+              setSelectedDistrict(profile.DistrictName);
+            }
+            if (profile.BlockName) {
+              setSelectedBlock(profile.BlockName);
+            }
+            if (profile.GramPanchayatName) {
+              setSelectedGramPanchayat(profile.GramPanchayatName);
+            }
+          }
+        }
+      })
+      .catch((err) => {
+        console.error('Error fetching user profile:', err);
+      });
+  }, [userLoading, userId, role]);
 
   // Fetch data from APIs
   useEffect(() => {
@@ -209,8 +264,25 @@ const GMAS = () => {
       const districtMatch = selectedDistrict === 'All' || hp.district === selectedDistrict;
       const blockMatch = selectedBlock === 'All' || hp.block === selectedBlock;
       const gpMatch = selectedGramPanchayat === 'All' || hp.gramPanchayat === selectedGramPanchayat;
-      return districtMatch && blockMatch && gpMatch;
+      const handpumpIdMatch = searchHandpumpId === '' || hp.id.toString().toLowerCase().includes(searchHandpumpId.toLowerCase());
+      return districtMatch && blockMatch && gpMatch && handpumpIdMatch;
     });
+  };
+
+  const handleHandpumpSearch = (searchId) => {
+    setSearchHandpumpId(searchId);
+    
+    // If search ID is provided, find and zoom to that handpump
+    if (searchId && mapRef.current) {
+      const foundHandpump = handpumps.find(hp => 
+        hp.id.toString().toLowerCase().includes(searchId.toLowerCase())
+      );
+      
+      if (foundHandpump) {
+        mapRef.current.setView(foundHandpump.coordinates, 16);
+        setSelectedHandpump(foundHandpump);
+      }
+    }
   };
 
   const getStatusColor = (status) => {
@@ -263,10 +335,15 @@ const GMAS = () => {
 
   useEffect(() => {
     if (mapRef.current && filteredHandpumps.length > 0) {
-      const bounds = L.latLngBounds(filteredHandpumps.map((hp) => hp.coordinates));
-      mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+      // If searching for a specific handpump, zoom to it
+      if (searchHandpumpId && filteredHandpumps.length === 1) {
+        mapRef.current.setView(filteredHandpumps[0].coordinates, 16);
+      } else {
+        const bounds = L.latLngBounds(filteredHandpumps.map((hp) => hp.coordinates));
+        mapRef.current.fitBounds(bounds, { padding: [50, 50] });
+      }
     }
-  }, [filteredHandpumps]);
+  }, [filteredHandpumps, searchHandpumpId]);
 
   // Show loading state
   if (userLoading || loading) {
@@ -319,13 +396,18 @@ const GMAS = () => {
             </p>
 
             {/* Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
                 <Filter size={20} className="text-white" />
                 <select
                   value={selectedDistrict}
                   onChange={(e) => handleDistrictChange(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1"
+                  disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+                  className={`bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 ${
+                    (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                      ? 'opacity-75 cursor-not-allowed' 
+                      : ''
+                  }`}
                 >
                   {districts.map((district) => (
                     <option key={district} value={district} className="text-gray-800">
@@ -340,7 +422,12 @@ const GMAS = () => {
                 <select
                   value={selectedBlock}
                   onChange={(e) => handleBlockChange(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1"
+                  disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+                  className={`bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 ${
+                    (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                      ? 'opacity-75 cursor-not-allowed' 
+                      : ''
+                  }`}
                 >
                   {(blocks[selectedDistrict] || ['All']).map((block) => (
                     <option key={block} value={block} className="text-gray-800">
@@ -355,7 +442,12 @@ const GMAS = () => {
                 <select
                   value={selectedGramPanchayat}
                   onChange={(e) => setSelectedGramPanchayat(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1"
+                  disabled={role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")}
+                  className={`bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 ${
+                    (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) 
+                      ? 'opacity-75 cursor-not-allowed' 
+                      : ''
+                  }`}
                 >
                   {(gramPanchayats[selectedBlock] || ['All']).map((gp) => (
                     <option key={gp} value={gp} className="text-gray-800">
@@ -363,6 +455,28 @@ const GMAS = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
+                <MapPin size={20} className="text-white" />
+                <input
+                  type="text"
+                  placeholder="Search Handpump ID"
+                  value={searchHandpumpId}
+                  onChange={(e) => handleHandpumpSearch(e.target.value)}
+                  className="bg-transparent text-white placeholder-white/70 focus:outline-none flex-1"
+                />
+                {searchHandpumpId && (
+                  <button
+                    onClick={() => {
+                      setSearchHandpumpId('');
+                      setSelectedHandpump(null);
+                    }}
+                    className="text-white/70 hover:text-white transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
             </div>
           </div>
