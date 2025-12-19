@@ -1,4 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import { 
   LayoutDashboard, 
   Droplets, 
@@ -38,6 +40,8 @@ const AdminDashboard = () => {
   const [handpumps, setHandpumps] = useState([]);
   const [requisitions, setRequisitions] = useState([]);
   const [userId, setUserId] = useState(null);
+  const navigate = useNavigate();
+
   
   // Filter States
   const [filters, setFilters] = useState({
@@ -45,7 +49,7 @@ const AdminDashboard = () => {
     block: '',
     gramPanchayat: '',
     village: '',
-    financialYear: '2024-25',
+    financialYear: '2025-26',
     month: 'June'
   });
 
@@ -68,6 +72,93 @@ const AdminDashboard = () => {
       return null;
     }
   };
+
+
+  const handleViewHandpump = (handpump) => {
+  // Navigate to manage handpump page or show modal
+  // alert(`Viewing Handpump: ${handpump.HandpumpId}\nDistrict: ${handpump.DistrictName}\nStatus: ${handpump.HandpumpStatus}`);
+  navigate(`/admin/manage-handpump?id=${handpump.H_id}`);
+};
+
+const handleViewRequisition = (requisition) => {
+  // Navigate to requisition details or show modal
+  navigate(`/admin/manage-beneficiary?id=${requisition.RequisitionId}`);
+};
+
+  const handleExportHandpumps = () => {
+  try {
+    const XLSX = require('xlsx');
+    
+    const exportData = filteredHandpumps.map((hp, index) => ({
+      'S.No': index + 1,
+      'Handpump ID': hp.HandpumpId,
+      'District': hp.DistrictName,
+      'Block': hp.BlockName,
+      'Gram Panchayat': hp.GrampanchayatName,
+      'Village': hp.VillegeName,
+      'Status': hp.HandpumpStatus,
+      'Water Quality': hp.WaterQuality || 'N/A',
+      'Soakpit Connected': hp.SoakpitConnected === 1 ? 'Yes' : 'No',
+      'Drainage Connected': hp.DrainageConnected === 1 ? 'Yes' : 'No',
+      'Platform Built': hp.PlateformBuild === 1 ? 'Yes' : 'No',
+      'Nearby Person': hp.NearByPersonName || 'N/A',
+      'Contact': hp.NearByPersonNo || 'N/A',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Handpumps');
+
+    const filename = `handpumps_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  } catch (error) {
+    console.error('Export error:', error);
+    alert('Failed to export data. Please install xlsx package: npm install xlsx');
+  }
+};
+
+const handleExportRequisitions = () => {
+  try {
+    const XLSX = require('xlsx');
+    
+    const exportData = filteredRequisitions.map((req, index) => ({
+      'S.No': index + 1,
+      'Requisition ID': `REQ-${req.RequisitionId.toString().padStart(4, '0')}`,
+      'Handpump ID': req.HandpumpId,
+      'Village': req.VillageName,
+      'Gram Panchayat': req.GrampanchayatName,
+      'Block': req.BlockName,
+      'District': req.DistrictName,
+      'Type': req.RequisitionType,
+      'Date': new Date(req.RequisitionDate).toLocaleDateString('en-IN'),
+      'Status': req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'Completed',
+      'Sanction Amount': req.SanctionAmount ? `₹${parseFloat(req.SanctionAmount).toLocaleString('en-IN')}` : '-',
+      'Completion Date': req.CompletionDateStr || '-',
+    }));
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(exportData);
+
+    const colWidths = Object.keys(exportData[0] || {}).map(key => ({
+      wch: Math.max(key.length, 15)
+    }));
+    ws['!cols'] = colWidths;
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Requisitions');
+
+    const filename = `requisitions_export_${new Date().toISOString().split('T')[0]}.xlsx`;
+    XLSX.writeFile(wb, filename);
+  } catch (error) {
+    console.error('Export error:', error);
+    alert('Failed to export data. Please install xlsx package: npm install xlsx');
+  }
+};
 
   // Fetch handpump data
   // Fetch handpump data and requisitions
@@ -172,7 +263,7 @@ useEffect(() => {
         .map(hp => hp.VillegeName)
         .filter(Boolean)
     )],
-    financialYears: ['2024-25', '2023-24', '2022-23', '2021-22'],
+    financialYears: ['2025-26', '2024-25', '2023-24', '2022-23', '2021-22'],
     months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   };
 
@@ -202,21 +293,47 @@ useEffect(() => {
       block: '',
       gramPanchayat: '',
       village: '',
-      financialYear: '2024-25',
+      financialYear: '2025-26',
       month: 'June'
     });
   };
 
   // Filter handpumps based on current filters
   const getFilteredHandpumps = () => {
-    return handpumps.filter(hp => {
-      const districtMatch = !filters.district || hp.DistrictName === filters.district;
-      const blockMatch = !filters.block || hp.BlockName === filters.block;
-      const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
-      const villageMatch = !filters.village || hp.VillegeName === filters.village;
-      return districtMatch && blockMatch && gpMatch && villageMatch;
-    });
-  };
+  return handpumps.filter(hp => {
+    const districtMatch = !filters.district || hp.DistrictName === filters.district;
+    const blockMatch = !filters.block || hp.BlockName === filters.block;
+    const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
+    const villageMatch = !filters.village || hp.VillegeName === filters.village;
+    
+    // Financial Year filtering using CreateddateStr (format: "DD-MM-YYYY")
+    let yearMatch = true;
+    if (hp.CreateddateStr) {
+      try {
+        // Parse DD-MM-YYYY string to date
+        const [day, month, year] = hp.CreateddateStr.split('-').map(Number);
+        const hpDate = new Date(year, month - 1, day); // month is 0-indexed
+        const hpYear = hpDate.getFullYear();
+        const hpMonth = hpDate.getMonth() + 1; // Convert back to 1-indexed
+        
+        // Parse financial year (e.g., "2025-26" means April 2025 to March 2026)
+        const [startYear, endYear] = filters.financialYear.split('-').map(y => parseInt('20' + y));
+        
+        // FY starts in April
+        if (hpMonth >= 4) { // April onwards belongs to current FY
+          yearMatch = hpYear === startYear;
+        } else { // Jan-March belongs to next FY
+          yearMatch = hpYear === endYear;
+        }
+      } catch (error) {
+        console.error('Error parsing date:', hp.CreateddateStr, error);
+        yearMatch = true; // Include if date parsing fails
+      }
+    }
+    
+    return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch;
+  });
+};
 
   const filteredHandpumps = getFilteredHandpumps();
 
@@ -228,7 +345,24 @@ useEffect(() => {
   const blockMatch = !filters.block || handpump.BlockName === filters.block;
   const gpMatch = !filters.gramPanchayat || handpump.GrampanchayatName === filters.gramPanchayat;
   const villageMatch = !filters.village || handpump.VillegeName === filters.village;
-  return districtMatch && blockMatch && gpMatch && villageMatch;
+  
+  // Add date filtering for requisitions
+  let yearMatch = true;
+  if (req.RequisitionDate) {
+    const reqDate = new Date(req.RequisitionDate);
+    const reqYear = reqDate.getFullYear();
+    const reqMonth = reqDate.getMonth() + 1;
+    
+    const [startYear, endYear] = filters.financialYear.split('-').map(y => parseInt('20' + y));
+    
+    if (reqMonth >= 4) {
+      yearMatch = reqYear === startYear;
+    } else {
+      yearMatch = reqYear === endYear;
+    }
+  }
+  
+  return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch;
 });
 
   // Calculate statistics from filtered data
@@ -972,10 +1106,13 @@ useEffect(() => {
                 <div className="flex items-center justify-between">
                   <h3 className="text-xl font-bold text-gray-800">Handpump Registry</h3>
                   <div className="flex gap-2">
-                    <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-                      <Download size={16} />
-                      Export
-                    </button>
+                    <button 
+  onClick={handleExportHandpumps}
+  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+>
+  <Download size={16} />
+  Export
+</button>
                   </div>
                 </div>
               </div>
@@ -988,7 +1125,6 @@ useEffect(() => {
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Village</th>
                       <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Water Quality</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -1010,11 +1146,7 @@ useEffect(() => {
                           </td>
                           <td className="px-6 py-4 text-sm text-gray-600">{hp.VillegeName}</td>
                           <td className="px-6 py-4 text-sm text-gray-600">{hp.WaterQuality || 'N/A'}</td>
-                          <td className="px-6 py-4">
-                            <button className="text-blue-600 hover:text-blue-800">
-                              <Eye size={16} />
-                            </button>
-                          </td>
+                          
                         </tr>
                       ))
                     ) : (
@@ -1187,10 +1319,13 @@ useEffect(() => {
         <div className="flex items-center justify-between">
           <h3 className="text-xl font-bold text-gray-800">Requisition Registry</h3>
           <div className="flex gap-2">
-            <button className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2">
-              <Download size={16} />
-              Export
-            </button>
+            <button 
+  onClick={handleExportRequisitions}
+  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+>
+  <Download size={16} />
+  Export
+</button>
           </div>
         </div>
       </div>
@@ -1246,9 +1381,13 @@ useEffect(() => {
                       : '-'}
                   </td>
                   <td className="px-6 py-4">
-                    <button className="text-blue-600 hover:text-blue-800">
-                      <Eye size={16} />
-                    </button>
+                    <button 
+  onClick={() => handleViewRequisition(req)}
+  className="text-blue-600 hover:text-blue-800 p-2 hover:bg-blue-50 rounded-lg transition-colors"
+  title="View Details"
+>
+  <Eye size={16} />
+</button>
                   </td>
                 </tr>
               ))
