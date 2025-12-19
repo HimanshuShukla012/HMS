@@ -32,8 +32,12 @@ import ManageComplaint from "./pages/ManageComplaint";
 import PrivacyPolicy from "./pages/PrivacyPolicy";
 import SupportPage from "./pages/support";
 
+import { SearchDataProvider } from './components/SearchDataContext';
+
+
 function App() {
   return (
+    <SearchDataProvider>
     <div>
       <Router>
         <Routes>
@@ -153,6 +157,7 @@ function App() {
         </Routes>
       </Router>
     </div>
+    </SearchDataProvider>
   );
 }
 

@@ -22,7 +22,7 @@ const Login = () => {
   const handleLogin = async () => {
     setError("");
     if (!username.trim() || !password.trim()) {
-      setError("Please enter a valid User ID and Password");
+      setError("Please enter a valid Email and Password");
       return;
     }
     
@@ -129,7 +129,7 @@ const Login = () => {
               <MdAlternateEmail size={24} />
               <input
                 type="text"
-                placeholder="Email address / Username"
+                placeholder="Email address"
                 className="bg-transparent border-0 w-full outline-none text-lg text-white placeholder-gray-400"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}

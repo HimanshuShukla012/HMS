@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Filter, Search, Download, Eye, Calendar, FileText, Wrench, Drill, ArrowLeft, TrendingUp, Loader, AlertCircle } from 'lucide-react';
 import { useUserInfo } from '../utils/userInfo';
+import { useSearchData } from '../components/SearchDataContext';
 
 const ViewEstimationScreen = () => {
   const { userId, loading: userLoading, error: userError } = useUserInfo();
@@ -19,6 +20,8 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
   const [masterRepairItems, setMasterRepairItems] = useState([]);
   const [masterReboreItems, setMasterReboreItems] = useState([]);
   const [consultingEngineer, setConsultingEngineer] = useState('');
+  const { setEstimations: setGlobalEstimations } = useSearchData();
+
 
   const API_BASE = 'https://hmsapi.kdsgroup.co.in/api';
 
@@ -122,7 +125,7 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data to match component structure
           const transformedData = data.Data.map(req => ({
-  id: req.RequisitionId?.toString() || 'N/A',
+    id: `REQ${req.RequisitionId.toString().padStart(3, '0')}`,
   handpumpId: req.HandpumpId || 'N/A',
   mode: req.RequisitionType || 'Unknown',
   date: req.RequisitionDate || new Date().toISOString(),
@@ -138,6 +141,8 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
 })).filter(req => req.orderId);
 
           setRequisitions(transformedData);
+          setGlobalEstimations(data.Data); // ← ADD THIS LINE (use raw data)
+
         } else {
           setRequisitions([]);
         }

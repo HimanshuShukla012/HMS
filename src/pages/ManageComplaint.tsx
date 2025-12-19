@@ -23,6 +23,10 @@ import {
   Settings,
   ToolCase,
 } from 'lucide-react';
+import { useJurisdiction } from '../utils/useJurisdiction';
+import { useSearchData } from '../components/SearchDataContext';
+
+
 
 // Toast notification system (in-memory implementation)
 const useToast = () => {
@@ -127,6 +131,8 @@ interface VillageApi {
 
 const ManageHandpumpComplaints = () => {
   const { userId, role } = useUserInfo();
+  const { jurisdiction, loading: jurisdictionLoading, error: jurisdictionError } = useJurisdiction(userId);
+
   const navigate = useNavigate();
   
   const toast = useToast();
@@ -134,6 +140,8 @@ const ManageHandpumpComplaints = () => {
   
   const [search, setSearch] = useState("");
   const [complaints, setComplaints] = useState<HandpumpComplaint[]>([]);
+  const { setComplaints: setGlobalComplaints } = useSearchData(); // Add this
+
   const [loading, setLoading] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
   const [selectedComplaint, setSelectedComplaint] = useState<HandpumpComplaint | null>(null);
@@ -176,24 +184,63 @@ const ManageHandpumpComplaints = () => {
   }, [search, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, filterStatus, filterUrgency, filterCategory]);
 
   useEffect(() => {
-    if (selectedDistrictId && userId) {
+  if (userId && authToken && jurisdiction) {
+    // Auto-populate based on jurisdiction
+    if (jurisdiction.districtId) {
+      setDistricts([{
+        DistrictId: jurisdiction.districtId,
+        DistrictName: jurisdiction.districtName || ''
+      }]);
+      setSelectedDistrictId(jurisdiction.districtId);
+    } else {
+      fetchDistricts();
+    }
+    
+    fetchComplaints();
+  }
+}, [userId, authToken, jurisdiction]);
+
+  // Update useEffect for blocks to consider jurisdiction
+useEffect(() => {
+  if (selectedDistrictId && userId) {
+    if (jurisdiction?.blockId) {
+      // Auto-populate block for ADO
+      setBlocks([{
+        BlockId: jurisdiction.blockId,
+        DistrictId: jurisdiction.districtId!,
+        BlockName: jurisdiction.blockName || ''
+      }]);
+      setSelectedBlockId(jurisdiction.blockId);
+    } else {
       fetchBlocks(selectedDistrictId);
-    } else {
-      setBlocks([]);
-      setSelectedBlockId(null);
     }
-  }, [selectedDistrictId, userId]);
+  } else {
+    setBlocks([]);
+    setSelectedBlockId(null);
+  }
+}, [selectedDistrictId, userId, jurisdiction]);
 
-  useEffect(() => {
-    if (selectedBlockId && userId) {
+  // Update useEffect for gram panchayats to consider jurisdiction
+useEffect(() => {
+  if (selectedBlockId && userId) {
+    if (jurisdiction?.gramPanchayatId) {
+      // Auto-populate GP for GP Sachiv
+      setGramPanchayats([{
+        Id: jurisdiction.gramPanchayatId,
+        BlockId: jurisdiction.blockId!,
+        GramPanchayatName: jurisdiction.gramPanchayatName || ''
+      }]);
+      setSelectedGramPanchayatId(jurisdiction.gramPanchayatId);
+    } else {
       fetchGramPanchayats(selectedBlockId);
-    } else {
-      setGramPanchayats([]);
-      setSelectedGramPanchayatId(null);
     }
-  }, [selectedBlockId, userId]);
+  } else {
+    setGramPanchayats([]);
+    setSelectedGramPanchayatId(null);
+  }
+}, [selectedBlockId, userId, jurisdiction]);
 
-  useEffect(() => {
+useEffect(() => {
     if (selectedBlockId && selectedGramPanchayatId) {
       fetchVillages(selectedBlockId, selectedGramPanchayatId);
     } else {
@@ -279,6 +326,8 @@ const ManageHandpumpComplaints = () => {
       if (data.Status && data.Data) {
         const transformedData = transformApiData(data.Data);
         setComplaints(transformedData);
+        setGlobalComplaints(data.Data); // Add this line - use raw data
+
         toast.success(`Loaded ${transformedData.length} handpump complaint records`);
       } else {
         toast.error(data.Message || 'Failed to fetch complaints');
@@ -293,44 +342,163 @@ const ManageHandpumpComplaints = () => {
     }
   };
 
-  // Fetch districts (mock - replace with actual API)
-  const fetchDistricts = async () => {
-    if (!userId) return;
-    setDistricts([{ DistrictId: 1, DistrictName: "Lucknow" }]);
-  };
+  // Fetch districts from API
+// Update fetchDistricts to respect jurisdiction
+const fetchDistricts = async () => {
+  if (!userId || !authToken) return;
+  
+  // If user has a specific district (not Admin), don't fetch all districts
+  if (jurisdiction?.districtId) {
+    return; // Already set in useEffect
+  }
+  
+  try {
+    const response = await fetch(
+      `https://hmsapi.kdsgroup.co.in/api/Master/GetDistrictByUserId?UserId=${userId}`,
+      {
+        method: 'POST',
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        }
+      }
+    );
 
-  // Fetch blocks (mock - replace with actual API)
-  const fetchBlocks = async (districtId: number) => {
-    if (!userId) return;
-    setBlocks([
-      { BlockId: 101, DistrictId: 1, BlockName: "Sarojini Nagar" },
-      { BlockId: 102, DistrictId: 1, BlockName: "Chinhat" },
-      { BlockId: 103, DistrictId: 1, BlockName: "Mohanlalganj" }
-    ]);
-  };
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
 
-  // Fetch gram panchayats (mock - replace with actual API)
-  const fetchGramPanchayats = async (blockId: number) => {
-    if (!userId) return;
-    const mockData = [
-      { Id: 1001, BlockId: 101, GramPanchayatName: "Sarojini Nagar" },
-      { Id: 1002, BlockId: 102, GramPanchayatName: "Chinhat" },
-      { Id: 1003, BlockId: 103, GramPanchayatName: "Mohanlalganj" }
-    ];
-    setGramPanchayats(mockData.filter(gp => gp.BlockId === blockId));
-  };
+    const data = await response.json();
+    
+    if (data.Status && data.Data && data.Data.length > 0) {
+      const transformedDistricts = data.Data.map((d: any) => ({
+        DistrictId: d.Id || d.DistrictId,
+        DistrictName: d.DistrictName || d.Name,
+        DistrictNameHidi: d.DistrictNameHidi
+      }));
+      setDistricts(transformedDistricts);
+    }
+  } catch (error) {
+    console.error('Error fetching districts:', error);
+    toast.error('Failed to load districts');
+  }
+};
 
-  // Fetch villages (mock - replace with actual API)
-  const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
-    const mockData = [
-      { Id: 10001, VillageName: "Rampur" },
-      { Id: 10002, VillageName: "Sultanpur" },
-      { Id: 10003, VillageName: "Kadipur" },
-      { Id: 10004, VillageName: "Bharosa" }
-    ];
-    setVillages(mockData);
-  };
+// Fetch blocks from API
+const fetchBlocks = async (districtId: number) => {
+  if (!userId || !authToken) return;
+  
+  try {
+    const response = await fetch(
+      'https://hmsapi.kdsgroup.co.in/api/Master/GetBlockListByDistrict',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ Id: districtId })
+      }
+    );
 
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.Status && data.Data && data.Data.length > 0) {
+      // Transform to match BlockApi interface
+      const transformedBlocks = data.Data.map((b: any) => ({
+        BlockId: b.Id || b.BlockId,
+        DistrictId: b.DistrictId,
+        BlockName: b.BlockName || b.Name,
+        BlockNameHindi: b.BlockNameHindi,
+        Code: b.Code
+      }));
+      setBlocks(transformedBlocks);
+    } else {
+      setBlocks([]);
+    }
+  } catch (error) {
+    console.error('Error fetching blocks:', error);
+    toast.error('Failed to load blocks');
+    setBlocks([]);
+  }
+};
+
+// Fetch gram panchayats from API
+const fetchGramPanchayats = async (blockId: number) => {
+  if (!userId || !authToken) return;
+  
+  try {
+    const response = await fetch(
+      'https://hmsapi.kdsgroup.co.in/api/Master/GetGramPanchayatByBlock',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ Id: blockId })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.Status && data.Data && data.Data.length > 0) {
+      setGramPanchayats(data.Data);
+    } else {
+      setGramPanchayats([]);
+    }
+  } catch (error) {
+    console.error('Error fetching gram panchayats:', error);
+    toast.error('Failed to load gram panchayats');
+    setGramPanchayats([]);
+  }
+};
+
+// Fetch villages from API
+const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
+  if (!authToken) return;
+  
+  try {
+    const response = await fetch(
+      'https://hmsapi.kdsgroup.co.in/api/Master/GetVillegeByGramPanchayat',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ Id: gramPanchayatId })
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    
+    if (data.Status && data.Data && data.Data.length > 0) {
+      setVillages(data.Data);
+    } else {
+      setVillages([]);
+    }
+  } catch (error) {
+    console.error('Error fetching villages:', error);
+    toast.error('Failed to load villages');
+    setVillages([]);
+  }
+};
   const handleViewComplaint = (complaint: HandpumpComplaint) => {
     setSelectedComplaint(complaint);
     setShowViewModal(true);
@@ -347,7 +515,8 @@ const ManageHandpumpComplaints = () => {
     });
     
     navigate(`/gp/raise-requisition?${params.toString()}`);
-    toast.info(`Redirecting to Raise Requisition for Complaint #${complaint.complaintId}`);
+    toast.info(`Redirecting to Raise Requisition for Complaint COMP-${complaint.complaintId}`);
+
   };
 
   const handleDownload = () => {
@@ -433,24 +602,35 @@ const ManageHandpumpComplaints = () => {
   };
 
   const filteredData = complaints.filter((c) => {
-    const matchesSearch = 
-      c.complainantName.toLowerCase().includes(search.toLowerCase()) ||
-      c.complainantContact.toLowerCase().includes(search.toLowerCase()) ||
-      c.handpumpCode.toLowerCase().includes(search.toLowerCase()) ||
-      c.complaintId.toLowerCase().includes(search.toLowerCase()) ||
-      c.district.toLowerCase().includes(search.toLowerCase()) ||
-      c.block.toLowerCase().includes(search.toLowerCase()) ||
-      c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
-      c.village.toLowerCase().includes(search.toLowerCase()) ||
-      c.category.toLowerCase().includes(search.toLowerCase()) ||
-      c.handpumpLocation.toLowerCase().includes(search.toLowerCase());
-    
-    const matchesStatus = !filterStatus || c.complaintStatus === filterStatus;
-    const matchesUrgency = !filterUrgency || c.urgency === filterUrgency;
-    const matchesCategory = !filterCategory || c.category === filterCategory;
-    
-    return matchesSearch && matchesStatus && matchesUrgency && matchesCategory;
-  });
+  const matchesSearch = 
+    c.complainantName.toLowerCase().includes(search.toLowerCase()) ||
+    c.complainantContact.toLowerCase().includes(search.toLowerCase()) ||
+    c.handpumpCode.toLowerCase().includes(search.toLowerCase()) ||
+    c.complaintId.toLowerCase().includes(search.toLowerCase()) ||
+    c.district.toLowerCase().includes(search.toLowerCase()) ||
+    c.block.toLowerCase().includes(search.toLowerCase()) ||
+    c.gramPanchayat.toLowerCase().includes(search.toLowerCase()) ||
+    c.village.toLowerCase().includes(search.toLowerCase()) ||
+    c.category.toLowerCase().includes(search.toLowerCase()) ||
+    c.handpumpLocation.toLowerCase().includes(search.toLowerCase());
+  
+  const matchesStatus = !filterStatus || c.complaintStatus === filterStatus;
+  const matchesUrgency = !filterUrgency || c.urgency === filterUrgency;
+  const matchesCategory = !filterCategory || c.category === filterCategory;
+  
+  // Location filtering
+  const matchesDistrict = !selectedDistrictId || 
+    c.district === districts.find(d => d.DistrictId === selectedDistrictId)?.DistrictName;
+  const matchesBlock = !selectedBlockId || 
+    c.block === blocks.find(b => b.BlockId === selectedBlockId)?.BlockName;
+  const matchesGramPanchayat = !selectedGramPanchayatId || 
+    c.gramPanchayat === gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId)?.GramPanchayatName;
+  const matchesVillage = !selectedVillageId || 
+    c.village === villages.find(v => v.Id === selectedVillageId)?.VillageName;
+  
+  return matchesSearch && matchesStatus && matchesUrgency && matchesCategory && 
+         matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage;
+});
 
   const totalPages = Math.ceil(filteredData.length / rowsPerPage);
   const startIndex = (currentPage - 1) * rowsPerPage;
@@ -574,64 +754,64 @@ const ManageHandpumpComplaints = () => {
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
                 <Filter size={18} className="text-white" />
                 <select
-                  value={selectedDistrictId || ""}
-                  onChange={(e) => {
-                    setSelectedDistrictId(Number(e.target.value) || null);
-                    setSelectedBlockId(null);
-                    setSelectedGramPanchayatId(null);
-                    setSelectedVillageId(null);
-                  }}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  <option value="" className="text-gray-800">All Districts</option>
-                  {districts.map((d) => (
-                    <option key={d.DistrictId} value={d.DistrictId} className="text-gray-800">
-                      {d.DistrictName}
-                    </option>
-                  ))}
-                </select>
+  value={selectedDistrictId || ""}
+  onChange={(e) => {
+    setSelectedDistrictId(Number(e.target.value) || null);
+    setSelectedBlockId(null);
+    setSelectedGramPanchayatId(null);
+    setSelectedVillageId(null);
+  }}
+  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+  disabled={loading || jurisdictionLoading || !!jurisdiction?.districtId}
+>
+  <option value="" className="text-gray-800">All Districts</option>
+  {districts.map((d) => (
+    <option key={d.DistrictId} value={d.DistrictId} className="text-gray-800">
+      {d.DistrictName}
+    </option>
+  ))}
+</select>
               </div>
 
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
                 <Filter size={18} className="text-white" />
                 <select
-                  value={selectedBlockId || ""}
-                  onChange={(e) => {
-                    setSelectedBlockId(Number(e.target.value) || null);
-                    setSelectedGramPanchayatId(null);
-                    setSelectedVillageId(null);
-                  }}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  <option value="" className="text-gray-800">All Blocks</option>
-                  {blocks.map((b) => (
-                    <option key={b.BlockId} value={b.BlockId} className="text-gray-800">
-                      {b.BlockName}
-                    </option>
-                  ))}
-                </select>
+  value={selectedBlockId || ""}
+  onChange={(e) => {
+    setSelectedBlockId(Number(e.target.value) || null);
+    setSelectedGramPanchayatId(null);
+    setSelectedVillageId(null);
+  }}
+  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+  disabled={loading || jurisdictionLoading || !!jurisdiction?.blockId}
+>
+  <option value="" className="text-gray-800">All Blocks</option>
+  {blocks.map((b) => (
+    <option key={b.BlockId} value={b.BlockId} className="text-gray-800">
+      {b.BlockName}
+    </option>
+  ))}
+</select>
               </div>
 
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
                 <Filter size={18} className="text-white" />
                 <select
-                  value={selectedGramPanchayatId || ""}
-                  onChange={(e) => {
-                    setSelectedGramPanchayatId(Number(e.target.value) || null);
-                    setSelectedVillageId(null);
-                  }}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  <option value="" className="text-gray-800">All Gram Panchayats</option>
-                  {gramPanchayats.map((gp) => (
-                    <option key={gp.Id} value={gp.Id} className="text-gray-800">
-                      {gp.GramPanchayatName}
-                    </option>
-                  ))}
-                </select>
+  value={selectedGramPanchayatId || ""}
+  onChange={(e) => {
+    setSelectedGramPanchayatId(Number(e.target.value) || null);
+    setSelectedVillageId(null);
+  }}
+  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+  disabled={loading || jurisdictionLoading || !!jurisdiction?.gramPanchayatId}
+>
+  <option value="" className="text-gray-800">All Gram Panchayats</option>
+  {gramPanchayats.map((gp) => (
+    <option key={gp.Id} value={gp.Id} className="text-gray-800">
+      {gp.GramPanchayatName}
+    </option>
+  ))}
+</select>
               </div>
 
               <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
@@ -899,6 +1079,7 @@ const ManageHandpumpComplaints = () => {
             <table className="w-full text-sm">
               <thead className="bg-gray-50">
                 <tr>
+                  <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">S.No</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Complaint ID</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Handpump Code</th>
                   <th className="px-4 py-4 text-left text-sm font-semibold text-gray-700 uppercase tracking-wider border-b-2 border-blue-200">Location</th>
@@ -912,18 +1093,21 @@ const ManageHandpumpComplaints = () => {
               </thead>
               <tbody className="divide-y divide-gray-100">
                 {paginatedData.map((c, index) => (
-                  <tr 
-                    key={c.id} 
-                    className={`${
-                      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                    } hover:bg-blue-50 transition-colors duration-300`}
-                  >
-                    <td className="px-4 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
-                        <span className="text-lg font-semibold text-blue-600">#{c.complaintId}</span>
-                      </div>
-                    </td>
+  <tr 
+    key={c.id} 
+    className={`${
+      index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+    } hover:bg-blue-50 transition-colors duration-300`}
+  >
+    <td className="px-4 py-4 whitespace-nowrap">
+      <span className="text-lg font-semibold text-gray-600">{startIndex + index + 1}</span>
+    </td>
+    <td className="px-4 py-4 whitespace-nowrap">
+      <div className="flex items-center">
+        <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+        <span className="text-lg font-semibold text-blue-600">COMP-{c.complaintId}</span>
+      </div>
+    </td>
                     <td className="px-4 py-4 whitespace-nowrap">
                       <div>
                         <div className="font-medium text-gray-900">{c.handpumpCode}</div>
@@ -1063,7 +1247,7 @@ const ManageHandpumpComplaints = () => {
                   <div className="space-y-3 text-sm">
                     <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
                       <strong>Complaint ID:</strong> 
-                      <span className="text-blue-600 font-medium">#{selectedComplaint.complaintId}</span>
+                      <span className="text-blue-600 font-medium">COMP-{selectedComplaint.complaintId}</span>
                     </div>
                     <div className="flex items-center justify-between p-2 bg-white/50 rounded-lg">
                       <strong>Status:</strong>

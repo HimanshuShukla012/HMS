@@ -5,6 +5,8 @@ import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useUserInfo } from "../utils/userInfo";
+import { useSearchData } from '../components/SearchDataContext';
+
 
 
 
@@ -74,6 +76,8 @@ const ManageHandpump = () => {
   
   // API Data States
   const [handpumps, setHandpumps] = useState<HandpumpData[]>([]);
+  const { setHandpumps: setGlobalHandpumps } = useSearchData(); // Add this
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -160,6 +164,8 @@ const ManageHandpump = () => {
       
       if (data.Status && Array.isArray(data.Data)) {
         setHandpumps(data.Data);
+        setGlobalHandpumps(data.Data); // Add this line
+
         console.log(`Loaded ${data.Data.length} handpumps for ${userRole} user (ID: ${currentUserId})`);
       } else {
         throw new Error(data.Message || data.Errror || 'Failed to fetch handpumps');

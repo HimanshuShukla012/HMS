@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { BiDroplet, BiMoney } from "react-icons/bi";
 import { useUserInfo } from '../utils/userInfo';
+import GlobalSearch from './GlobalSearch';
+
 
 type Role = "admin" | "gp" | "consultingengineer" | "gram_panchayat_sachiv" | "assistant_development_officer" | "district_panchayati_raj_officer" | "consulting_engineer";
 
@@ -361,14 +363,7 @@ const DashboardLayout = ({ role }: { children?: React.ReactNode; role: Role }) =
               {/* Right Side Actions */}
               <div className="flex items-center gap-4">
                 {/* Search Bar */}
-                <div className="relative hidden md:block">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Search..."
-                    className="pl-10 pr-4 py-2 w-64 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                  />
-                </div>
+                <GlobalSearch />
 
                 {/* Notifications */}
                 <button className="relative p-2 hover:bg-gray-100 rounded-lg transition-colors">
