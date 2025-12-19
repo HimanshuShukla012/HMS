@@ -678,7 +678,7 @@ const GMAS = () => {
                         <span className="font-semibold text-gray-800">{selectedHandpump.village}</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-600">Installation Date:</span>
+                        <span className="text-gray-600">Geo-tagging Date:</span>
                         <span className="font-semibold text-gray-800">
                           {new Date(selectedHandpump.installationDate).toLocaleDateString('en-IN')}
                         </span>
