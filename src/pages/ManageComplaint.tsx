@@ -533,7 +533,6 @@ const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
         'Contact': c.complainantContact,
         'Landmark': c.landmark,
         'Category': c.category,
-        'Other Category': c.otherCategory,
         'Description': c.description,
         'Urgency': c.urgency,
         'Status': c.complaintStatus,
