@@ -21,15 +21,21 @@ export const useJurisdiction = (userId: number | null) => {
   useEffect(() => {
     const fetchJurisdiction = async () => {
       if (!userId) {
+        console.log('useJurisdiction: No userId provided');
         setLoading(false);
         return;
       }
 
       try {
+        setLoading(true);
+        setError(null);
+
         const authToken = localStorage.getItem('authToken');
         if (!authToken) {
           throw new Error('Authentication token not found');
         }
+
+        console.log('Fetching jurisdiction for userId:', userId);
 
         const response = await fetch(
           `https://hmsapi.kdsgroup.co.in/api/Signup/GetUserProfileById?UserId=${userId}`,
@@ -47,27 +53,101 @@ export const useJurisdiction = (userId: number | null) => {
         }
 
         const data = await response.json();
+        console.log('GetUserProfileById API Response:', data);
 
-        if (data.Status && data.Data && data.Data.length > 0) {
-          const profile = data.Data[0];
+        // Check if API call was successful
+        if (!data.Status) {
+          console.warn('API returned Status: false', data.Message);
+          // For users without specific jurisdiction (e.g., Admin), set minimal data
           setJurisdiction({
-            userId: profile.UserId,
-            roleId: profile.RoleId,
-            roleName: profile.RoleName,
+            userId: userId,
+            roleId: 0,
+            roleName: 'Unknown',
+            districtId: null,
+            districtName: null,
+            blockId: null,
+            blockName: null,
+            gramPanchayatId: null,
+            gramPanchayatName: null,
+            fullName: 'User'
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Handle different response structures
+        let profile = null;
+
+        // Case 1: data.Data is an array with elements
+        if (data.Data && Array.isArray(data.Data) && data.Data.length > 0) {
+          profile = data.Data[0];
+          console.log('Profile from array:', profile);
+        } 
+        // Case 2: data.Data is a direct object (not an array)
+        else if (data.Data && typeof data.Data === 'object' && !Array.isArray(data.Data)) {
+          profile = data.Data;
+          console.log('Profile from object:', profile);
+        }
+        // Case 3: No data available
+        else {
+          console.warn('No profile data in response');
+          // Set basic jurisdiction for users without profile
+          setJurisdiction({
+            userId: userId,
+            roleId: 0,
+            roleName: 'Unknown',
+            districtId: null,
+            districtName: null,
+            blockId: null,
+            blockName: null,
+            gramPanchayatId: null,
+            gramPanchayatName: null,
+            fullName: 'User'
+          });
+          setLoading(false);
+          return;
+        }
+
+        // Set jurisdiction from profile data
+        if (profile) {
+          setJurisdiction({
+            userId: profile.UserId || userId,
+            roleId: profile.RoleId || 0,
+            roleName: profile.RoleName || 'Unknown',
             districtId: profile.DistrictId || null,
             districtName: profile.DistrictName || null,
             blockId: profile.BlockId || null,
             blockName: profile.BlockName || null,
             gramPanchayatId: profile.GramPanchayatId || null,
             gramPanchayatName: profile.GramPanchayatName || null,
-            fullName: profile.FullName
+            fullName: profile.FullName || profile.Name || 'User'
           });
-        } else {
-          throw new Error('No profile data found');
+          console.log('Jurisdiction set successfully:', {
+            districtId: profile.DistrictId,
+            blockId: profile.BlockId,
+            gramPanchayatId: profile.GramPanchayatId
+          });
         }
+
       } catch (err) {
         console.error('Error fetching jurisdiction:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch jurisdiction');
+        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch jurisdiction';
+        setError(errorMessage);
+        
+        // Even on error, set a minimal jurisdiction so the app can continue
+        // This allows admins or users without profiles to still use the system
+        setJurisdiction({
+          userId: userId!,
+          roleId: 0,
+          roleName: 'Unknown',
+          districtId: null,
+          districtName: null,
+          blockId: null,
+          blockName: null,
+          gramPanchayatId: null,
+          gramPanchayatName: null,
+          fullName: 'User'
+        });
       } finally {
         setLoading(false);
       }

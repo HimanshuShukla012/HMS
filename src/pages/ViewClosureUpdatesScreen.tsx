@@ -51,7 +51,14 @@ const [requisitionDetail, setRequisitionDetail] = useState(null);
   };
 
   useEffect(() => {
-    if (userId && getAuthToken() && jurisdiction) {
+  console.log('Debug - userId:', userId);
+  console.log('Debug - userLoading:', userLoading);
+  console.log('Debug - jurisdiction:', jurisdiction);
+  console.log('Debug - jurisdictionLoading:', jurisdictionLoading);
+}, [userId, userLoading, jurisdiction, jurisdictionLoading]);
+
+  useEffect(() => {
+  if (userId && getAuthToken() && jurisdiction && !userLoading && !jurisdictionLoading) {
       // Auto-populate based on jurisdiction
       if (jurisdiction.districtId) {
         setDistricts([{
@@ -195,30 +202,47 @@ const downloadPDF = () => {
 
 
   const fetchRequisitionList = async () => {
-    try {
-      setLoading(true);
-      setError(null);
+  // Validation checks
+  if (!userId) {
+    console.error('Cannot fetch requisitions: userId is undefined');
+    setError('User ID is not available');
+    setLoading(false);
+    return;
+  }
 
-      const authToken = getAuthToken();
-      
-      if (!authToken) {
-        throw new Error('Authentication token not found. Please login again.');
-      }
+  const authToken = getAuthToken();
+  if (!authToken) {
+    console.error('Cannot fetch requisitions: auth token is missing');
+    setError('Authentication token not found. Please login again.');
+    setLoading(false);
+    return;
+  }
 
-      const response = await fetch(
-        `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
-        {
-          headers: {
-            'accept': '*/*',
-            'Authorization': `Bearer ${authToken}`
-          }
+  try {
+    setLoading(true);
+    setError(null);
+
+    console.log('Fetching requisitions for userId:', userId); // Debug log
+
+    const response = await fetch(
+      `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+      {
+        headers: {
+          'accept': '*/*',
+          'Authorization': `Bearer ${authToken}`
         }
-      );
-      
-      if (!response.ok) throw new Error('Failed to fetch requisitions');
-      const result = await response.json();
-      
-      if (result.Status && result.Data) {
+      }
+    );
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('API Error Response:', errorText);
+      throw new Error(`Failed to fetch requisitions: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (result.Status && result.Data) {
         // Transform API data with correct status logic
         const transformedData = result.Data.map(item => {
           // Status Determination Logic
@@ -298,19 +322,31 @@ const downloadPDF = () => {
   };
 
   const fetchMaterialBook = async () => {
-    if (!userId) return;
-    
-    try {
-      const token = getAuthToken();
-      const response = await fetch(
-        `${API_BASE}/HandpumpRequisition/GetMaterialBookByUserId?userId=${userId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Accept': '*/*'
-          }
-        }
-      );
+  if (!userId) {
+    console.error('Cannot fetch material book: userId is undefined');
+    return;
+  }
+  
+  if (!getAuthToken()) {
+    console.error('Cannot fetch material book: auth token is missing');
+    return;
+  }
+  
+  try {
+    const token = getAuthToken();
+      if (!userId) {
+  throw new Error('User ID is not available');
+}
+
+const response = await fetch(
+  `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${userId}`,
+  {
+    headers: {
+      'accept': '*/*',
+      'Authorization': `Bearer ${authToken}`
+    }
+  }
+);
 
       const data = await response.json();
       
@@ -323,6 +359,10 @@ const downloadPDF = () => {
   };
 
   const fetchSubmittedMB = async (requisitionId, orderId) => {
+    if (!requisitionId) {
+    setError('Requisition ID is required');
+    return;
+  }
     setLoading(true);
     try {
       const token = getAuthToken();
@@ -648,23 +688,47 @@ const totalPages = Math.ceil(filteredUpdates.length / rowsPerPage);
   }
 
   // Show error state
-  if (error || userError) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
-        <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
-          <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
-          <p className="text-gray-600 mb-4">{error || userError}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            Retry
-          </button>
-        </div>
+  // Show error state only for critical user loading errors
+if (userError) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+      <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+        <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading User Data</h2>
+        <p className="text-gray-600 mb-4">{userError}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
       </div>
-    );
-  }
+    </div>
+  );
+}
+
+// Don't show error for jurisdiction issues - let the app continue
+// Only show error for requisition list loading failures
+if (error && !loading) {
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center p-6">
+      <div className="bg-white rounded-xl shadow-xl p-8 max-w-md text-center">
+        <AlertCircle className="text-red-600 mx-auto mb-4" size={48} />
+        <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+        <p className="text-gray-600 mb-4">{error}</p>
+        <button
+          onClick={() => {
+            setError(null);
+            fetchRequisitionList();
+          }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          Retry
+        </button>
+      </div>
+    </div>
+  );
+}
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 p-6">
