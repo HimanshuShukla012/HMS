@@ -484,117 +484,173 @@ const LodgeComplaint: React.FC<LodgeHandpumpComplaintProps> = ({ isModal = false
   };
 
   const handleSubmitComplaint = async () => {
-    setMessage("");
-    setLoading(true);
+  setMessage("");
+  setLoading(true);
 
-    try {
-      const token = getAuthToken();
+  try {
+    const token = getAuthToken();
+    
+    if (!token) {
+      toast.error("Authentication token not found. Please login again.");
+      setLoading(false);
+      return;
+    }
+
+    if (!userId) {
+      toast.error("User ID not found. Please login again.");
+      setLoading(false);
+      return;
+    }
+
+    if (!selectedHandpump) {
+      toast.error("Please select a handpump before submitting.");
+      setLoading(false);
+      return;
+    }
+
+    if (!selectedVillage) {
+      toast.error("Please select a village before submitting.");
+      setLoading(false);
+      return;
+    }
+
+    if (form.category === "Other" && !form.otherCategory.trim()) {
+      toast.error("Please specify the other category details.");
+      setLoading(false);
+      return;
+    }
+
+    // Prepare request body according to API specification
+    const bodyData = {
+      HandpumpId: selectedHandpump.H_id,
+      DistrictId: selectedDistrictId || 0,
+      BlockId: selectedBlockId || 0,
+      GpId: selectedGramPanchayatId || 0,
+      VillageId: selectedVillage.Id,
+      ComplainantName: form.complainantName,
+      ContactNumber: form.complainantContact,
+      Landmark: form.landmark,
+      IssueCategory: form.category === "Other" ? form.otherCategory : form.category,
+      UrgencyLevel: form.urgency,
+      ResolutionTimelineDays: Number(form.resolutionDays),
+      IssueDescription: form.description,
+      CreatedBy: userId
+    };
+
+    console.log('=== SUBMITTING HANDPUMP COMPLAINT ===');
+    console.log('Request Body:', bodyData);
+    console.log('Auth Token Length:', token.length);
+
+    const res = await fetch(
+      `${API_BASE}/HandpumpRegistration/InsertHandpumpComplaint`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          accept: "*/*",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(bodyData),
+      }
+    );
+
+    console.log('Response Status:', res.status);
+    const data = await res.json();
+    console.log('Response Data:', data);
+
+    if (data?.Status) {
+      toast.success(data.Message || "Handpump complaint lodged successfully.");
       
-      if (!token) {
-        toast.error("Authentication token not found. Please login again.");
-        setLoading(false);
-        return;
-      }
-
-      if (!userId) {
-        toast.error("User ID not found. Please login again.");
-        setLoading(false);
-        return;
-      }
-
-      if (!selectedHandpump) {
-        toast.error("Please select a handpump before submitting.");
-        setLoading(false);
-        return;
-      }
-
-      if (!selectedVillage) {
-        toast.error("Please select a village before submitting.");
-        setLoading(false);
-        return;
-      }
-
-      if (form.category === "Other" && !form.otherCategory.trim()) {
-        toast.error("Please specify the other category details.");
-        setLoading(false);
-        return;
-      }
-
-      // Prepare request body according to API specification
-      const bodyData = {
-  HandpumpId: selectedHandpump.H_id,
-  DistrictId: selectedDistrictId || 0,
-  BlockId: selectedBlockId || 0,
-  GpId: selectedGramPanchayatId || 0,
-  VillageId: selectedVillage.Id,
-  ComplainantName: form.complainantName,
-  ContactNumber: form.complainantContact,
-  Landmark: form.landmark,
-  IssueCategory: form.category === "Other" ? form.otherCategory : form.category,
-  UrgencyLevel: form.urgency,
-  ResolutionTimelineDays: Number(form.resolutionDays),
-  IssueDescription: form.description,
-  CreatedBy: userId
-};
-
-      console.log('=== SUBMITTING HANDPUMP COMPLAINT ===');
-      console.log('Request Body:', bodyData);
-      console.log('Auth Token Length:', token.length);
-
-      const res = await fetch(
-        `${API_BASE}/HandpumpRegistration/InsertHandpumpComplaint`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            accept: "*/*",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(bodyData),
+      // Reset form
+      setForm({
+        complainantName: "",
+        complainantContact: "",
+        landmark: "",
+        category: "",
+        resolutionDays: "",
+        otherCategory: "",
+        description: "",
+        urgency: "Medium",
+      });
+      
+      // Clear validation errors
+      setValidationErrors({
+        complainantName: "",
+        complainantContact: "",
+      });
+      
+      // Reset selections
+      setSelectedVillage(null);
+      setSelectedHandpump(null);
+      setVillages([]);
+      setHandpumps([]);
+      
+      // For GP Sachiv, keep district/block/GP, only reset village and handpump
+      if (role.toLowerCase().includes("grampanchayat") || role.toLowerCase().includes("gram_panchayat")) {
+        // Keep district, block, and GP selections for GP users
+        // Village will be re-populated when GP is already selected
+        if (selectedGramPanchayatId) {
+          // Re-fetch villages for the selected GP
+          fetch(`${API_BASE}/Master/GetVillegeByGramPanchayat`, {
+            method: "POST",
+            headers: { 
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify({ Id: selectedGramPanchayatId }),
+          })
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.Status && data.Data && data.Data.length) {
+                setVillages(data.Data);
+              }
+            })
+            .catch((err) => {
+              console.error('Error re-fetching villages:', err);
+            });
         }
-      );
-
-      console.log('Response Status:', res.status);
-      const data = await res.json();
-      console.log('Response Data:', data);
-
-      if (data?.Status) {
-        toast.success(data.Message || "Handpump complaint lodged successfully.");
-        
-        // Reset form
-        setForm({
-          complainantName: "",
-          complainantContact: "",
-          landmark: "",
-          category: "",
-          resolutionDays: "",
-          otherCategory: "",
-          description: "",
-          urgency: "Medium",
-        });
+      } else {
+        // For other users, reset everything and re-fetch districts
         setSelectedDistrictId(null);
         setSelectedBlockId(null);
         setSelectedGramPanchayatId(null);
-        setSelectedVillage(null);
-        setSelectedHandpump(null);
         setBlocks([]);
         setGramPanchayats([]);
-        setVillages([]);
-        setHandpumps([]);
         
-        if (onClose) {
-          onClose();
-        }
-      } else {
-        toast.error(data?.Message || "Failed to lodge handpump complaint.");
+        // Re-fetch districts for non-GP users
+        fetch(`${API_BASE}/Master/GetDistrictByUserId?UserId=${userId}`, {
+          method: "POST",
+          headers: { 
+            accept: "*/*",
+            Authorization: `Bearer ${token}`
+          },
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            console.log('Re-fetched districts after submission:', data);
+            if (data.Status && data.Data && data.Data.length) {
+              setDistricts(data.Data);
+            }
+          })
+          .catch((err) => {
+            console.error('Error re-fetching districts:', err);
+            toast.error("Failed to refresh districts");
+          });
       }
-    } catch (err) {
-      console.error("Handpump complaint submission error:", err);
-      toast.error("Network error. Please try again.");
+      
+      if (onClose) {
+        onClose();
+      }
+    } else {
+      toast.error(data?.Message || "Failed to lodge handpump complaint.");
     }
+  } catch (err) {
+    console.error("Handpump complaint submission error:", err);
+    toast.error("Network error. Please try again.");
+  }
 
-    setLoading(false);
-  };
+  setLoading(false);
+};
 
   // Show loading state
   if (userLoading) {
