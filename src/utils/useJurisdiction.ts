@@ -13,6 +13,9 @@ interface JurisdictionData {
   fullName: string;
 }
 
+// Cache jurisdiction data to avoid repeated fetches
+const jurisdictionCache: Map<number, JurisdictionData> = new Map();
+
 export const useJurisdiction = (userId: number | null) => {
   const [jurisdiction, setJurisdiction] = useState<JurisdictionData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +29,17 @@ export const useJurisdiction = (userId: number | null) => {
         return;
       }
 
+      // Check cache first
+      if (jurisdictionCache.has(userId)) {
+        console.log('Using cached jurisdiction data');
+        setJurisdiction(jurisdictionCache.get(userId)!);
+        setLoading(false);
+        return;
+      }
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+
       try {
         setLoading(true);
         setError(null);
@@ -35,8 +49,6 @@ export const useJurisdiction = (userId: number | null) => {
           throw new Error('Authentication token not found');
         }
 
-        console.log('Fetching jurisdiction for userId:', userId);
-
         const response = await fetch(
           `https://hmsapi.kdsgroup.co.in/api/Signup/GetUserProfileById?UserId=${userId}`,
           {
@@ -44,22 +56,25 @@ export const useJurisdiction = (userId: number | null) => {
             headers: {
               'accept': '*/*',
               'Authorization': `Bearer ${authToken}`
-            }
+            },
+            signal: controller.signal
           }
         );
+
+        clearTimeout(timeoutId);
 
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const data = await response.json();
-        console.log('GetUserProfileById API Response:', data);
+
+        let jurisdictionData: JurisdictionData;
 
         // Check if API call was successful
         if (!data.Status) {
           console.warn('API returned Status: false', data.Message);
-          // For users without specific jurisdiction (e.g., Admin), set minimal data
-          setJurisdiction({
+          jurisdictionData = {
             userId: userId,
             roleId: 0,
             roleName: 'Unknown',
@@ -70,73 +85,61 @@ export const useJurisdiction = (userId: number | null) => {
             gramPanchayatId: null,
             gramPanchayatName: null,
             fullName: 'User'
-          });
-          setLoading(false);
-          return;
+          };
+        } else {
+          // Handle different response structures
+          let profile = null;
+
+          if (data.Data && Array.isArray(data.Data) && data.Data.length > 0) {
+            profile = data.Data[0];
+          } else if (data.Data && typeof data.Data === 'object' && !Array.isArray(data.Data)) {
+            profile = data.Data;
+          }
+
+          if (profile) {
+            jurisdictionData = {
+              userId: profile.UserId || userId,
+              roleId: profile.RoleId || 0,
+              roleName: profile.RoleName || 'Unknown',
+              districtId: profile.DistrictId || null,
+              districtName: profile.DistrictName || null,
+              blockId: profile.BlockId || null,
+              blockName: profile.BlockName || null,
+              gramPanchayatId: profile.GramPanchayatId || null,
+              gramPanchayatName: profile.GramPanchayatName || null,
+              fullName: profile.FullName || profile.Name || 'User'
+            };
+          } else {
+            jurisdictionData = {
+              userId: userId,
+              roleId: 0,
+              roleName: 'Unknown',
+              districtId: null,
+              districtName: null,
+              blockId: null,
+              blockName: null,
+              gramPanchayatId: null,
+              gramPanchayatName: null,
+              fullName: 'User'
+            };
+          }
         }
 
-        // Handle different response structures
-        let profile = null;
-
-        // Case 1: data.Data is an array with elements
-        if (data.Data && Array.isArray(data.Data) && data.Data.length > 0) {
-          profile = data.Data[0];
-          console.log('Profile from array:', profile);
-        } 
-        // Case 2: data.Data is a direct object (not an array)
-        else if (data.Data && typeof data.Data === 'object' && !Array.isArray(data.Data)) {
-          profile = data.Data;
-          console.log('Profile from object:', profile);
-        }
-        // Case 3: No data available
-        else {
-          console.warn('No profile data in response');
-          // Set basic jurisdiction for users without profile
-          setJurisdiction({
-            userId: userId,
-            roleId: 0,
-            roleName: 'Unknown',
-            districtId: null,
-            districtName: null,
-            blockId: null,
-            blockName: null,
-            gramPanchayatId: null,
-            gramPanchayatName: null,
-            fullName: 'User'
-          });
-          setLoading(false);
-          return;
-        }
-
-        // Set jurisdiction from profile data
-        if (profile) {
-          setJurisdiction({
-            userId: profile.UserId || userId,
-            roleId: profile.RoleId || 0,
-            roleName: profile.RoleName || 'Unknown',
-            districtId: profile.DistrictId || null,
-            districtName: profile.DistrictName || null,
-            blockId: profile.BlockId || null,
-            blockName: profile.BlockName || null,
-            gramPanchayatId: profile.GramPanchayatId || null,
-            gramPanchayatName: profile.GramPanchayatName || null,
-            fullName: profile.FullName || profile.Name || 'User'
-          });
-          console.log('Jurisdiction set successfully:', {
-            districtId: profile.DistrictId,
-            blockId: profile.BlockId,
-            gramPanchayatId: profile.GramPanchayatId
-          });
-        }
+        // Cache the result
+        jurisdictionCache.set(userId, jurisdictionData);
+        setJurisdiction(jurisdictionData);
 
       } catch (err) {
-        console.error('Error fetching jurisdiction:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch jurisdiction';
-        setError(errorMessage);
+        if (err.name === 'AbortError') {
+          console.error('Jurisdiction fetch timeout');
+          setError('Request timeout');
+        } else {
+          console.error('Error fetching jurisdiction:', err);
+          setError(err instanceof Error ? err.message : 'Failed to fetch jurisdiction');
+        }
         
-        // Even on error, set a minimal jurisdiction so the app can continue
-        // This allows admins or users without profiles to still use the system
-        setJurisdiction({
+        // Set default jurisdiction to allow app to continue
+        const defaultJurisdiction: JurisdictionData = {
           userId: userId!,
           roleId: 0,
           roleName: 'Unknown',
@@ -147,7 +150,10 @@ export const useJurisdiction = (userId: number | null) => {
           gramPanchayatId: null,
           gramPanchayatName: null,
           fullName: 'User'
-        });
+        };
+        
+        jurisdictionCache.set(userId, defaultJurisdiction);
+        setJurisdiction(defaultJurisdiction);
       } finally {
         setLoading(false);
       }
@@ -157,4 +163,9 @@ export const useJurisdiction = (userId: number | null) => {
   }, [userId]);
 
   return { jurisdiction, loading, error };
+};
+
+// Export function to clear cache (useful on logout)
+export const clearJurisdictionCache = () => {
+  jurisdictionCache.clear();
 };

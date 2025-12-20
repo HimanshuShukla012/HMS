@@ -32,6 +32,10 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
+import { clearJurisdictionCache } from '../utils/useJurisdiction';
+
+
+
 const AdminDashboard = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [showNotifications, setShowNotifications] = useState(false);
@@ -41,8 +45,14 @@ const AdminDashboard = () => {
   const [requisitions, setRequisitions] = useState([]);
   const [userId, setUserId] = useState(null);
   const navigate = useNavigate();
+  const [handpumpCurrentPage, setHandpumpCurrentPage] = useState(1);
+const [handpumpRowsPerPage, setHandpumpRowsPerPage] = useState(10);
 
-  
+  const handleLogout = () => {
+  localStorage.removeItem('authToken');
+  clearJurisdictionCache(); // Clear cached jurisdiction
+  navigate('/login');
+};
   // Filter States
   const [filters, setFilters] = useState({
     district: '',
@@ -87,8 +97,6 @@ const handleViewRequisition = (requisition) => {
 
   const handleExportHandpumps = () => {
   try {
-    const XLSX = require('xlsx');
-    
     const exportData = filteredHandpumps.map((hp, index) => ({
       'S.No': index + 1,
       'Handpump ID': hp.HandpumpId,
@@ -119,14 +127,12 @@ const handleViewRequisition = (requisition) => {
     XLSX.writeFile(wb, filename);
   } catch (error) {
     console.error('Export error:', error);
-    alert('Failed to export data. Please install xlsx package: npm install xlsx');
+    alert('Failed to export data: ' + error.message);
   }
 };
 
 const handleExportRequisitions = () => {
   try {
-    const XLSX = require('xlsx');
-    
     const exportData = filteredRequisitions.map((req, index) => ({
       'S.No': index + 1,
       'Requisition ID': `REQ-${req.RequisitionId.toString().padStart(4, '0')}`,
@@ -156,7 +162,7 @@ const handleExportRequisitions = () => {
     XLSX.writeFile(wb, filename);
   } catch (error) {
     console.error('Export error:', error);
-    alert('Failed to export data. Please install xlsx package: npm install xlsx');
+    alert('Failed to export data: ' + error.message);
   }
 };
 
@@ -181,52 +187,62 @@ useEffect(() => {
 
       setUserId(extractedUserId);
 
-      // Fetch handpumps
-      const handpumpsResponse = await fetch(
-        `${API_BASE}/HandpumpRegistration/GetHandpumpListByUserId?UserId=${extractedUserId}`,
-        {
-          headers: {
-            'accept': '*/*',
-            'Authorization': `Bearer ${authToken}`
+      // Fetch all three APIs in parallel - no need to wait for jurisdiction first
+      const [handpumpsResponse, requisitionsResponse] = await Promise.all([
+        fetch(
+          `${API_BASE}/HandpumpRegistration/GetHandpumpListByUserId?UserId=${extractedUserId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
           }
-        }
-      );
-
-      if (!handpumpsResponse.ok) throw new Error('Failed to fetch handpumps');
-      const handpumpsData = await handpumpsResponse.json();
-
-      // Fetch requisitions
-      const requisitionsResponse = await fetch(
-        `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${extractedUserId}`,
-        {
-          headers: {
-            'accept': '*/*',
-            'Authorization': `Bearer ${authToken}`
+        ).catch(err => {
+          console.warn('Handpumps fetch failed:', err);
+          return null;
+        }),
+        fetch(
+          `${API_BASE}/HandpumpRequisition/GetRequisitionListByUserId?UserId=${extractedUserId}`,
+          {
+            headers: {
+              'accept': '*/*',
+              'Authorization': `Bearer ${authToken}`
+            }
           }
-        }
-      );
+        ).catch(err => {
+          console.warn('Requisitions fetch failed:', err);
+          return null;
+        })
+      ]);
 
-      if (!requisitionsResponse.ok) throw new Error('Failed to fetch requisitions');
-      const requisitionsData = await requisitionsResponse.json();
+      // Parse responses in parallel
+      const [handpumpsData, requisitionsData] = await Promise.all([
+        handpumpsResponse?.ok ? handpumpsResponse.json().catch(() => ({ Data: [] })) : Promise.resolve({ Data: [] }),
+        requisitionsResponse?.ok ? requisitionsResponse.json().catch(() => ({ Data: [] })) : Promise.resolve({ Data: [] })
+      ]);
 
-      if (!handpumpsData || !handpumpsData.Data || !Array.isArray(handpumpsData.Data)) {
-        console.warn('Invalid handpumps data structure:', handpumpsData);
-        setHandpumps([]);
-      } else {
+      // Set handpumps data
+      if (handpumpsData?.Data && Array.isArray(handpumpsData.Data)) {
         setHandpumps(handpumpsData.Data);
-      }
-
-      if (!requisitionsData || !requisitionsData.Data || !Array.isArray(requisitionsData.Data)) {
-        console.warn('Invalid requisitions data structure:', requisitionsData);
-        setRequisitions([]);
       } else {
-        setRequisitions(requisitionsData.Data);
+        console.warn('Invalid handpumps data structure');
+        setHandpumps([]);
       }
 
-      setLoading(false);
+      // Set requisitions data
+      if (requisitionsData?.Data && Array.isArray(requisitionsData.Data)) {
+        setRequisitions(requisitionsData.Data);
+      } else {
+        console.warn('Invalid requisitions data structure');
+        setRequisitions([]);
+      }
+
     } catch (err) {
       console.error('Error fetching data:', err);
       setError(err.message);
+      setHandpumps([]);
+      setRequisitions([]);
+    } finally {
       setLoading(false);
     }
   };
@@ -511,15 +527,53 @@ useEffect(() => {
 
   // Show loading state
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100 flex items-center justify-center">
-        <div className="text-center">
-          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={48} />
-          <p className="text-gray-600 text-lg">Loading dashboard data...</p>
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-slate-100">
+      <div className="max-w-7xl mx-auto p-6">
+        {/* Skeleton for filter bar */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6 border border-gray-200 animate-pulse">
+          <div className="h-6 bg-gray-200 rounded w-48 mb-4"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i}>
+                <div className="h-4 bg-gray-200 rounded w-20 mb-2"></div>
+                <div className="h-10 bg-gray-200 rounded"></div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Skeleton for tabs */}
+        <div className="bg-white rounded-xl shadow-lg p-2 mb-6 flex gap-2">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="h-10 bg-gray-200 rounded-lg flex-1"></div>
+          ))}
+        </div>
+
+        {/* Skeleton for stats cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="bg-white rounded-xl shadow-lg p-6 animate-pulse">
+              <div className="flex items-center justify-between">
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-24 mb-3"></div>
+                  <div className="h-8 bg-gray-200 rounded w-16"></div>
+                </div>
+                <div className="w-14 h-14 bg-gray-200 rounded-xl"></div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Loading text */}
+        <div className="text-center mt-8">
+          <Loader className="animate-spin text-blue-600 mx-auto mb-4" size={40} />
+          <p className="text-gray-600 text-base">Loading dashboard data...</p>
         </div>
       </div>
-    );
-  }
+    </div>
+  );
+}
 
   // Show error state
   if (error) {
@@ -1069,104 +1123,184 @@ useEffect(() => {
         )}
 
         {/* Handpumps Tab */}
-        {activeTab === 'handpumps' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
-                    <p className="text-3xl font-bold mt-2">{stats.totalHandpumps.toLocaleString()}</p>
-                  </div>
-                  <Droplets size={28} />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-green-100 text-sm font-medium">Active</p>
-                    <p className="text-3xl font-bold mt-2">{stats.activeHandpumps.toLocaleString()}</p>
-                  </div>
-                  <CheckCircle size={28} />
-                </div>
-              </div>
-              <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-red-100 text-sm font-medium">Inactive</p>
-                    <p className="text-3xl font-bold mt-2">{stats.inactiveHandpumps}</p>
-                  </div>
-                  <AlertCircle size={28} />
-                </div>
-              </div>
-            </div>
+{activeTab === 'handpumps' && (
+  (() => {
+    const handpumpIndexOfLastRow = handpumpCurrentPage * handpumpRowsPerPage;
+    const handpumpIndexOfFirstRow = handpumpIndexOfLastRow - handpumpRowsPerPage;
+    const currentHandpumps = filteredHandpumps.slice(handpumpIndexOfFirstRow, handpumpIndexOfLastRow);
+    const handpumpTotalPages = Math.ceil(filteredHandpumps.length / handpumpRowsPerPage);
 
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xl font-bold text-gray-800">Handpump Registry</h3>
-                  <div className="flex gap-2">
-                    <button 
-  onClick={handleExportHandpumps}
-  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
->
-  <Download size={16} />
-  Export
-</button>
-                  </div>
-                </div>
+    return (
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+                <p className="text-3xl font-bold mt-2">{stats.totalHandpumps.toLocaleString()}</p>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Village</th>
-                      <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Water Quality</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {filteredHandpumps.length > 0 ? (
-                      filteredHandpumps.slice(0, 10).map((hp) => (
-                        <tr key={hp.H_id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 text-sm font-semibold text-blue-600">{hp.HandpumpId}</td>
-                          <td className="px-6 py-4 text-sm text-gray-800">
-                            {hp.DistrictName} - {hp.BlockName}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                              hp.HandpumpStatus === 'Active' 
-                                ? 'bg-green-100 text-green-700' 
-                                : 'bg-red-100 text-red-700'
-                            }`}>
-                              {hp.HandpumpStatus}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{hp.VillegeName}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{hp.WaterQuality || 'N/A'}</td>
-                          
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                          No handpumps found
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              {filteredHandpumps.length > 10 && (
-                <div className="p-4 border-t border-gray-200 text-center text-sm text-gray-600">
-                  Showing 10 of {filteredHandpumps.length} handpumps
-                </div>
-              )}
+              <Droplets size={28} />
             </div>
           </div>
-        )}
+          <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-green-100 text-sm font-medium">Active</p>
+                <p className="text-3xl font-bold mt-2">{stats.activeHandpumps.toLocaleString()}</p>
+              </div>
+              <CheckCircle size={28} />
+            </div>
+          </div>
+          <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-red-100 text-sm font-medium">Inactive</p>
+                <p className="text-3xl font-bold mt-2">{stats.inactiveHandpumps}</p>
+              </div>
+              <AlertCircle size={28} />
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+          <div className="p-6 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xl font-bold text-gray-800">Handpump Registry</h3>
+              <div className="flex gap-2">
+                <button 
+                  onClick={handleExportHandpumps}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+                >
+                  <Download size={16} />
+                  Export
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">S.No</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Village</th>
+                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Water Quality</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {currentHandpumps.length > 0 ? (
+                  currentHandpumps.map((hp, index) => (
+                    <tr key={hp.H_id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 text-sm font-semibold text-gray-700">
+                        {handpumpIndexOfFirstRow + index + 1}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold text-blue-600">{hp.HandpumpId}</td>
+                      <td className="px-6 py-4 text-sm text-gray-800">
+                        {hp.DistrictName} - {hp.BlockName}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                          hp.HandpumpStatus === 'Active' 
+                            ? 'bg-green-100 text-green-700' 
+                            : 'bg-red-100 text-red-700'
+                        }`}>
+                          {hp.HandpumpStatus}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{hp.VillegeName}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">{hp.WaterQuality || 'N/A'}</td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                      No handpumps found
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination Controls */}
+          {filteredHandpumps.length > 0 && (
+            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-700">Rows per page:</span>
+                <select
+                  value={handpumpRowsPerPage}
+                  onChange={(e) => {
+                    setHandpumpRowsPerPage(Number(e.target.value));
+                    setHandpumpCurrentPage(1);
+                  }}
+                  className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value={10}>10</option>
+                  <option value={25}>25</option>
+                  <option value={50}>50</option>
+                  <option value={100}>100</option>
+                </select>
+                <span className="text-sm text-gray-700">
+                  Showing {handpumpIndexOfFirstRow + 1} to {Math.min(handpumpIndexOfLastRow, filteredHandpumps.length)} of {filteredHandpumps.length} entries
+                </span>
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setHandpumpCurrentPage(prev => Math.max(prev - 1, 1))}
+                  disabled={handpumpCurrentPage === 1}
+                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                
+                {[...Array(handpumpTotalPages)].map((_, index) => {
+                  const pageNumber = index + 1;
+                  if (
+                    pageNumber === 1 ||
+                    pageNumber === handpumpTotalPages ||
+                    (pageNumber >= handpumpCurrentPage - 1 && pageNumber <= handpumpCurrentPage + 1)
+                  ) {
+                    return (
+                      <button
+                        key={pageNumber}
+                        onClick={() => setHandpumpCurrentPage(pageNumber)}
+                        className={`px-3 py-1 border rounded-lg text-sm font-medium ${
+                          handpumpCurrentPage === pageNumber
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-100'
+                        }`}
+                      >
+                        {pageNumber}
+                      </button>
+                    );
+                  } else if (
+                    pageNumber === handpumpCurrentPage - 2 ||
+                    pageNumber === handpumpCurrentPage + 2
+                  ) {
+                    return <span key={pageNumber} className="px-2">...</span>;
+                  }
+                  return null;
+                })}
+                
+                <button
+                  onClick={() => setHandpumpCurrentPage(prev => Math.min(prev + 1, handpumpTotalPages))}
+                  disabled={handpumpCurrentPage === handpumpTotalPages}
+                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  })()
+)}
 
         {/* Requisitions Tab */}
 {activeTab === 'requisitions' && (
