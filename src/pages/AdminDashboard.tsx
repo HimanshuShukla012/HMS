@@ -29,6 +29,7 @@ import {
   ArrowUp,
   ArrowDown,
   Loader,
+  ArrowLeft,
 } from 'lucide-react';
 import { LineChart, Line, BarChart, Bar, PieChart, Pie, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Cell } from 'recharts';
 
@@ -44,9 +45,25 @@ const AdminDashboard = () => {
   const [handpumps, setHandpumps] = useState([]);
   const [requisitions, setRequisitions] = useState([]);
   const [userId, setUserId] = useState(null);
+  const [userRole, setUserRole] = useState(null);
   const navigate = useNavigate();
   const [handpumpCurrentPage, setHandpumpCurrentPage] = useState(1);
 const [handpumpRowsPerPage, setHandpumpRowsPerPage] = useState(10);
+const [drillDownLevel, setDrillDownLevel] = useState('district'); // 'district', 'block', 'gp', 'village'
+const [selectedDrillDistrict, setSelectedDrillDistrict] = useState('');
+const [selectedDrillBlock, setSelectedDrillBlock] = useState('');
+const [selectedDrillGP, setSelectedDrillGP] = useState('');
+
+// Set initial drill-down level based on user role
+useEffect(() => {
+  if (userRole === 'Admin' || userRole === 'DPRO') {
+    setDrillDownLevel('district');
+  } else if (userRole === 'ADO') {
+    setDrillDownLevel('block');
+  } else if (userRole === 'Sachiv') {
+    setDrillDownLevel('gp');
+  }
+}, [userRole]);
 
   const handleLogout = () => {
   localStorage.removeItem('authToken');
@@ -77,6 +94,19 @@ const [handpumpRowsPerPage, setHandpumpRowsPerPage] = useState(10);
     try {
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.UserID || null;
+    } catch (error) {
+      console.error('Error decoding token:', error);
+      return null;
+    }
+  };
+
+  const getUserRole = () => {
+    const token = getAuthToken();
+    if (!token) return null;
+    
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.Role || null;
     } catch (error) {
       console.error('Error decoding token:', error);
       return null;
@@ -186,6 +216,10 @@ useEffect(() => {
       }
 
       setUserId(extractedUserId);
+      
+      const extractedUserRole = getUserRole();
+      setUserRole(extractedUserRole);
+      console.log('User Role:', extractedUserRole);
 
       // Fetch all three APIs in parallel - no need to wait for jurisdiction first
       const [handpumpsResponse, requisitionsResponse] = await Promise.all([
@@ -400,6 +434,262 @@ useEffect(() => {
   totalGPs: new Set(handpumps.map(hp => hp.GrampanchayatName).filter(Boolean)).size,
   activeUsers: 0
 };
+
+
+// Calculate district-wise aggregated data
+  const getDistrictAggregatedData = () => {
+    const districtMap = {};
+    
+    filteredHandpumps.forEach(hp => {
+      const district = hp.DistrictName || 'Unknown';
+      if (!districtMap[district]) {
+        districtMap[district] = {
+          districtName: district,
+          totalGeotagged: 0,
+          active: 0,
+          inactive: 0,
+          badWaterQuality: 0,
+          goodWaterQuality: 0,
+          soakpitConnected: 0,
+          drainageConnected: 0
+        };
+      }
+      
+      districtMap[district].totalGeotagged++;
+      if (hp.HandpumpStatus === 'Active') districtMap[district].active++;
+      if (hp.HandpumpStatus === 'Inactive') districtMap[district].inactive++;
+      if (hp.WaterQuality === 'Bad') districtMap[district].badWaterQuality++;
+      if (hp.WaterQuality === 'Good') districtMap[district].goodWaterQuality++;
+      if (hp.SoakpitConnected === 1) districtMap[district].soakpitConnected++;
+      if (hp.DrainageConnected === 1) districtMap[district].drainageConnected++;
+    });
+    
+    return Object.values(districtMap).sort((a, b) => 
+      a.districtName.localeCompare(b.districtName)
+    );
+  };
+
+  // Calculate block-wise aggregated data for selected district
+  const getBlockAggregatedData = (districtName) => {
+    const blockMap = {};
+    
+    filteredHandpumps
+      .filter(hp => hp.DistrictName === districtName)
+      .forEach(hp => {
+        const block = hp.BlockName || 'Unknown';
+        if (!blockMap[block]) {
+          blockMap[block] = {
+            blockName: block,
+            totalGeotagged: 0,
+            active: 0,
+            inactive: 0,
+            badWaterQuality: 0,
+            goodWaterQuality: 0,
+            soakpitConnected: 0,
+            drainageConnected: 0
+          };
+        }
+        
+        blockMap[block].totalGeotagged++;
+        if (hp.HandpumpStatus === 'Active') blockMap[block].active++;
+        if (hp.HandpumpStatus === 'Inactive') blockMap[block].inactive++;
+        if (hp.WaterQuality === 'Bad') blockMap[block].badWaterQuality++;
+        if (hp.WaterQuality === 'Good') blockMap[block].goodWaterQuality++;
+        if (hp.SoakpitConnected === 1) blockMap[block].soakpitConnected++;
+        if (hp.DrainageConnected === 1) blockMap[block].drainageConnected++;
+      });
+    
+    return Object.values(blockMap).sort((a, b) => 
+      a.blockName.localeCompare(b.blockName)
+    );
+  };
+
+  // Calculate GP-wise aggregated data for selected district and block
+  const getGPAggregatedData = (districtName, blockName) => {
+    const gpMap = {};
+    
+    filteredHandpumps
+      .filter(hp => hp.DistrictName === districtName && hp.BlockName === blockName)
+      .forEach(hp => {
+        const gp = hp.GrampanchayatName || 'Unknown';
+        if (!gpMap[gp]) {
+          gpMap[gp] = {
+            gpName: gp,
+            totalGeotagged: 0,
+            active: 0,
+            inactive: 0,
+            badWaterQuality: 0,
+            goodWaterQuality: 0,
+            soakpitConnected: 0,
+            drainageConnected: 0
+          };
+        }
+        
+        gpMap[gp].totalGeotagged++;
+        if (hp.HandpumpStatus === 'Active') gpMap[gp].active++;
+        if (hp.HandpumpStatus === 'Inactive') gpMap[gp].inactive++;
+        if (hp.WaterQuality === 'Bad') gpMap[gp].badWaterQuality++;
+        if (hp.WaterQuality === 'Good') gpMap[gp].goodWaterQuality++;
+        if (hp.SoakpitConnected === 1) gpMap[gp].soakpitConnected++;
+        if (hp.DrainageConnected === 1) gpMap[gp].drainageConnected++;
+      });
+    
+    return Object.values(gpMap).sort((a, b) => 
+      a.gpName.localeCompare(b.gpName)
+    );
+  };
+
+  // Calculate Village-wise aggregated data for selected district, block, and GP
+  const getVillageAggregatedData = (districtName, blockName, gpName) => {
+    const villageMap = {};
+    
+    filteredHandpumps
+      .filter(hp => 
+        hp.DistrictName === districtName && 
+        hp.BlockName === blockName && 
+        hp.GrampanchayatName === gpName
+      )
+      .forEach(hp => {
+        const village = hp.VillegeName || 'Unknown';
+        if (!villageMap[village]) {
+          villageMap[village] = {
+            villageName: village,
+            totalGeotagged: 0,
+            active: 0,
+            inactive: 0,
+            badWaterQuality: 0,
+            goodWaterQuality: 0,
+            soakpitConnected: 0,
+            drainageConnected: 0
+          };
+        }
+        
+        villageMap[village].totalGeotagged++;
+        if (hp.HandpumpStatus === 'Active') villageMap[village].active++;
+        if (hp.HandpumpStatus === 'Inactive') villageMap[village].inactive++;
+        if (hp.WaterQuality === 'Bad') villageMap[village].badWaterQuality++;
+        if (hp.WaterQuality === 'Good') villageMap[village].goodWaterQuality++;
+        if (hp.SoakpitConnected === 1) villageMap[village].soakpitConnected++;
+        if (hp.DrainageConnected === 1) villageMap[village].drainageConnected++;
+      });
+    
+    return Object.values(villageMap).sort((a, b) => 
+      a.villageName.localeCompare(b.villageName)
+    );
+  };
+
+  // Export functions for each level
+  const handleExportDistrictReport = () => {
+    try {
+      const data = getDistrictAggregatedData();
+      const exportData = data.map((item, index) => ({
+        'Sr. No.': index + 1,
+        'District Name': item.districtName,
+        'No. of Handpumps Geotagged': item.totalGeotagged,
+        'No. of Handpumps Active': item.active,
+        'No. of Handpumps Inactive': item.inactive,
+        'No. of Handpumps with Bad Water Quality': item.badWaterQuality,
+        'No. of Handpumps with Good Water Quality': item.goodWaterQuality,
+        'No. of Handpumps Soakpit Connected': item.soakpitConnected,
+        'No. of Handpumps Drainage Connected': item.drainageConnected
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, 'District Report');
+      const filename = `district_report_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data: ' + error.message);
+    }
+  };
+
+  const handleExportBlockReport = () => {
+    try {
+      const data = getBlockAggregatedData(selectedDrillDistrict);
+      const exportData = data.map((item, index) => ({
+        'Sr. No.': index + 1,
+        'Block Name': item.blockName,
+        'No. of Handpumps Geotagged': item.totalGeotagged,
+        'No. of Handpumps Active': item.active,
+        'No. of Handpumps Inactive': item.inactive,
+        'No. of Handpumps with Bad Water Quality': item.badWaterQuality,
+        'No. of Handpumps with Good Water Quality': item.goodWaterQuality,
+        'No. of Handpumps Soakpit Connected': item.soakpitConnected,
+        'No. of Handpumps Drainage Connected': item.drainageConnected
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, 'Block Report');
+      const filename = `block_report_${selectedDrillDistrict}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data: ' + error.message);
+    }
+  };
+
+  const handleExportGPReport = () => {
+    try {
+      const data = getGPAggregatedData(selectedDrillDistrict, selectedDrillBlock);
+      const exportData = data.map((item, index) => ({
+        'Sr. No.': index + 1,
+        'Gram Panchayat Name': item.gpName,
+        'No. of Handpumps Geotagged': item.totalGeotagged,
+        'No. of Handpumps Active': item.active,
+        'No. of Handpumps Inactive': item.inactive,
+        'No. of Handpumps with Bad Water Quality': item.badWaterQuality,
+        'No. of Handpumps with Good Water Quality': item.goodWaterQuality,
+        'No. of Handpumps Soakpit Connected': item.soakpitConnected,
+        'No. of Handpumps Drainage Connected': item.drainageConnected
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, 'GP Report');
+      const filename = `gp_report_${selectedDrillBlock}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data: ' + error.message);
+    }
+  };
+
+  const handleExportVillageReport = () => {
+    try {
+      const data = getVillageAggregatedData(selectedDrillDistrict, selectedDrillBlock, selectedDrillGP);
+      const exportData = data.map((item, index) => ({
+        'Sr. No.': index + 1,
+        'Village Name': item.villageName,
+        'No. of Handpumps Geotagged': item.totalGeotagged,
+        'No. of Handpumps Active': item.active,
+        'No. of Handpumps Inactive': item.inactive,
+        'No. of Handpumps with Bad Water Quality': item.badWaterQuality,
+        'No. of Handpumps with Good Water Quality': item.goodWaterQuality,
+        'No. of Handpumps Soakpit Connected': item.soakpitConnected,
+        'No. of Handpumps Drainage Connected': item.drainageConnected
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const colWidths = Object.keys(exportData[0] || {}).map(key => ({ wch: Math.max(key.length, 15) }));
+      ws['!cols'] = colWidths;
+      XLSX.utils.book_append_sheet(wb, ws, 'Village Report');
+      const filename = `village_report_${selectedDrillGP}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(wb, filename);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Failed to export data: ' + error.message);
+    }
+  };
 
   // Calculate district performance from filtered data
   const calculateDistrictPerformance = () => {
@@ -1124,182 +1414,257 @@ useEffect(() => {
 
         {/* Handpumps Tab */}
 {activeTab === 'handpumps' && (
-  (() => {
-    const handpumpIndexOfLastRow = handpumpCurrentPage * handpumpRowsPerPage;
-    const handpumpIndexOfFirstRow = handpumpIndexOfLastRow - handpumpRowsPerPage;
-    const currentHandpumps = filteredHandpumps.slice(handpumpIndexOfFirstRow, handpumpIndexOfLastRow);
-    const handpumpTotalPages = Math.ceil(filteredHandpumps.length / handpumpRowsPerPage);
-
-    return (
-      <div className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
-                <p className="text-3xl font-bold mt-2">{stats.totalHandpumps.toLocaleString()}</p>
-              </div>
-              <Droplets size={28} />
-            </div>
+  <div className="space-y-6">
+    {/* Stats Cards */}
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-blue-100 text-sm font-medium">Total Handpumps</p>
+            <p className="text-3xl font-bold mt-2">{stats.totalHandpumps.toLocaleString()}</p>
           </div>
-          <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-green-100 text-sm font-medium">Active</p>
-                <p className="text-3xl font-bold mt-2">{stats.activeHandpumps.toLocaleString()}</p>
-              </div>
-              <CheckCircle size={28} />
-            </div>
-          </div>
-          <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-red-100 text-sm font-medium">Inactive</p>
-                <p className="text-3xl font-bold mt-2">{stats.inactiveHandpumps}</p>
-              </div>
-              <AlertCircle size={28} />
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-gray-800">Handpump Registry</h3>
-              <div className="flex gap-2">
-                <button 
-                  onClick={handleExportHandpumps}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
-                >
-                  <Download size={16} />
-                  Export
-                </button>
-              </div>
-            </div>
-          </div>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">S.No</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Location</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Village</th>
-                  <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Water Quality</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {currentHandpumps.length > 0 ? (
-                  currentHandpumps.map((hp, index) => (
-                    <tr key={hp.H_id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm font-semibold text-gray-700">
-                        {handpumpIndexOfFirstRow + index + 1}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-blue-600">{hp.HandpumpId}</td>
-                      <td className="px-6 py-4 text-sm text-gray-800">
-                        {hp.DistrictName} - {hp.BlockName}
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          hp.HandpumpStatus === 'Active' 
-                            ? 'bg-green-100 text-green-700' 
-                            : 'bg-red-100 text-red-700'
-                        }`}>
-                          {hp.HandpumpStatus}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{hp.VillegeName}</td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{hp.WaterQuality || 'N/A'}</td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
-                      No handpumps found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination Controls */}
-          {filteredHandpumps.length > 0 && (
-            <div className="bg-gray-50 px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-700">Rows per page:</span>
-                <select
-                  value={handpumpRowsPerPage}
-                  onChange={(e) => {
-                    setHandpumpRowsPerPage(Number(e.target.value));
-                    setHandpumpCurrentPage(1);
-                  }}
-                  className="border border-gray-300 rounded-lg px-3 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value={10}>10</option>
-                  <option value={25}>25</option>
-                  <option value={50}>50</option>
-                  <option value={100}>100</option>
-                </select>
-                <span className="text-sm text-gray-700">
-                  Showing {handpumpIndexOfFirstRow + 1} to {Math.min(handpumpIndexOfLastRow, filteredHandpumps.length)} of {filteredHandpumps.length} entries
-                </span>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setHandpumpCurrentPage(prev => Math.max(prev - 1, 1))}
-                  disabled={handpumpCurrentPage === 1}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Previous
-                </button>
-                
-                {[...Array(handpumpTotalPages)].map((_, index) => {
-                  const pageNumber = index + 1;
-                  if (
-                    pageNumber === 1 ||
-                    pageNumber === handpumpTotalPages ||
-                    (pageNumber >= handpumpCurrentPage - 1 && pageNumber <= handpumpCurrentPage + 1)
-                  ) {
-                    return (
-                      <button
-                        key={pageNumber}
-                        onClick={() => setHandpumpCurrentPage(pageNumber)}
-                        className={`px-3 py-1 border rounded-lg text-sm font-medium ${
-                          handpumpCurrentPage === pageNumber
-                            ? 'bg-blue-600 text-white border-blue-600'
-                            : 'border-gray-300 hover:bg-gray-100'
-                        }`}
-                      >
-                        {pageNumber}
-                      </button>
-                    );
-                  } else if (
-                    pageNumber === handpumpCurrentPage - 2 ||
-                    pageNumber === handpumpCurrentPage + 2
-                  ) {
-                    return <span key={pageNumber} className="px-2">...</span>;
-                  }
-                  return null;
-                })}
-                
-                <button
-                  onClick={() => setHandpumpCurrentPage(prev => Math.min(prev + 1, handpumpTotalPages))}
-                  disabled={handpumpCurrentPage === handpumpTotalPages}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm font-medium hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
+          <Droplets size={28} />
         </div>
       </div>
-    );
-  })()
+      <div className="bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-green-100 text-sm font-medium">Active</p>
+            <p className="text-3xl font-bold mt-2">{stats.activeHandpumps.toLocaleString()}</p>
+          </div>
+          <CheckCircle size={28} />
+        </div>
+      </div>
+      <div className="bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-red-100 text-sm font-medium">Inactive</p>
+            <p className="text-3xl font-bold mt-2">{stats.inactiveHandpumps}</p>
+          </div>
+          <AlertCircle size={28} />
+        </div>
+      </div>
+    </div>
+
+    {/* Drill-down Reports */}
+    <div className="bg-white rounded-xl shadow-lg border border-gray-200">
+      <div className="p-6 border-b border-gray-200">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-gray-800">
+              {drillDownLevel === 'district' && 'District-wise Handpump Registry'}
+              {drillDownLevel === 'block' && `Block-wise Report - ${selectedDrillDistrict}`}
+              {drillDownLevel === 'gp' && `Gram Panchayat Report - ${selectedDrillBlock}`}
+              {drillDownLevel === 'village' && `Village Report - ${selectedDrillGP}`}
+            </h3>
+            {drillDownLevel !== 'district' && (
+              <button
+                onClick={() => {
+                  if (drillDownLevel === 'village') {
+                    setDrillDownLevel('gp');
+                    setSelectedDrillGP('');
+                  } else if (drillDownLevel === 'gp') {
+                    setDrillDownLevel('block');
+                    setSelectedDrillBlock('');
+                  } else if (drillDownLevel === 'block') {
+                    setDrillDownLevel('district');
+                    setSelectedDrillDistrict('');
+                  }
+                }}
+                className="flex items-center gap-2 text-blue-600 hover:text-blue-800 mt-2"
+              >
+                <ArrowLeft size={16} />
+                Back to {drillDownLevel === 'village' ? 'GP' : drillDownLevel === 'gp' ? 'Block' : 'District'} Report
+              </button>
+            )}
+          </div>
+          <button 
+            onClick={() => {
+              if (drillDownLevel === 'district') handleExportDistrictReport();
+              else if (drillDownLevel === 'block') handleExportBlockReport();
+              else if (drillDownLevel === 'gp') handleExportGPReport();
+              else if (drillDownLevel === 'village') handleExportVillageReport();
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center gap-2"
+          >
+            <Download size={16} />
+            Export
+          </button>
+        </div>
+      </div>
+      
+      <div className="overflow-x-auto">
+        {/* District Report */}
+        {drillDownLevel === 'district' && (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Sr. No.</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">District Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Geotagged</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Active</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Inactive</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bad Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Good Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Soakpit</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Drainage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {getDistrictAggregatedData().map((item, index) => (
+                <tr 
+                  key={index} 
+                  className="hover:bg-blue-50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    setSelectedDrillDistrict(item.districtName);
+                    setDrillDownLevel('block');
+                  }}
+                >
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-700">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-blue-600 hover:text-blue-800">{item.districtName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">{item.totalGeotagged}</td>
+                  <td className="px-6 py-4 text-sm text-green-600 font-semibold">{item.active}</td>
+                  <td className="px-6 py-4 text-sm text-red-600 font-semibold">{item.inactive}</td>
+                  <td className="px-6 py-4 text-sm text-orange-600">{item.badWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-emerald-600">{item.goodWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-cyan-600">{item.soakpitConnected}</td>
+                  <td className="px-6 py-4 text-sm text-indigo-600">{item.drainageConnected}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Block Report */}
+        {drillDownLevel === 'block' && (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Sr. No.</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Block Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Geotagged</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Active</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Inactive</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bad Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Good Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Soakpit</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Drainage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {getBlockAggregatedData(selectedDrillDistrict).map((item, index) => (
+                <tr 
+                  key={index} 
+                  className="hover:bg-blue-50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    setSelectedDrillBlock(item.blockName);
+                    setDrillDownLevel('gp');
+                  }}
+                >
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-700">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-blue-600 hover:text-blue-800">{item.blockName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">{item.totalGeotagged}</td>
+                  <td className="px-6 py-4 text-sm text-green-600 font-semibold">{item.active}</td>
+                  <td className="px-6 py-4 text-sm text-red-600 font-semibold">{item.inactive}</td>
+                  <td className="px-6 py-4 text-sm text-orange-600">{item.badWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-emerald-600">{item.goodWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-cyan-600">{item.soakpitConnected}</td>
+                  <td className="px-6 py-4 text-sm text-indigo-600">{item.drainageConnected}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* GP Report */}
+        {drillDownLevel === 'gp' && (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Sr. No.</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Gram Panchayat</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Geotagged</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Active</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Inactive</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bad Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Good Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Soakpit</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Drainage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {getGPAggregatedData(selectedDrillDistrict, selectedDrillBlock).map((item, index) => (
+                <tr 
+                  key={index} 
+                  className="hover:bg-blue-50 cursor-pointer transition-colors"
+                  onClick={() => {
+                    setSelectedDrillGP(item.gpName);
+                    setDrillDownLevel('village');
+                  }}
+                >
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-700">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-blue-600 hover:text-blue-800">{item.gpName}</td>
+                  <td className="px-6 py-4 text-sm text-gray-800">{item.totalGeotagged}</td>
+                  <td className="px-6 py-4 text-sm text-green-600 font-semibold">{item.active}</td>
+                  <td className="px-6 py-4 text-sm text-red-600 font-semibold">{item.inactive}</td>
+                  <td className="px-6 py-4 text-sm text-orange-600">{item.badWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-emerald-600">{item.goodWaterQuality}</td>
+                  <td className="px-6 py-4 text-sm text-cyan-600">{item.soakpitConnected}</td>
+                  <td className="px-6 py-4 text-sm text-indigo-600">{item.drainageConnected}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {/* Village Report */}
+        {drillDownLevel === 'village' && (
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Sr. No.</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Village Name</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Geotagged</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Active</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Inactive</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Bad Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Good Water</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Soakpit</th>
+                <th className="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Drainage</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {getVillageAggregatedData(selectedDrillDistrict, selectedDrillBlock, selectedDrillGP).map((item, index) => (
+                <tr key={index} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 text-sm font-semibold text-gray-700">{index + 1}</td>
+                  <td className="px-6 py-4 text-sm font-bold text-gray-800">{item.villageName}</td>
+<td className="px-6 py-4 text-sm text-gray-800">{item.totalGeotagged}</td>
+<td className="px-6 py-4 text-sm text-green-600 font-semibold">{item.active}</td>
+<td className="px-6 py-4 text-sm text-red-600 font-semibold">{item.inactive}</td>
+<td className="px-6 py-4 text-sm text-orange-600">{item.badWaterQuality}</td>
+<td className="px-6 py-4 text-sm text-emerald-600">{item.goodWaterQuality}</td>
+<td className="px-6 py-4 text-sm text-cyan-600">{item.soakpitConnected}</td>
+<td className="px-6 py-4 text-sm text-indigo-600">{item.drainageConnected}</td>
+</tr>
+))}
+</tbody>
+</table>
+)}
+</div>
+{/* No Data Message */}
+  {((drillDownLevel === 'district' && getDistrictAggregatedData().length === 0) ||
+    (drillDownLevel === 'block' && getBlockAggregatedData(selectedDrillDistrict).length === 0) ||
+    (drillDownLevel === 'gp' && getGPAggregatedData(selectedDrillDistrict, selectedDrillBlock).length === 0) ||
+    (drillDownLevel === 'village' && getVillageAggregatedData(selectedDrillDistrict, selectedDrillBlock, selectedDrillGP).length === 0)) && (
+    <div className="p-12 text-center">
+      <div className="w-20 h-20 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
+        <Search size={24} className="text-gray-400" />
+      </div>
+      <p className="text-lg text-gray-500 font-medium">No data available for this selection</p>
+    </div>
+  )}
+</div>
+</div>
 )}
 
         {/* Requisitions Tab */}

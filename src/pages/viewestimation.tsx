@@ -127,7 +127,7 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
           const transformedData = data.Data.map(req => ({
     id: `REQ${req.RequisitionId.toString().padStart(3, '0')}`,
   handpumpId: req.HandpumpId || 'N/A',
-  mode: req.RequisitionType || 'Unknown',
+  mode: (req.RequisitionType || 'Unknown').trim().toUpperCase(),
   date: req.RequisitionDate || new Date().toISOString(),
   sanctionedTotal: req.SanctionAmount ? `₹${req.SanctionAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '₹0.00',
   status: req.RequisitionStatus === 1 ? 'Pending' : req.RequisitionStatus === 2 ? 'Approved' : 'In Progress',
@@ -276,7 +276,7 @@ const uniqueGPs = ['All', ...new Set(
 const filteredRequisitions = requisitions.filter(req => {
   // Mode filter - strict comparison without case sensitivity
   const modeMatch = filterMode === 'All' || 
-    (req.mode && req.mode.toUpperCase() === filterMode.toUpperCase());
+    (req.mode && req.mode.trim().toUpperCase() === filterMode.trim().toUpperCase());
   
   // Search filter
   const searchMatch = searchQuery === '' || 
@@ -291,19 +291,7 @@ const filteredRequisitions = requisitions.filter(req => {
   return modeMatch && searchMatch && districtMatch && blockMatch && gpMatch;
 });
 
-// Temporary debug - remove after checking
-if (filterMode === 'REBORE') {
-  console.log('REBORE Filter - Showing these requisitions:');
-  filteredRequisitions.forEach(req => {
-    console.log(`ID: ${req.id}, Mode: "${req.mode}", OrderId: ${req.orderId}`);
-  });
-}
 
-// Debug: Log filter values and first few requisitions
-console.log('Filter Mode:', filterMode);
-console.log('Total Requisitions:', requisitions.length);
-console.log('Filtered Requisitions:', filteredRequisitions.length);
-console.log('Sample requisition modes:', requisitions.slice(0, 5).map(r => ({ id: r.id, mode: r.mode, modeType: typeof r.mode })));
 
 // Pagination calculations
 const totalPages = Math.ceil(filteredRequisitions.length / rowsPerPage);
@@ -1042,61 +1030,61 @@ const getPageNumbers = () => {
         </div>
 
         {/* Professional Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-          <div className="group bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-blue-100 text-sm font-medium">Total Requisitions</p>
-                <p className="text-2xl font-bold mt-1">{requisitions.length}</p>
-                <p className="text-blue-200 text-xs mt-1">With Sanctioned Amount</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <FileText size={24} />
-              </div>
-            </div>
-          </div>
-          
-          <div className="group bg-gradient-to-br from-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-teal-100 text-sm font-medium">Repair Estimations</p>
-                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => r.mode === 'REPAIR').length}</p>
-                <p className="text-teal-200 text-xs mt-1">Active Repairs</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <Wrench size={24} />
-              </div>
-            </div>
-          </div>
-          
-          <div className="group bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-emerald-100 text-sm font-medium">Rebore Estimations</p>
-                <p className="text-2xl font-bold mt-1">{requisitions.filter(r => r.mode === 'REBORE').length}</p>
-                <p className="text-emerald-200 text-xs mt-1">Active Rebores</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <Drill size={24} />
-              </div>
-            </div>
-          </div>
-          
-          <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-amber-100 text-sm font-medium">Total Amount</p>
-                <p className="text-2xl font-bold mt-1">
-                  ₹{(requisitions.reduce((sum, r) => sum + r.sanctionAmount, 0) / 100000).toFixed(2)}L
-                </p>
-                <p className="text-amber-200 text-xs mt-1">Sanctioned Total</p>
-              </div>
-              <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
-                <TrendingUp size={24} />
-              </div>
-            </div>
-          </div>
-        </div>
+<div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+  <div className="group bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-blue-100 text-sm font-medium">Total Requisitions</p>
+        <p className="text-2xl font-bold mt-1">{filteredRequisitions.length}</p>
+        <p className="text-blue-200 text-xs mt-1">With Sanctioned Amount</p>
+      </div>
+      <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+        <FileText size={24} />
+      </div>
+    </div>
+  </div>
+  
+  <div className="group bg-gradient-to-br from-teal-600 to-cyan-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-teal-100 text-sm font-medium">Repair Estimations</p>
+        <p className="text-2xl font-bold mt-1">{filteredRequisitions.filter(r => r.mode === 'REPAIR').length}</p>
+        <p className="text-teal-200 text-xs mt-1">Active Repairs</p>
+      </div>
+      <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+        <Wrench size={24} />
+      </div>
+    </div>
+  </div>
+  
+  <div className="group bg-gradient-to-br from-emerald-600 to-green-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-emerald-100 text-sm font-medium">Rebore Estimations</p>
+        <p className="text-2xl font-bold mt-1">{filteredRequisitions.filter(r => r.mode === 'REBORE').length}</p>
+        <p className="text-emerald-200 text-xs mt-1">Active Rebores</p>
+      </div>
+      <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+        <Drill size={24} />
+      </div>
+    </div>
+  </div>
+  
+  <div className="group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300">
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-amber-100 text-sm font-medium">Total Amount</p>
+        <p className="text-2xl font-bold mt-1">
+          ₹{(filteredRequisitions.reduce((sum, r) => sum + r.sanctionAmount, 0) / 100000).toFixed(2)}L
+        </p>
+        <p className="text-amber-200 text-xs mt-1">Sanctioned Total</p>
+      </div>
+      <div className="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+        <TrendingUp size={24} />
+      </div>
+    </div>
+  </div>
+</div>
 
         {/* Professional Requisitions Table */}
         <div className="bg-white rounded-xl shadow-xl overflow-hidden border border-gray-200">
