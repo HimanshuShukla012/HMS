@@ -4,6 +4,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import GPDashboard from "./pages/GPDashboard";
 import RaiseRequisition from "./pages/RaiseRequisition";
 import ManageBeneficiary from "./pages/viewestimation";
+import MISReportingPage from "./pages/MISReportingPage";
 
 import ViewClosureUpdatesScreen from "./pages/ViewClosureUpdatesScreen"; 
 import GMAS from "./pages/GMAS";
@@ -20,7 +21,7 @@ import ViewRoaster from "./pages/ViewRoaster";
 import UserManagement from "./pages/AdminUserManagement";
 
 import ManageHandpump from "./pages/managehandpump";
-import MISReportingPage from "./pages/GPReporting";
+// import MISReportingPage from "./pages/GPReporting";
 import PrivateRoute from "./components/PrivateRoute";
 import GuidelinesPage from "./pages/guidelines";
 import About from "./pages/AboutPage";
@@ -73,6 +74,7 @@ function App() {
               <Route path="view-closure" element={<ViewClosureUpdatesScreen />} />
               <Route path="manage-handpump" element={<ManageHandpump />} />
               <Route path="manage-complaint" element={<ManageComplaint />} />
+              {/* <Route path="reporting" element={<MISReportingPage />} /> */}
             </Route>
           </Route>
 
@@ -93,7 +95,7 @@ function App() {
               
               
               <Route path="manage-handpump" element={<ManageHandpump />} />
-              <Route path="reporting" element={<MISReportingPage />} />
+              {/* <Route path="reporting" element={<MISReportingPage />} /> */}
               <Route path="user-manual" element={<PDFFlipbook />} />
               <Route path="lodge-complaint" element={<LodgeComplaintPage />} />
               <Route path="manage-complaint" element={<ManageComplaint />} />

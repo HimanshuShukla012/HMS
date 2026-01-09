@@ -171,22 +171,16 @@ const ManageHandpumpComplaints = () => {
   }, []);
 
   // Load data when component mounts
-  useEffect(() => {
-    if (userId && authToken) {
-      fetchDistricts();
-      fetchComplaints();
-    }
-  }, [userId, authToken]);
-
   // Reset to first page when filters change
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [search, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, filterStatus, filterUrgency, filterCategory]);
+useEffect(() => {
+  setCurrentPage(1);
+}, [search, selectedDistrictId, selectedBlockId, selectedGramPanchayatId, selectedVillageId, filterStatus, filterUrgency, filterCategory]);
 
-  useEffect(() => {
-  if (userId && authToken && jurisdiction) {
+// Load data when component mounts and jurisdiction is ready
+useEffect(() => {
+  if (userId && authToken && !jurisdictionLoading) {
     // Auto-populate based on jurisdiction
-    if (jurisdiction.districtId) {
+    if (jurisdiction?.districtId) {
       setDistricts([{
         DistrictId: jurisdiction.districtId,
         DistrictName: jurisdiction.districtName || ''
@@ -198,7 +192,7 @@ const ManageHandpumpComplaints = () => {
     
     fetchComplaints();
   }
-}, [userId, authToken, jurisdiction]);
+}, [userId, authToken, jurisdiction, jurisdictionLoading]);
 
   // Update useEffect for blocks to consider jurisdiction
 useEffect(() => {
@@ -344,13 +338,9 @@ useEffect(() => {
 
   // Fetch districts from API
 // Update fetchDistricts to respect jurisdiction
+// Fetch districts from API
 const fetchDistricts = async () => {
   if (!userId || !authToken) return;
-  
-  // If user has a specific district (not Admin), don't fetch all districts
-  if (jurisdiction?.districtId) {
-    return; // Already set in useEffect
-  }
   
   try {
     const response = await fetch(
@@ -377,10 +367,13 @@ const fetchDistricts = async () => {
         DistrictNameHidi: d.DistrictNameHidi
       }));
       setDistricts(transformedDistricts);
+    } else {
+      setDistricts([]);
     }
   } catch (error) {
     console.error('Error fetching districts:', error);
     toast.error('Failed to load districts');
+    setDistricts([]);
   }
 };
 
@@ -749,103 +742,120 @@ const fetchVillages = async (blockId: number, gramPanchayatId: number) => {
             )}
 
             {/* Location Filters */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-  value={selectedDistrictId || ""}
-  onChange={(e) => {
-    setSelectedDistrictId(Number(e.target.value) || null);
-    setSelectedBlockId(null);
-    setSelectedGramPanchayatId(null);
-    setSelectedVillageId(null);
-  }}
-  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-  disabled={loading || jurisdictionLoading || !!jurisdiction?.districtId}
->
-  <option value="" className="text-gray-800">All Districts</option>
-  {districts.map((d) => (
-    <option key={d.DistrictId} value={d.DistrictId} className="text-gray-800">
-      {d.DistrictName}
-    </option>
-  ))}
-</select>
-              </div>
+<div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={selectedDistrictId || ""}
+      onChange={(e) => {
+        const value = e.target.value ? Number(e.target.value) : null;
+        setSelectedDistrictId(value);
+        setSelectedBlockId(null);
+        setSelectedGramPanchayatId(null);
+        setSelectedVillageId(null);
+        setBlocks([]);
+        setGramPanchayats([]);
+        setVillages([]);
+      }}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading || jurisdictionLoading || !!jurisdiction?.districtId}
+    >
+      <option value="" className="text-gray-800">
+        {districts.length > 0 ? 'All Districts' : 'Loading Districts...'}
+      </option>
+      {districts.map((d) => (
+        <option key={d.DistrictId} value={d.DistrictId} className="text-gray-800">
+          {d.DistrictName}
+        </option>
+      ))}
+    </select>
+  </div>
 
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-  value={selectedBlockId || ""}
-  onChange={(e) => {
-    setSelectedBlockId(Number(e.target.value) || null);
-    setSelectedGramPanchayatId(null);
-    setSelectedVillageId(null);
-  }}
-  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-  disabled={loading || jurisdictionLoading || !!jurisdiction?.blockId}
->
-  <option value="" className="text-gray-800">All Blocks</option>
-  {blocks.map((b) => (
-    <option key={b.BlockId} value={b.BlockId} className="text-gray-800">
-      {b.BlockName}
-    </option>
-  ))}
-</select>
-              </div>
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={selectedBlockId || ""}
+      onChange={(e) => {
+        const value = e.target.value ? Number(e.target.value) : null;
+        setSelectedBlockId(value);
+        setSelectedGramPanchayatId(null);
+        setSelectedVillageId(null);
+        setGramPanchayats([]);
+        setVillages([]);
+      }}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading || jurisdictionLoading || !!jurisdiction?.blockId || !selectedDistrictId}
+    >
+      <option value="" className="text-gray-800">
+        {!selectedDistrictId ? 'Select District First' : blocks.length > 0 ? 'All Blocks' : 'Loading Blocks...'}
+      </option>
+      {blocks.map((b) => (
+        <option key={b.BlockId} value={b.BlockId} className="text-gray-800">
+          {b.BlockName}
+        </option>
+      ))}
+    </select>
+  </div>
 
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-  value={selectedGramPanchayatId || ""}
-  onChange={(e) => {
-    setSelectedGramPanchayatId(Number(e.target.value) || null);
-    setSelectedVillageId(null);
-  }}
-  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-  disabled={loading || jurisdictionLoading || !!jurisdiction?.gramPanchayatId}
->
-  <option value="" className="text-gray-800">All Gram Panchayats</option>
-  {gramPanchayats.map((gp) => (
-    <option key={gp.Id} value={gp.Id} className="text-gray-800">
-      {gp.GramPanchayatName}
-    </option>
-  ))}
-</select>
-              </div>
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={selectedGramPanchayatId || ""}
+      onChange={(e) => {
+        const value = e.target.value ? Number(e.target.value) : null;
+        setSelectedGramPanchayatId(value);
+        setSelectedVillageId(null);
+        setVillages([]);
+      }}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading || jurisdictionLoading || !!jurisdiction?.gramPanchayatId || !selectedBlockId}
+    >
+      <option value="" className="text-gray-800">
+        {!selectedBlockId ? 'Select Block First' : gramPanchayats.length > 0 ? 'All Gram Panchayats' : 'Loading GPs...'}
+      </option>
+      {gramPanchayats.map((gp) => (
+        <option key={gp.Id} value={gp.Id} className="text-gray-800">
+          {gp.GramPanchayatName}
+        </option>
+      ))}
+    </select>
+  </div>
 
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={selectedVillageId || ""}
-                  onChange={(e) => setSelectedVillageId(Number(e.target.value) || null)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  <option value="" className="text-gray-800">All Villages</option>
-                  {villages.map((v) => (
-                    <option key={v.Id} value={v.Id} className="text-gray-800">
-                      {v.VillageName}
-                    </option>
-                  ))}
-                </select>
-              </div>
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={selectedVillageId || ""}
+      onChange={(e) => setSelectedVillageId(e.target.value ? Number(e.target.value) : null)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading || !selectedGramPanchayatId}
+    >
+      <option value="" className="text-gray-800">
+        {!selectedGramPanchayatId ? 'Select GP First' : villages.length > 0 ? 'All Villages' : 'Loading Villages...'}
+      </option>
+      {villages.map((v) => (
+        <option key={v.Id} value={v.Id} className="text-gray-800">
+          {v.VillageName}
+        </option>
+      ))}
+    </select>
+  </div>
 
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  <option value="" className="text-gray-800">All Status</option>
-                  <option value="Pending" className="text-gray-800">Pending</option>
-                  <option value="In Progress" className="text-gray-800">In Progress</option>
-                  <option value="Resolved" className="text-gray-800">Resolved</option>
-                  <option value="Closed" className="text-gray-800">Closed</option>
-                </select>
-              </div>
-            </div>
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={filterStatus}
+      onChange={(e) => setFilterStatus(e.target.value)}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading}
+    >
+      <option value="" className="text-gray-800">All Status</option>
+      <option value="Pending" className="text-gray-800">Pending</option>
+      <option value="In Progress" className="text-gray-800">In Progress</option>
+      <option value="Resolved" className="text-gray-800">Resolved</option>
+      <option value="Closed" className="text-gray-800">Closed</option>
+    </select>
+  </div>
+</div>
 
             {/* Additional Filters Row */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">

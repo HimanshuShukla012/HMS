@@ -32,6 +32,7 @@ import {
 import { BiDroplet, BiMoney } from "react-icons/bi";
 import { useUserInfo } from '../utils/userInfo';
 import GlobalSearch from './GlobalSearch';
+import { MdReport } from "react-icons/md";
 
 
 type Role = "admin" | "gp" | "consultingengineer" | "gram_panchayat_sachiv" | "assistant_development_officer" | "district_panchayati_raj_officer" | "consulting_engineer";
@@ -63,7 +64,7 @@ const getMenuLinks = (role: Role): MenuItem[] => {
       { name: "View Closure Updates", to: "/admin/view-closure", icon: <Users2 size={20} /> },
       { name: "Manage Handpump", to: "/admin/manage-handpump", icon: <Calendar size={20} /> },
       { name: "Complaint Status", to: "/admin/manage-complaint", icon: <ClipboardList size={20} /> },
-      // { name: "Finance Management", to: "/admin/fee-management", icon: <BiMoney size={20} /> },
+      { name: "MIS Reporting", to: "/admin/reporting", icon: <MdReport size={20} /> },
     ];
   } else if (role === "gp" || role === "gram_panchayat_sachiv") {
     return [
