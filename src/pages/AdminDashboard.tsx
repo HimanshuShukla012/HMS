@@ -80,31 +80,41 @@ const AdminDashboard = () => {
   const filteredHandpumps = getFilteredHandpumps(handpumps);
 
   const filteredRequisitions = requisitions.filter((req) => {
-    const handpump = handpumps.find((hp) => hp.H_id === req.HPId);
-    if (!handpump) return false;
+  // Location filters - based on requisition data directly
+  const districtMatch = !filters.district || req.DistrictName === filters.district;
+  const blockMatch = !filters.block || req.BlockName === filters.block;
+  const gpMatch = !filters.gramPanchayat || req.GrampanchayatName === filters.gramPanchayat;
+  const villageMatch = !filters.village || req.VillageName === filters.village;
 
-    const districtMatch = !filters.district || handpump.DistrictName === filters.district;
-    const blockMatch = !filters.block || handpump.BlockName === filters.block;
-    const gpMatch = !filters.gramPanchayat || handpump.GrampanchayatName === filters.gramPanchayat;
-    const villageMatch = !filters.village || handpump.VillegeName === filters.village;
+  // Financial year filter - based on requisition raise date (RequisitionDate)
+  let yearMatch = true;
+  if (req.RequisitionDate) {
+    const reqDate = new Date(req.RequisitionDate);
+    const reqYear = reqDate.getFullYear();
+    const reqMonth = reqDate.getMonth() + 1; // 1-12
 
-    let yearMatch = true;
-    if (req.RequisitionDate) {
-      const reqDate = new Date(req.RequisitionDate);
-      const reqYear = reqDate.getFullYear();
-      const reqMonth = reqDate.getMonth() + 1;
+    const [startYear, endYear] = filters.financialYear
+      .split('-')
+      .map((y) => parseInt('20' + y));
 
-      const [startYear, endYear] = filters.financialYear.split('-').map((y) => parseInt('20' + y));
-
-      if (reqMonth >= 4) {
-        yearMatch = reqYear === startYear;
-      } else {
-        yearMatch = reqYear === endYear;
-      }
+    // Financial year: April (startYear) to March (endYear)
+    if (reqMonth >= 4) {
+      yearMatch = reqYear === startYear;
+    } else {
+      yearMatch = reqYear === endYear;
     }
+  }
 
-    return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch;
-  });
+  // Month filter - based on requisition raise date
+  let monthMatch = true;
+  if (filters.month !== 'All' && req.RequisitionDate) {
+    const reqDate = new Date(req.RequisitionDate);
+    const reqMonthName = reqDate.toLocaleString('en-US', { month: 'long' });
+    monthMatch = reqMonthName === filters.month;
+  }
+
+  return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch && monthMatch;
+});
 
   // Calculate statistics
   const stats = calculateHandpumpStats(filteredHandpumps, filteredRequisitions, handpumps);

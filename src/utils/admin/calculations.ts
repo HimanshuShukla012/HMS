@@ -38,9 +38,9 @@ export const calculateHandpumpStats = (
     totalSanctionAmount: filteredRequisitions
       .filter((req) => req.SanctionAmount)
       .reduce((sum, req) => sum + (parseFloat(req.SanctionAmount!) || 0), 0),
-    totalDistricts: new Set(allHandpumps.map((hp) => hp.DistrictName).filter(Boolean)).size,
-    totalBlocks: new Set(allHandpumps.map((hp) => hp.BlockName).filter(Boolean)).size,
-    totalGPs: new Set(allHandpumps.map((hp) => hp.GrampanchayatName).filter(Boolean)).size,
+    totalDistricts: new Set(filteredHandpumps.map((hp) => hp.DistrictName).filter(Boolean)).size,
+    totalBlocks: new Set(filteredHandpumps.map((hp) => hp.BlockName).filter(Boolean)).size,
+    totalGPs: new Set(filteredHandpumps.map((hp) => hp.GrampanchayatName).filter(Boolean)).size,
     activeUsers: 0,
   };
 };

@@ -1,86 +1,108 @@
-import { useState, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 interface Handpump {
+  H_id?: number;
+  HandpumpId?: string;
   DistrictName: string;
   BlockName: string;
   GrampanchayatName: string;
-  VillegeName: string;
-  CreateddateStr: string;
-  HandpumpStatus: string;
-  WaterQuality?: string;
-  SoakpitConnected?: number;
-  DrainageConnected?: number;
+  VillegeName?: string;
+  HandpumpStatus?: string;
+  CreateddateStr?: string;
 }
 
-interface Filters {
-  district: string;
-  block: string;
-  gramPanchayat: string;
-  village: string;
-  financialYear: string;
-  month: string;
-}
+// Helper function to get current financial year
+const getCurrentFinancialYear = (): string => {
+  const today = new Date();
+  const currentMonth = today.getMonth() + 1; // 1-12
+  const currentYear = today.getFullYear();
+  
+  // Financial year starts in April
+  if (currentMonth >= 4) {
+    // April to December: FY is current year to next year
+    const startYear = currentYear.toString().slice(-2);
+    const endYear = (currentYear + 1).toString().slice(-2);
+    return `${startYear}-${endYear}`;
+  } else {
+    // January to March: FY is previous year to current year
+    const startYear = (currentYear - 1).toString().slice(-2);
+    const endYear = currentYear.toString().slice(-2);
+    return `${startYear}-${endYear}`;
+  }
+};
 
 export const useFilters = (handpumps: Handpump[]) => {
-  const [filters, setFilters] = useState<Filters>({
+  const [filters, setFilters] = useState({
     district: '',
     block: '',
     gramPanchayat: '',
     village: '',
-    financialYear: '2025-26',
-    month: 'June',
+    financialYear: getCurrentFinancialYear(),
+    month: 'All',
   });
 
-  // Generate filter options with cascading logic
+  // Generate financial years (last 10 years)
+  const financialYears = useMemo(() => {
+    const years = [];
+    const currentYear = new Date().getFullYear();
+    for (let i = 0; i < 10; i++) {
+      const startYear = (currentYear - i).toString().slice(-2);
+      const endYear = (currentYear - i + 1).toString().slice(-2);
+      years.push(`${startYear}-${endYear}`);
+    }
+    return years;
+  }, []);
+
+  const months = [
+    'All',
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  // Get unique filter options with cascading logic
   const filterOptions = useMemo(() => {
+    const districts = ['All', ...new Set(handpumps.map((hp) => hp.DistrictName).filter(Boolean))];
+    
+    const filteredByDistrict = filters.district
+      ? handpumps.filter((hp) => hp.DistrictName === filters.district)
+      : handpumps;
+    const blocks = ['All', ...new Set(filteredByDistrict.map((hp) => hp.BlockName).filter(Boolean))];
+    
+    const filteredByBlock = filters.block
+      ? filteredByDistrict.filter((hp) => hp.BlockName === filters.block)
+      : filteredByDistrict;
+    const gramPanchayats = ['All', ...new Set(filteredByBlock.map((hp) => hp.GrampanchayatName).filter(Boolean))];
+    
+    const filteredByGP = filters.gramPanchayat
+      ? filteredByBlock.filter((hp) => hp.GrampanchayatName === filters.gramPanchayat)
+      : filteredByBlock;
+    const villages = ['All', ...new Set(filteredByGP.map((hp) => hp.VillegeName).filter(Boolean))];
+
     return {
-      districts: ['All Districts', ...new Set(handpumps.map((hp) => hp.DistrictName).filter(Boolean))],
-      blocks: [
-        'All Blocks',
-        ...new Set(
-          handpumps
-            .filter((hp) => !filters.district || hp.DistrictName === filters.district)
-            .map((hp) => hp.BlockName)
-            .filter(Boolean)
-        ),
-      ],
-      gramPanchayats: [
-        'All Gram Panchayats',
-        ...new Set(
-          handpumps
-            .filter((hp) => {
-              const districtMatch = !filters.district || hp.DistrictName === filters.district;
-              const blockMatch = !filters.block || hp.BlockName === filters.block;
-              return districtMatch && blockMatch;
-            })
-            .map((hp) => hp.GrampanchayatName)
-            .filter(Boolean)
-        ),
-      ],
-      villages: [
-        'All Villages',
-        ...new Set(
-          handpumps
-            .filter((hp) => {
-              const districtMatch = !filters.district || hp.DistrictName === filters.district;
-              const blockMatch = !filters.block || hp.BlockName === filters.block;
-              const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
-              return districtMatch && blockMatch && gpMatch;
-            })
-            .map((hp) => hp.VillegeName)
-            .filter(Boolean)
-        ),
-      ],
-      financialYears: ['2025-26', '2024-25', '2023-24', '2022-23', '2021-22'],
-      months: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+      districts,
+      blocks,
+      gramPanchayats,
+      villages,
+      financialYears,
+      months,
     };
-  }, [handpumps, filters.district, filters.block, filters.gramPanchayat]);
+  }, [handpumps, filters.district, filters.block, filters.gramPanchayat, financialYears]);
 
   const handleFilterChange = (filterName: string, value: string) => {
     setFilters((prev) => {
       const newFilters = { ...prev, [filterName]: value };
-
-      // Reset dependent filters when parent filter changes
+      
+      // Reset dependent filters when parent changes
       if (filterName === 'district') {
         newFilters.block = '';
         newFilters.gramPanchayat = '';
@@ -91,7 +113,7 @@ export const useFilters = (handpumps: Handpump[]) => {
       } else if (filterName === 'gramPanchayat') {
         newFilters.village = '';
       }
-
+      
       return newFilters;
     });
   };
@@ -102,12 +124,11 @@ export const useFilters = (handpumps: Handpump[]) => {
       block: '',
       gramPanchayat: '',
       village: '',
-      financialYear: '2025-26',
-      month: 'June',
+      financialYear: getCurrentFinancialYear(),
+      month: 'All',
     });
   };
 
-  // Filter handpumps based on current filters
   const getFilteredHandpumps = (allHandpumps: Handpump[]) => {
     return allHandpumps.filter((hp) => {
       const districtMatch = !filters.district || hp.DistrictName === filters.district;
@@ -115,29 +136,34 @@ export const useFilters = (handpumps: Handpump[]) => {
       const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
       const villageMatch = !filters.village || hp.VillegeName === filters.village;
 
-      // Financial Year filtering
+      // Financial year filter based on handpump geotag date (CreateddateStr)
       let yearMatch = true;
       if (hp.CreateddateStr) {
-        try {
-          const [day, month, year] = hp.CreateddateStr.split('-').map(Number);
-          const hpDate = new Date(year, month - 1, day);
-          const hpYear = hpDate.getFullYear();
-          const hpMonth = hpDate.getMonth() + 1;
+        const geotagDate = new Date(hp.CreateddateStr);
+        const geotagYear = geotagDate.getFullYear();
+        const geotagMonth = geotagDate.getMonth() + 1; // 1-12
 
-          const [startYear, endYear] = filters.financialYear.split('-').map((y) => parseInt('20' + y));
+        const [startYear, endYear] = filters.financialYear
+          .split('-')
+          .map((y) => parseInt('20' + y));
 
-          if (hpMonth >= 4) {
-            yearMatch = hpYear === startYear;
-          } else {
-            yearMatch = hpYear === endYear;
-          }
-        } catch (error) {
-          console.error('Error parsing date:', hp.CreateddateStr, error);
-          yearMatch = true;
+        // Financial year: April (startYear) to March (endYear)
+        if (geotagMonth >= 4) {
+          yearMatch = geotagYear === startYear;
+        } else {
+          yearMatch = geotagYear === endYear;
         }
       }
 
-      return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch;
+      // Month filter based on geotag date
+      let monthMatch = true;
+      if (filters.month !== 'All' && hp.CreateddateStr) {
+        const geotagDate = new Date(hp.CreateddateStr);
+        const geotagMonthName = geotagDate.toLocaleString('en-US', { month: 'long' });
+        monthMatch = geotagMonthName === filters.month;
+      }
+
+      return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch && monthMatch;
     });
   };
 
