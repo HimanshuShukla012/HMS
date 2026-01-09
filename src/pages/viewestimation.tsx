@@ -381,164 +381,189 @@ const getPageNumbers = () => {
 
   printContent.innerHTML = `
     <style>
-      .pdf-header {
-        background: linear-gradient(to right, #0f766e, #0891b2, #2563eb);
-        color: white;
-        padding: 30px;
-        border-radius: 10px;
-        margin-bottom: 30px;
-      }
-      .pdf-engineer-card {
-        background: linear-gradient(to right, #0d9488, #06b6d4, #3b82f6);
-        color: white;
-        padding: 25px;
-        border-radius: 10px;
-        margin-bottom: 30px;
-      }
-      .pdf-info-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 20px;
-        margin-top: 20px;
-      }
-      .pdf-info-box {
-        background: rgba(255, 255, 255, 0.2);
-        padding: 15px;
-        border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.3);
-      }
-      .pdf-info-label {
-        font-size: 12px;
-        opacity: 0.9;
-        margin-bottom: 5px;
-      }
-      .pdf-info-value {
-        font-size: 18px;
-        font-weight: bold;
-      }
-      .pdf-mode-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        padding: 8px 15px;
-        border-radius: 6px;
-        font-weight: 600;
-        font-size: 14px;
-        margin-top: 10px;
-      }
-      .pdf-mode-repair {
-        background: #3b82f6;
-        color: white;
-      }
-      .pdf-mode-rebore {
-        background: #10b981;
-        color: white;
-      }
-      .pdf-table-container {
-        background: white;
-        border-radius: 10px;
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        border: 1px solid #e5e7eb;
-      }
-      .pdf-table-header {
-        background: linear-gradient(to right, #374151, #475569);
-        color: white;
-        padding: 20px 25px;
-      }
-      .pdf-table {
-        width: 100%;
-        border-collapse: collapse;
-      }
-      .pdf-table thead {
-        background: #f9fafb;
-      }
-      .pdf-table th {
-        padding: 12px;
-        text-align: left;
-        font-size: 11px;
-        font-weight: 600;
-        color: #374151;
-        text-transform: uppercase;
-        border-bottom: 2px solid #93c5fd;
-      }
-      .pdf-table tbody tr:nth-child(even) {
-        background: #f9fafb;
-      }
-      .pdf-table tbody tr:nth-child(odd) {
-        background: white;
-      }
-      .pdf-table td {
-        padding: 12px;
-        font-size: 12px;
-        color: #1f2937;
-        border-bottom: 1px solid #e5e7eb;
-      }
-      .row-add-items {
-        background: #fef3c7 !important;
-      }
-      .row-add-items td {
-        color: #92400e;
-        font-weight: 600;
-      }
-      .row-total {
-        background: #dbeafe !important;
-      }
-      .row-total td {
-        color: #1e40af;
-        font-weight: 600;
-      }
-      .row-gst {
-        background: #e0e7ff !important;
-      }
-      .row-gst td {
-        color: #3730a3;
-        font-weight: 600;
-      }
-      .row-total-with-gst {
-        background: #ccfbf1 !important;
-      }
-      .row-total-with-gst td {
-        color: #115e59;
-        font-weight: 600;
-      }
-      .row-consulting-fee {
-        background: #cffafe !important;
-      }
-      .row-consulting-fee td {
-        color: #155e75;
-        font-weight: 600;
-      }
-      .row-consulting-fee-mb {
-        background: #d1fae5 !important;
-      }
-      .row-consulting-fee-mb td {
-        color: #065f46;
-        font-weight: 600;
-      }
-      .row-grand-total {
-        background: #dcfce7 !important;
-        border-top: 2px solid #86efac;
-      }
-      .row-grand-total td {
-        color: #166534;
-        font-weight: bold;
-        font-size: 14px;
-        padding: 15px 12px;
-      }
-      .sno-cell {
-        color: #2563eb;
-        font-weight: 600;
-      }
-      .rate-cell {
-        color: #059669;
-        font-weight: 600;
-      }
-      .amount-cell {
-        color: #475569;
-        font-weight: 600;
-      }
-    </style>
+  .pdf-header {
+    background: linear-gradient(to right, #0f766e, #0891b2, #2563eb);
+    color: white;
+    padding: 30px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+  }
+  .pdf-engineer-card {
+    background: linear-gradient(to right, #0d9488, #06b6d4, #3b82f6);
+    color: white;
+    padding: 25px;
+    border-radius: 10px;
+    margin-bottom: 30px;
+  }
+  .pdf-info-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+    margin-top: 20px;
+  }
+  .pdf-info-box {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+  .pdf-info-label {
+    font-size: 12px;
+    opacity: 0.9;
+    margin-bottom: 5px;
+  }
+  .pdf-info-value {
+    font-size: 18px;
+    font-weight: bold;
+  }
+  .pdf-mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 15px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 14px;
+    margin-top: 10px;
+  }
+  .pdf-mode-repair {
+    background: #3b82f6;
+    color: white;
+  }
+  .pdf-mode-rebore {
+    background: #10b981;
+    color: white;
+  }
+  .pdf-table-container {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: 1px solid #e5e7eb;
+  }
+  .pdf-table-header {
+    background: linear-gradient(to right, #374151, #475569);
+    color: white;
+    padding: 20px 25px;
+  }
+  .pdf-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .pdf-table thead {
+    background: #f9fafb;
+  }
+  .pdf-table th {
+    padding: 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: #374151;
+    text-transform: uppercase;
+    border-bottom: 2px solid #93c5fd;
+  }
+  .pdf-table tbody tr:nth-child(even) {
+    background: #f9fafb;
+  }
+  .pdf-table tbody tr:nth-child(odd) {
+    background: white;
+  }
+  .pdf-table td {
+    padding: 12px;
+    font-size: 12px;
+    color: #1f2937;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .pdf-table tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .pdf-table tbody tr {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+  .row-add-items {
+    background: #fef3c7 !important;
+  }
+  .row-add-items td {
+    color: #92400e;
+    font-weight: 600;
+  }
+  .row-total {
+    background: #dbeafe !important;
+  }
+  .row-total td {
+    color: #1e40af;
+    font-weight: 600;
+  }
+  .row-gst {
+    background: #e0e7ff !important;
+  }
+  .row-gst td {
+    color: #3730a3;
+    font-weight: 600;
+  }
+  .row-total-with-gst {
+    background: #ccfbf1 !important;
+  }
+  .row-total-with-gst td {
+    color: #115e59;
+    font-weight: 600;
+  }
+  .row-consulting-fee {
+    background: #cffafe !important;
+  }
+  .row-consulting-fee td {
+    color: #155e75;
+    font-weight: 600;
+  }
+  .row-consulting-fee-mb {
+    background: #d1fae5 !important;
+  }
+  .row-consulting-fee-mb td {
+    color: #065f46;
+    font-weight: 600;
+  }
+  .row-grand-total {
+    background: #dcfce7 !important;
+    border-top: 2px solid #86efac;
+  }
+  .row-grand-total td {
+    color: #166534;
+    font-weight: bold;
+    font-size: 14px;
+    padding: 15px 12px;
+  }
+  .sno-cell {
+    color: #2563eb;
+    font-weight: 600;
+  }
+  .rate-cell {
+    color: #059669;
+    font-weight: 600;
+  }
+  .amount-cell {
+    color: #475569;
+    font-weight: 600;
+  }
+  
+  @media print {
+    .pdf-table tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .pdf-table tbody tr {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+    .pdf-header,
+    .pdf-engineer-card,
+    .pdf-table-container {
+      page-break-inside: avoid;
+      break-inside: avoid;
+    }
+  }
+</style>
 
     <div class="pdf-header">
       <h1 style="font-size: 28px; font-weight: bold; margin: 0 0 10px 0;">View Estimation - Gram Panchayat</h1>
@@ -606,59 +631,95 @@ const getPageNumbers = () => {
           `).join('')}
           
           <tr class="row-add-items">
-            <td class="sno-cell">${items.length + 1}</td>
-            <td><strong>Add Items</strong></td>
-            <td></td>
-            <td></td>
-            ${!isRepair ? '<td></td>' : ''}
-            ${!isRepair ? '<td>1</td>' : ''}
-            ${!isRepair ? '<td>1</td>' : ''}
-            ${!isRepair ? '<td>1</td>' : ''}
-            <td></td>
-            <td></td>
-          </tr>
+  <td class="sno-cell">${items.length + 1}</td>
+  <td><strong>Add Items</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td></td>
+</tr>
           
           <tr class="row-total">
-            <td class="sno-cell">${items.length + 2}</td>
-            <td><strong>Total</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong>₹${calculations.total.toLocaleString()}</strong></td>
-          </tr>
-          
-          <tr class="row-gst">
-            <td class="sno-cell">${items.length + 3}</td>
-            <td><strong>GST (18%)</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong>₹${calculations.gst.toLocaleString()}</strong></td>
-          </tr>
-          
-          <tr class="row-total-with-gst">
-            <td class="sno-cell">${items.length + 4}</td>
-            <td><strong>Total (including GST)</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong>₹${calculations.totalWithGST.toLocaleString()}</strong></td>
-          </tr>
-          
-          <tr class="row-consulting-fee">
-            <td class="sno-cell">${items.length + 5}</td>
-            <td><strong>1% Consulting Engineer Fee for Estimation</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
-          </tr>
-          
-          <tr class="row-consulting-fee-mb">
-            <td class="sno-cell">${items.length + 6}</td>
-            <td><strong>1% Consulting Engineer Fee for MB</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
-          </tr>
-          
-          <tr class="row-grand-total">
-            <td class="sno-cell">${items.length + 7}</td>
-            <td><strong>Grand Total</strong></td>
-            <td colspan="${isRepair ? 3 : 6}"></td>
-            <td><strong style="font-size: 16px;">₹${(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</strong></td>
-          </tr>
+  <td class="sno-cell">${items.length + 2}</td>
+  <td><strong>Total</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong>₹${calculations.total.toLocaleString()}</strong></td>
+</tr>
+
+<tr class="row-gst">
+  <td class="sno-cell">${items.length + 3}</td>
+  <td><strong>GST (18%)</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong>₹${calculations.gst.toLocaleString()}</strong></td>
+</tr>
+
+<tr class="row-total-with-gst">
+  <td class="sno-cell">${items.length + 4}</td>
+  <td><strong>Total (including GST)</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong>₹${calculations.totalWithGST.toLocaleString()}</strong></td>
+</tr>
+
+<tr class="row-consulting-fee">
+  <td class="sno-cell">${items.length + 5}</td>
+  <td><strong>1% Consulting Engineer Fee for Estimation</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+</tr>
+
+<tr class="row-consulting-fee-mb">
+  <td class="sno-cell">${items.length + 6}</td>
+  <td><strong>1% Consulting Engineer Fee for MB</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong>₹${calculations.consultingFee.toLocaleString()}</strong></td>
+</tr>
+
+<tr class="row-grand-total">
+  <td class="sno-cell">${items.length + 7}</td>
+  <td><strong>Grand Total</strong></td>
+  <td></td>
+  <td></td>
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  ${!isRepair ? '<td></td>' : ''}
+  <td></td>
+  <td><strong style="font-size: 16px;">₹${(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</strong></td>
+</tr>
         </tbody>
       </table>
     </div>
@@ -869,63 +930,102 @@ const getPageNumbers = () => {
                   
                   {/* Add Items Row */}
                   <tr className="bg-amber-50">
-                    <td className="px-4 py-3 text-sm font-semibold text-amber-700">{items.length + 1}</td>
-                    <td className="px-4 py-3 text-sm font-semibold text-amber-800">Add Items</td>
-                    <td className="px-4 py-3"></td>
-                    <td className="px-4 py-3"></td>
-                    {!isRepair && <td className="px-4 py-3"></td>}
-                    {!isRepair && <td className="px-4 py-3">1</td>}
-                    {!isRepair && <td className="px-4 py-3">1</td>}
-                    {!isRepair && <td className="px-4 py-3">1</td>}
-                    <td className="px-4 py-3"></td>
-                    <td className="px-4 py-3"></td>
-                  </tr>
+  <td className="px-4 py-3 text-sm font-semibold text-amber-700">{items.length + 1}</td>
+  <td className="px-4 py-3 text-sm font-semibold text-amber-800">Add Items</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+</tr>
                   
                   {/* Total Calculations */}
                   <tr className="bg-blue-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-blue-700">{items.length + 2}</td>
-                    <td className="px-4 py-3 text-sm text-blue-800">Total</td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-base text-blue-700">₹{calculations.total.toLocaleString()}</td>
-                  </tr>
+  <td className="px-4 py-3 text-sm text-blue-700">{items.length + 2}</td>
+  <td className="px-4 py-3 text-sm text-blue-800">Total</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3 text-base text-blue-700">₹{calculations.total.toLocaleString()}</td>
+</tr>
                   
                   <tr className="bg-indigo-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-indigo-700">{items.length + 3}</td>
-                    <td className="px-4 py-3 text-sm text-indigo-800">GST (18%)</td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-base text-indigo-700">₹{calculations.gst.toLocaleString()}</td>
-                  </tr>
+  <td className="px-4 py-3 text-sm text-indigo-700">{items.length + 3}</td>
+  <td className="px-4 py-3 text-sm text-indigo-800">GST (18%)</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3 text-base text-indigo-700">₹{calculations.gst.toLocaleString()}</td>
+</tr>
                   
                   <tr className="bg-teal-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-teal-700">{items.length + 4}</td>
-                    <td className="px-4 py-3 text-sm text-teal-800">Total (including GST)</td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-base text-teal-700">₹{calculations.totalWithGST.toLocaleString()}</td>
-                  </tr>
-                  
-                  <tr className="bg-cyan-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-cyan-700">{items.length + 5}</td>
-                    <td className="px-4 py-3 text-sm text-cyan-800">1% Consulting Engineer Fee for Estimation</td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-base text-cyan-700">₹{calculations.consultingFee.toLocaleString()}</td>
-                  </tr>
-                  
-                  <tr className="bg-emerald-50 font-semibold">
-                    <td className="px-4 py-3 text-sm text-emerald-700">{items.length + 6}</td>
-                    <td className="px-4 py-3 text-sm text-emerald-800">1% Consulting Engineer Fee for MB</td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-3"></td>
-                    <td className="px-4 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
-                  </tr>
-                  
-                  <tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
-                    <td className="px-4 py-4 text-green-700">{items.length + 7}</td>
-                    <td className="px-4 py-4 text-green-800 flex items-center gap-2">
-                      <TrendingUp size={20} />
-                      Grand Total
-                    </td>
-                    <td colSpan={isRepair ? 3 : 6} className="px-4 py-4"></td>
-                    <td className="px-4 py-4 text-xl text-green-700">₹{(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</td>
-                  </tr>
+  <td className="px-4 py-3 text-sm text-teal-700">{items.length + 4}</td>
+  <td className="px-4 py-3 text-sm text-teal-800">Total (including GST)</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3 text-base text-teal-700">₹{calculations.totalWithGST.toLocaleString()}</td>
+</tr>
+
+{/* Consulting Fee for Estimation - CORRECTED VERSION */}
+<tr className="bg-cyan-50 font-semibold">
+  <td className="px-4 py-3 text-sm text-cyan-700">{items.length + 5}</td>
+  <td className="px-4 py-3 text-sm text-cyan-800">1% Consulting Engineer Fee for Estimation</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3 text-base text-cyan-700">₹{calculations.consultingFee.toLocaleString()}</td>
+</tr>
+
+{/* Consulting Fee for MB - CORRECTED VERSION */}
+<tr className="bg-emerald-50 font-semibold">
+  <td className="px-4 py-3 text-sm text-emerald-700">{items.length + 6}</td>
+  <td className="px-4 py-3 text-sm text-emerald-800">1% Consulting Engineer Fee for MB</td>
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3"></td>
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  {!isRepair && <td className="px-4 py-3"></td>}
+  <td className="px-4 py-3"></td>
+  <td className="px-4 py-3 text-base text-emerald-700">₹{calculations.consultingFee.toLocaleString()}</td>
+</tr>
+
+{/* Grand Total - CORRECTED VERSION */}
+<tr className="bg-green-100 font-bold text-lg border-t-2 border-green-300">
+  <td className="px-4 py-4 text-green-700">{items.length + 7}</td>
+  <td className="px-4 py-4 text-green-800 flex items-center gap-2">
+    <TrendingUp size={20} />
+    Grand Total
+  </td>
+  <td className="px-4 py-4"></td>
+  <td className="px-4 py-4"></td>
+  {!isRepair && <td className="px-4 py-4"></td>}
+  {!isRepair && <td className="px-4 py-4"></td>}
+  {!isRepair && <td className="px-4 py-4"></td>}
+  {!isRepair && <td className="px-4 py-4"></td>}
+  <td className="px-4 py-4"></td>
+  <td className="px-4 py-4 text-xl text-green-700">₹{(calculations.grandTotal + calculations.consultingFee).toLocaleString()}</td>
+</tr>
                 </tbody>
               </table>
             </div>

@@ -6,9 +6,11 @@ import { useUserInfo } from '../utils/userInfo';
 const MBVisitReportScreen = () => {
   const { userId, role, loading: userLoading, error: userError } = useUserInfo();
   
-  const [filterVillage, setFilterVillage] = useState('All');
-  const [filterHandpumpId, setFilterHandpumpId] = useState('');
-  const [filterRequisitionId, setFilterRequisitionId] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+const [filterStatus, setFilterStatus] = useState('All');
+const [filterDistrict, setFilterDistrict] = useState('All');
+const [filterBlock, setFilterBlock] = useState('All');
+const [filterType, setFilterType] = useState('All');
   const [showMBModal, setShowMBModal] = useState(false);
   const [showVisitModal, setShowVisitModal] = useState(false);
   const [selectedRequisition, setSelectedRequisition] = useState(null);
@@ -487,24 +489,80 @@ const MBVisitReportScreen = () => {
     return new Date().toLocaleDateString('en-IN');
   };
 
-  const villages = ['All', ...new Set(requisitions.map(r => r.VillageName))];
+  // Get unique values for filters
+  const districts = ['All', ...new Set(requisitions.map(r => r.DistrictName).filter(Boolean))];
+  const blocks = ['All', ...new Set(requisitions.map(r => r.BlockName).filter(Boolean))];
+  const types = ['All', 'REPAIR', 'DEEPENING'];
 
   const filteredRequisitions = requisitions.filter(req => {
-    const hasFilters = (filterVillage === 'All' || req.VillageName === filterVillage) &&
-      (filterHandpumpId === '' || req.HandpumpId?.toLowerCase().includes(filterHandpumpId.toLowerCase())) &&
-      (filterRequisitionId === '' || req.RequisitionId?.toString().includes(filterRequisitionId));
+    // Universal search - searches across multiple fields
+    const query = searchQuery.trim().toLowerCase();
+    const matchesSearch = !query || 
+      String(req.RequisitionId || '').toLowerCase().includes(query) ||
+      String(req.HandpumpId || '').toLowerCase().includes(query) ||
+      String(req.VillageName || '').toLowerCase().includes(query) ||
+      String(req.GrampanchayatName || '').toLowerCase().includes(query) ||
+      String(req.BlockName || '').toLowerCase().includes(query) ||
+      String(req.DistrictName || '').toLowerCase().includes(query);
     
-    // Hide if both MB and Visit Report are completed
-    const hasMB = req.TotalMBAmount !== null && req.TotalMBAmount !== undefined;
-    const hasVisitReport = req.VisitMonitoringId !== null && req.VisitMonitoringId !== undefined;
-    const hideCompletedRow = hasMB && hasVisitReport;
+    // District filter
+    const matchesDistrict = filterDistrict === 'All' || req.DistrictName === filterDistrict;
     
-    return hasFilters && !hideCompletedRow;
+    // Block filter
+    const matchesBlock = filterBlock === 'All' || req.BlockName === filterBlock;
+    
+    // Type filter
+    const matchesType = filterType === 'All' || req.RequisitionType === filterType;
+    
+    // Status filter
+    const hasMB = req.CEStatus === 1 || (req.TotalMBAmount !== null && req.TotalMBAmount !== undefined);
+    const hasVR = req.VisitMonitoringId !== null && req.VisitMonitoringId !== undefined;
+    let matchesStatus = true;
+    
+    if (filterStatus === 'Pending MB') {
+      matchesStatus = !hasMB;
+    } else if (filterStatus === 'Pending VR') {
+      matchesStatus = !hasVR;
+    } else if (filterStatus === 'Both Pending') {
+      matchesStatus = !hasMB && !hasVR;
+    } else if (filterStatus === 'Completed') {
+      matchesStatus = hasMB && hasVR;
+    }
+    
+    // Hide completely finished requisitions from main list
+    const hideCompletedRow = hasMB && hasVR && filterStatus === 'All';
+    
+    const result = matchesSearch && matchesDistrict && matchesBlock && matchesType && matchesStatus && !hideCompletedRow;
+    
+    // Debug logging - Remove after testing
+    if (req.RequisitionId === 141) {
+      console.log('Filtering Req 141:', {
+        matchesSearch,
+        matchesDistrict,
+        matchesBlock,
+        matchesType,
+        matchesStatus,
+        hideCompletedRow,
+        hasMB,
+        hasVR,
+        CEStatus: req.CEStatus,
+        TotalMBAmount: req.TotalMBAmount,
+        VisitMonitoringId: req.VisitMonitoringId,
+        filterStatus,
+        result
+      });
+    }
+    
+    return result;
   });
+
+  console.log('Total requisitions:', requisitions.length);
+  console.log('Filtered requisitions:', filteredRequisitions.length);
+  console.log('Active filters:', { searchQuery, filterStatus, filterDistrict, filterBlock, filterType });
 
   // Helper functions to check completion status
   const hasMaterialBook = (requisition) => {
-    return requisition.CEStatus === 1;
+    return requisition.CEStatus === 1 || (requisition.TotalMBAmount !== null && requisition.TotalMBAmount !== undefined);
   };
 
   const hasVisitReport = (requisition) => {
@@ -555,41 +613,117 @@ const MBVisitReportScreen = () => {
               Material Book & Visit Report - Consulting Engineer
             </h1>
             
-            <div className="flex flex-wrap gap-4 items-center">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterVillage}
-                  onChange={(e) => setFilterVillage(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer"
-                >
-                  {villages.map(village => (
-                    <option key={village} value={village} className="text-gray-800">{village} Village</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Search size={18} className="text-white" />
+            {/* Enhanced Filter System */}
+            <div className="space-y-4">
+              {/* Universal Search Bar */}
+              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-3 border border-white/20">
+                <Search size={20} className="text-white" />
                 <input
                   type="text"
-                  placeholder="Search by Handpump ID"
-                  value={filterHandpumpId}
-                  onChange={(e) => setFilterHandpumpId(e.target.value)}
-                  className="bg-transparent text-white placeholder-white/70 focus:outline-none w-48"
+                  placeholder="Search by Requisition ID, Handpump ID, Village, Block, District, GP..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-transparent text-white placeholder-white/70 focus:outline-none flex-1 text-sm"
                 />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-white/70 hover:text-white transition-colors"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
               </div>
-              
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Search size={18} className="text-white" />
-                <input
-                  type="text"
-                  placeholder="Search by Requisition ID"
-                  value={filterRequisitionId}
-                  onChange={(e) => setFilterRequisitionId(e.target.value)}
-                  className="bg-transparent text-white placeholder-white/70 focus:outline-none w-48"
-                />
+
+              {/* Advanced Filters Row */}
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                  <Filter size={16} className="text-white" />
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+                  >
+                    <option value="All" className="text-gray-800">All Status</option>
+                    <option value="Pending MB" className="text-gray-800">Pending MB</option>
+                    <option value="Pending VR" className="text-gray-800">Pending VR</option>
+                    <option value="Both Pending" className="text-gray-800">Both Pending</option>
+                    <option value="Completed" className="text-gray-800">Completed</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                  <MapPin size={16} className="text-white" />
+                  <select
+                    value={filterDistrict}
+                    onChange={(e) => setFilterDistrict(e.target.value)}
+                    className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+                  >
+                    {districts.map(district => (
+                      <option key={district} value={district} className="text-gray-800">
+                        {district === 'All' ? 'All Districts' : district}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                  <MapPin size={16} className="text-white" />
+                  <select
+                    value={filterBlock}
+                    onChange={(e) => setFilterBlock(e.target.value)}
+                    className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+                  >
+                    {blocks.map(block => (
+                      <option key={block} value={block} className="text-gray-800">
+                        {block === 'All' ? 'All Blocks' : block}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20">
+                  <Wrench size={16} className="text-white" />
+                  <select
+                    value={filterType}
+                    onChange={(e) => setFilterType(e.target.value)}
+                    className="bg-transparent text-white text-sm font-medium focus:outline-none cursor-pointer"
+                  >
+                    {types.map(type => (
+                      <option key={type} value={type} className="text-gray-800">
+                        {type === 'All' ? 'All Types' : type}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Clear All Filters Button */}
+                {(searchQuery || filterStatus !== 'All' || filterDistrict !== 'All' || filterBlock !== 'All' || filterType !== 'All') && (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setFilterStatus('All');
+                      setFilterDistrict('All');
+                      setFilterBlock('All');
+                      setFilterType('All');
+                    }}
+                    className="flex items-center gap-2 bg-white/20 hover:bg-white/30 backdrop-blur-sm rounded-lg px-3 py-2 border border-white/20 transition-colors text-white text-sm font-medium"
+                  >
+                    <X size={16} />
+                    Clear Filters
+                  </button>
+                )}
               </div>
+
+              {/* Active Filters Summary */}
+              {(searchQuery || filterStatus !== 'All' || filterDistrict !== 'All' || filterBlock !== 'All' || filterType !== 'All') && (
+                <div className="flex items-center gap-2 text-white/90 text-sm">
+                  <span className="font-medium">Active Filters:</span>
+                  <span className="bg-white/20 px-2 py-1 rounded">
+                    {filteredRequisitions.length} result{filteredRequisitions.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -683,13 +817,21 @@ const MBVisitReportScreen = () => {
               <tbody className="divide-y divide-gray-100">
                 {filteredRequisitions.length === 0 ? (
                   <tr>
-                    <td colSpan="8" className="px-6 py-8 text-center text-gray-500">
-                      No completed requisitions found
+                    <td colSpan="8" className="px-6 py-12 text-center">
+                      <div className="flex flex-col items-center justify-center">
+                        <AlertCircle className="w-12 h-12 text-gray-400 mb-3" />
+                        <p className="text-gray-500 font-medium">No requisitions found</p>
+                        <p className="text-gray-400 text-sm mt-1">
+                          {searchQuery || filterStatus !== 'All' || filterDistrict !== 'All' || filterBlock !== 'All' || filterType !== 'All'
+                            ? 'Try adjusting your filters or search query'
+                            : 'No completed requisitions available'}
+                        </p>
+                      </div>
                     </td>
                   </tr>
                 ) : (
                   filteredRequisitions.map((requisition, index) => (
-                    <tr key={requisition.RequisitionId} className={`${
+  <tr key={`${requisition.RequisitionId}-${requisition.OrderId}-${index}`} className={`${
                       index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
                     } hover:bg-blue-50 transition-colors duration-300`}>
                       <td className="px-6 py-4 whitespace-nowrap">

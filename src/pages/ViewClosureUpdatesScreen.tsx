@@ -13,8 +13,8 @@ const ViewClosureUpdatesScreen = () => {
   const { userId, role, loading: userLoading, error: userError } = useUserInfo();
   const { jurisdiction, loading: jurisdictionLoading, error: jurisdictionError } = useJurisdiction(userId);
   const [filterClosureStatus, setFilterClosureStatus] = useState('All');
-  const [filterVerificationResult, setFilterVerificationResult] = useState('All');
-  const [filterVillage, setFilterVillage] = useState('All');
+const [filterVillage, setFilterVillage] = useState('All');
+
   const [filterHandpumpId, setFilterHandpumpId] = useState('');
   const [filterRequisitionId, setFilterRequisitionId] = useState('');
   const [showMaterialBookModal, setShowMaterialBookModal] = useState(false);
@@ -422,8 +422,9 @@ const response = await fetch(
     }
   };
 
-  const closureStatusOptions = ['All', 'Pending at CE Level', 'Completed', 'On-Hold'];
-  const verificationOptions = ['All', 'Satisfactory', 'Not Satisfactory', 'Pending'];
+  const uniqueClosureStatuses = ['All', ...new Set(closureUpdates.map(u => u.closureStatus).filter(Boolean))];
+const closureStatusOptions = uniqueClosureStatuses.length > 1 ? uniqueClosureStatuses : ['All', 'Pending at CE Level', 'Pending for Completion', 'Pending for MB', 'Pending for Visit Monitoring Report', 'Completed'];
+
 
   // Fetch districts from API
   const fetchDistricts = async () => {
@@ -576,21 +577,21 @@ const response = await fetch(
 
   const filteredUpdates = closureUpdates.filter(update => {
   const matchesStatus = filterClosureStatus === 'All' || update.closureStatus === filterClosureStatus;
-  const matchesVerification = filterVerificationResult === 'All' || update.verificationResult === filterVerificationResult;
   const matchesHandpumpId = filterHandpumpId === '' || update.handpumpId.toLowerCase().includes(filterHandpumpId.toLowerCase());
   const matchesRequisitionId = filterRequisitionId === '' || update.id.toLowerCase().includes(filterRequisitionId.toLowerCase());
   
-  // Location filtering
-  const matchesDistrict = !selectedDistrictId || 
-    update.district === districts.find(d => d.DistrictId === selectedDistrictId)?.DistrictName;
-  const matchesBlock = !selectedBlockId || 
-    update.block === blocks.find(b => b.BlockId === selectedBlockId)?.BlockName;
-  const matchesGramPanchayat = !selectedGramPanchayatId || 
-    update.gramPanchayat === gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId)?.GramPanchayatName;
-  const matchesVillage = !selectedVillageId || 
-    update.village === villages.find(v => v.Id === selectedVillageId)?.VillageName;
+  // Location filtering - using direct string comparison
+  const selectedDistrictName = districts.find(d => d.DistrictId === selectedDistrictId)?.DistrictName;
+  const selectedBlockName = blocks.find(b => b.BlockId === selectedBlockId)?.BlockName;
+  const selectedGramPanchayatName = gramPanchayats.find(gp => gp.Id === selectedGramPanchayatId)?.GramPanchayatName;
+  const selectedVillageName = villages.find(v => v.Id === selectedVillageId)?.VillageName;
   
-  // Stat card filter
+  const matchesDistrict = !selectedDistrictId || update.district === selectedDistrictName;
+  const matchesBlock = !selectedBlockId || update.block === selectedBlockName;
+  const matchesGramPanchayat = !selectedGramPanchayatId || update.gramPanchayat === selectedGramPanchayatName;
+  const matchesVillage = !selectedVillageId || update.village === selectedVillageName;
+  
+  // Stat card filter (overrides manual filter)
   let matchesStatFilter = true;
   if (activeStatFilter === 'completed') {
     matchesStatFilter = update.closureStatus === 'Completed';
@@ -599,11 +600,14 @@ const response = await fetch(
   } else if (activeStatFilter === 'onHold') {
     matchesStatFilter = update.closureStatus === 'On-Hold';
   } else if (activeStatFilter === 'total') {
-    matchesStatFilter = true; // Show all records
+    matchesStatFilter = true;
   }
   
-  return matchesStatus && matchesVerification && matchesHandpumpId && matchesRequisitionId &&
-         matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage && matchesStatFilter;
+  // If stat filter is active, ignore manual status filter
+  const finalStatusMatch = activeStatFilter ? matchesStatFilter : matchesStatus;
+  
+  return finalStatusMatch && matchesHandpumpId && matchesRequisitionId &&
+         matchesDistrict && matchesBlock && matchesGramPanchayat && matchesVillage;
 });
 const indexOfLastRow = currentPage * rowsPerPage;
 const indexOfFirstRow = indexOfLastRow - rowsPerPage;
@@ -833,35 +837,24 @@ if (error && !loading) {
             </div>
 
             {/* Additional Filters Row */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterClosureStatus}
-                  onChange={(e) => setFilterClosureStatus(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  {closureStatusOptions.map(status => (
-                    <option key={status} value={status} className="text-gray-800">{status}</option>
-                  ))}
-                </select>
-              </div>
-              
-              <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
-                <Filter size={18} className="text-white" />
-                <select
-                  value={filterVerificationResult}
-                  onChange={(e) => setFilterVerificationResult(e.target.value)}
-                  className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
-                  disabled={loading}
-                >
-                  {verificationOptions.map(option => (
-                    <option key={option} value={option} className="text-gray-800">{option}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mt-4">
+  <div className="flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/20">
+    <Filter size={18} className="text-white" />
+    <select
+      value={filterClosureStatus}
+      onChange={(e) => {
+        setFilterClosureStatus(e.target.value);
+        setActiveStatFilter(null); // Reset stat filter when manually filtering
+      }}
+      className="bg-transparent text-white font-medium focus:outline-none cursor-pointer flex-1 text-sm"
+      disabled={loading}
+    >
+      {closureStatusOptions.map(status => (
+        <option key={status} value={status} className="text-gray-800">{status}</option>
+      ))}
+    </select>
+  </div>
+</div>
 
             {/* Search Row */}
             <div className="flex flex-col sm:flex-row gap-4 mt-4">
@@ -896,7 +889,12 @@ if (error && !loading) {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
          
           <div 
-  onClick={() => setActiveStatFilter(activeStatFilter === 'total' ? null : 'total')}
+  onClick={() => {
+  const newFilter = activeStatFilter === 'total' ? null : 'total';
+  setActiveStatFilter(newFilter);
+  if (newFilter) setFilterClosureStatus('All'); // Reset manual filter when stat filter is active
+}}
+
   className={`group bg-gradient-to-br from-blue-600 to-indigo-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300 cursor-pointer ${
     activeStatFilter === 'total' ? 'ring-4 ring-blue-300' : ''
   }`}
@@ -914,7 +912,11 @@ if (error && !loading) {
           </div>
           
           <div 
-  onClick={() => setActiveStatFilter(activeStatFilter === 'completed' ? null : 'completed')}
+  onClick={() => {
+  const newFilter = activeStatFilter === 'total' ? null : 'total';
+  setActiveStatFilter(newFilter);
+  if (newFilter) setFilterClosureStatus('completed'); // Reset manual filter when stat filter is active
+}}
   className={`group bg-gradient-to-br from-green-600 to-emerald-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300 cursor-pointer ${
     activeStatFilter === 'completed' ? 'ring-4 ring-green-300' : ''
   }`}
@@ -932,7 +934,11 @@ if (error && !loading) {
           </div>
           
           <div 
-  onClick={() => setActiveStatFilter(activeStatFilter === 'pendingCE' ? null : 'pendingCE')}
+  onClick={() => {
+  const newFilter = activeStatFilter === 'pendingCE' ? null : 'pendingCE';
+  setActiveStatFilter(newFilter);
+  if (newFilter) setFilterClosureStatus('All'); // Reset manual filter when stat filter is active
+}}
   className={`group bg-gradient-to-br from-amber-600 to-orange-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300 cursor-pointer ${
     activeStatFilter === 'pendingCE' ? 'ring-4 ring-amber-300' : ''
   }`}
@@ -950,7 +956,11 @@ if (error && !loading) {
           </div>
           
           <div 
-  onClick={() => setActiveStatFilter(activeStatFilter === 'onHold' ? null : 'onHold')}
+  onClick={() => {
+  const newFilter = activeStatFilter === 'onHold' ? null : 'onHold';
+  setActiveStatFilter(newFilter);
+  if (newFilter) setFilterClosureStatus('All'); // Reset manual filter when stat filter is active
+}}
   className={`group bg-gradient-to-br from-red-600 to-rose-600 rounded-xl shadow-lg p-6 text-white transform hover:scale-105 transition-all duration-300 cursor-pointer ${
     activeStatFilter === 'onHold' ? 'ring-4 ring-red-300' : ''
   }`}
