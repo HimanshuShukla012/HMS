@@ -16,7 +16,8 @@ export interface Handpump {
   PlateformBuild?: number;
   NearByPersonName?: string;
   NearByPersonNo?: string;
-  CreateddateStr: string;
+  CreateddateStr?: string;
+  CreatedDate?: string;
 }
 
 export interface Requisition {

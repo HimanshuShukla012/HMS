@@ -707,12 +707,24 @@ Object.entries(selectedPreDefinedItems).forEach(([itemId, item]) => {
                 {/* Add Custom Item Button */}
                 <div className="mb-6">
                   <button
-                    onClick={() => setShowAddItemModal(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 shadow-md transition-all duration-300"
-                  >
-                    <Plus size={18} />
-                    Add Custom Item
-                  </button>
+  onClick={() => {
+    setShowAddItemModal(true);
+    setNewItem({
+      name: '',
+      unit: '',
+      rate: '',
+      quantity: 1,
+      source: 'CPWD-SOR',
+      length: '',
+      width: '',
+      height: ''
+    });
+  }}
+  className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-semibold rounded-lg hover:from-purple-700 hover:to-indigo-700 shadow-md transition-all duration-300"
+>
+  <Plus size={18} />
+  Add Custom Item
+</button>
                 </div>
 
                 {/* Pre-defined Items Selection in Table Format */}
@@ -961,11 +973,23 @@ if (isSelected && !isHeaderItem) {
                 <div className="flex justify-between items-center">
                   <h4 className="text-xl font-bold">Add Custom Item</h4>
                   <button
-                    onClick={() => setShowAddItemModal(false)}
-                    className="text-white hover:text-red-300 transition-colors"
-                  >
-                    <X size={20} />
-                  </button>
+  onClick={() => {
+    setShowAddItemModal(false);
+    setNewItem({
+      name: '',
+      unit: '',
+      rate: '',
+      quantity: 1,
+      source: 'CPWD-SOR',
+      length: '',
+      width: '',
+      height: ''
+    });
+  }}
+  className="text-white hover:text-red-300 transition-colors"
+>
+  <X size={20} />
+</button>
                 </div>
               </div>
               
@@ -1108,11 +1132,23 @@ if (isSelected && !isHeaderItem) {
                 
                 <div className="flex justify-end gap-3 mt-6">
                   <button
-                    onClick={() => setShowAddItemModal(false)}
-                    className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
+  onClick={() => {
+    setShowAddItemModal(false);
+    setNewItem({
+      name: '',
+      unit: '',
+      rate: '',
+      quantity: 1,
+      source: 'CPWD-SOR',
+      length: '',
+      width: '',
+      height: ''
+    });
+  }}
+  className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300 transition-colors"
+>
+  Cancel
+</button>
                   <button
                     onClick={handleAddItem}
                     className="px-4 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 text-white rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all duration-300 shadow-md flex items-center gap-2"

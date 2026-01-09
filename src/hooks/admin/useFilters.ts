@@ -9,6 +9,7 @@ interface Handpump {
   VillegeName?: string;
   HandpumpStatus?: string;
   CreateddateStr?: string;
+  CreatedDate?: string;
 }
 
 // Helper function to get current financial year
@@ -136,32 +137,33 @@ export const useFilters = (handpumps: Handpump[]) => {
       const gpMatch = !filters.gramPanchayat || hp.GrampanchayatName === filters.gramPanchayat;
       const villageMatch = !filters.village || hp.VillegeName === filters.village;
 
-      // Financial year filter based on handpump geotag date (CreateddateStr)
-      let yearMatch = true;
-      if (hp.CreateddateStr) {
-        const geotagDate = new Date(hp.CreateddateStr);
-        const geotagYear = geotagDate.getFullYear();
-        const geotagMonth = geotagDate.getMonth() + 1; // 1-12
+      // Financial year filter based on handpump geotag date (CreatedDate)
+let yearMatch = true;
+const createdDate = hp.CreateddateStr || hp.CreatedDate;
+if (createdDate) {
+  const geotagDate = new Date(createdDate);
+  const geotagYear = geotagDate.getFullYear();
+  const geotagMonth = geotagDate.getMonth() + 1; // 1-12
 
-        const [startYear, endYear] = filters.financialYear
-          .split('-')
-          .map((y) => parseInt('20' + y));
+  const [startYear, endYear] = filters.financialYear
+    .split('-')
+    .map((y) => parseInt('20' + y));
 
-        // Financial year: April (startYear) to March (endYear)
-        if (geotagMonth >= 4) {
-          yearMatch = geotagYear === startYear;
-        } else {
-          yearMatch = geotagYear === endYear;
-        }
-      }
+  // Financial year: April (startYear) to March (endYear)
+  if (geotagMonth >= 4) {
+    yearMatch = geotagYear === startYear;
+  } else {
+    yearMatch = geotagYear === endYear;
+  }
+}
 
-      // Month filter based on geotag date
-      let monthMatch = true;
-      if (filters.month !== 'All' && hp.CreateddateStr) {
-        const geotagDate = new Date(hp.CreateddateStr);
-        const geotagMonthName = geotagDate.toLocaleString('en-US', { month: 'long' });
-        monthMatch = geotagMonthName === filters.month;
-      }
+// Month filter based on geotag date
+let monthMatch = true;
+if (filters.month !== 'All' && createdDate) {
+  const geotagDate = new Date(createdDate);
+  const geotagMonthName = geotagDate.toLocaleString('en-US', { month: 'long' });
+  monthMatch = geotagMonthName === filters.month;
+}
 
       return districtMatch && blockMatch && gpMatch && villageMatch && yearMatch && monthMatch;
     });

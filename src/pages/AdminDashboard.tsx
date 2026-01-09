@@ -119,7 +119,8 @@ const AdminDashboard = () => {
   // Calculate statistics
   const stats = calculateHandpumpStats(filteredHandpumps, filteredRequisitions, handpumps);
   const districtPerformanceData = calculateDistrictPerformance(filteredHandpumps);
-  const rankings = calculateRankings(handpumps);
+  const rankings = calculateRankings(handpumps, filteredHandpumps);
+
 
   // Handlers
   const handleLogout = () => {
@@ -256,7 +257,7 @@ const AdminDashboard = () => {
           />
         )}
 
-        {activeTab === 'analytics' && <AnalyticsTab stats={stats} handpumps={handpumps} />}
+        {activeTab === 'analytics' && <AnalyticsTab stats={stats} handpumps={filteredHandpumps} />}
       </div>
     </div>
   );

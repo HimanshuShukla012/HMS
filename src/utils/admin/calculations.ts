@@ -70,7 +70,8 @@ export const calculateDistrictPerformance = (filteredHandpumps: Handpump[]) => {
     .slice(0, 8);
 };
 
-export const calculateRankings = (allHandpumps: Handpump[]) => {
+export const calculateRankings = (allHandpumps: Handpump[], filteredHandpumps: Handpump[]) => {
+  // Use allHandpumps (not filteredHandpumps) to show complete rankings for everyone
   // District rankings
   const districtMap: Record<string, { name: string; handpumps: number; active: number }> = {};
   allHandpumps.forEach((hp) => {

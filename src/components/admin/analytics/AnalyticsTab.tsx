@@ -12,7 +12,7 @@ interface AnalyticsTabProps {
   handpumps: Handpump[];
 }
 
-export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, handpumps }) => {
+export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, handpumps: filteredHandpumps }) => {
   return (
     <div className="space-y-6">
       {/* Performance Metrics */}
@@ -56,20 +56,20 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, handpumps }) 
             <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Soakpit Connected</span>
               <span className="text-xl font-bold text-blue-600">
-                {handpumps.filter((hp) => hp.SoakpitConnected === 1).length}
-              </span>
+  {filteredHandpumps.filter((hp) => hp.SoakpitConnected === 1).length}
+</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-green-50 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Drainage Connected</span>
               <span className="text-xl font-bold text-green-600">
-                {handpumps.filter((hp) => hp.DrainageConnected === 1).length}
-              </span>
+  {filteredHandpumps.filter((hp) => hp.DrainageConnected === 1).length}
+</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-purple-50 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Platform Built</span>
               <span className="text-xl font-bold text-purple-600">
-                {handpumps.filter((hp) => hp.PlateformBuild === 1).length}
-              </span>
+  {filteredHandpumps.filter((hp) => hp.PlateformBuild === 1).length}
+</span>
             </div>
             <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
               <span className="text-sm font-medium text-gray-700">Total GPs</span>
@@ -83,9 +83,9 @@ export const AnalyticsTab: React.FC<AnalyticsTabProps> = ({ stats, handpumps }) 
           <h4 className="text-lg font-bold text-gray-800 mb-4">Water Quality Distribution</h4>
           <div className="space-y-3">
             {['Good', 'Average', 'Poor', 'Bad'].map((quality) => {
-              const count = handpumps.filter((hp) => hp.WaterQuality === quality).length;
-              const percentage =
-                stats.totalHandpumps > 0 ? ((count / stats.totalHandpumps) * 100).toFixed(1) : '0';
+  const count = filteredHandpumps.filter((hp) => hp.WaterQuality === quality).length;
+  const percentage =
+    stats.totalHandpumps > 0 ? ((count / stats.totalHandpumps) * 100).toFixed(1) : '0';
               const color =
                 quality === 'Good'
                   ? 'bg-green-500'
