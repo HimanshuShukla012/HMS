@@ -124,8 +124,10 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
 
         if (data && data.Data && Array.isArray(data.Data)) {
           // Transform API data to match component structure
-          const transformedData = data.Data.map(req => ({
+          // Transform API data to match component structure
+const transformedData = data.Data.map(req => ({
     id: `REQ${req.RequisitionId.toString().padStart(3, '0')}`,
+  requisitionId: req.RequisitionId, // ← ADD THIS LINE - Store actual DB ID
   handpumpId: req.HandpumpId || 'N/A',
   mode: (req.RequisitionType || 'Unknown').trim().toUpperCase(),
   date: req.RequisitionDate || new Date().toISOString(),
@@ -167,7 +169,7 @@ const [rowsPerPage, setRowsPerPage] = useState(10);
         const authToken = getAuthToken();
         
         const response = await fetch(
-          `${API_BASE}/HandpumpRequisition/GetRequisitionItemList?RequisitionId=${selectedEstimation.id}&OrderID=${selectedEstimation.orderId}&TypeId=${selectedEstimation.requisitionTypeId}`,
+  `${API_BASE}/HandpumpRequisition/GetRequisitionItemList?RequisitionId=${selectedEstimation.requisitionId}&OrderID=${selectedEstimation.orderId}&TypeId=${selectedEstimation.requisitionTypeId}`,
           {
             headers: {
               'accept': '*/*',
